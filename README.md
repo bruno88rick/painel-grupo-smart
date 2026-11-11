@@ -1,8 +1,23 @@
 # Painel Grupo Smart
 
-Painel visual, privado e mobile-first, para o Bruno ver e aprovar as artes e os posts criados pelos agentes. É a fonte única da verdade em cima dos arquivos que os agentes já mantêm no Google Drive: o painel lê esses arquivos e não copia nada para outro banco.
+Painel visual, privado e mobile-first, para o Bruno ver e aprovar as artes e os posts criados pelos agentes do Grupo Smart (RN Sports, BD 3D, Smart Produtora, Include Systems). É a fonte única da verdade em cima dos arquivos que os agentes já mantêm no Google Drive: o painel lê esses arquivos e não copia nada para outro banco.
 
-Versão 1: módulo **Design** (Agente de Design). Os próximos módulos (Tráfego, Finanças, Investimentos, Suporte RN Sports, Estudos, E-mails) já têm lugar reservado.
+**Status:** v1 publicada em 11/11/2026 como Web App do Google Apps Script, acesso só do dono. Módulo ativo: **Design** (Agente de Design). Próximos módulos já têm lugar reservado.
+
+![Início no celular](docs/screenshots/390-claro-inicio.jpg)
+
+## Sumário
+
+- [Telas](#telas)
+- [Capturas](#capturas)
+- [Arquitetura](#arquitetura)
+- [Decisões e agentes](#decisões-e-agentes)
+- [Testes](#testes)
+- [Como publicar](#como-publicar-primeira-vez)
+- [Como reimplantar](#como-reimplantar-depois-de-uma-mudança)
+- [Como acrescentar um módulo](#como-acrescentar-um-módulo)
+- [Problemas comuns](#problemas-comuns)
+- [Segurança](#segurança)
 
 ## Arquitetura
 
@@ -47,6 +62,28 @@ docs/screenshots/   capturas a 390 px e no desktop
 | manual | `post:manual` no `obs` |
 
 O estado **aprovado** é um acréscimo à lista original: separa o que você já aprovou do que ainda espera você.
+
+## Capturas
+
+| Celular (390 px) | Desktop |
+|---|---|
+| ![Início, tema escuro](docs/screenshots/390-escuro-inicio.jpg) | ![Início, tema escuro](docs/screenshots/desktop-escuro-inicio.jpg) |
+| ![Designs](docs/screenshots/390-claro-designs.jpg) | ![Designs](docs/screenshots/desktop-claro-designs.jpg) |
+| ![Detalhe de um design](docs/screenshots/390-claro-detalhe.jpg) | ![Detalhe de um design](docs/screenshots/desktop-claro-detalhe.jpg) |
+| ![Posts](docs/screenshots/390-claro-posts.jpg) | ![Posts](docs/screenshots/desktop-claro-posts.jpg) |
+| ![Biblioteca e produtos](docs/screenshots/390-claro-biblioteca.jpg) | ![Biblioteca e produtos](docs/screenshots/desktop-claro-biblioteca.jpg) |
+| ![Pedir ajuste](docs/screenshots/390-claro-ajuste.jpg) | ![Depois de decidir](docs/screenshots/desktop-claro-apos-decisao.jpg) |
+| ![Aviso de fonte com erro](docs/screenshots/390-claro-aviso-fonte.jpg) | |
+
+## Decisões e agentes
+
+1. Você toca em **Aprovar** ou **Pedir ajuste** (com comentário) num cartão `entregue`.
+2. O painel acrescenta uma linha em `decisoes.csv`, com `origem=painel` e `processado_em` vazio.
+3. O cartão passa a mostrar "Enviado, aguardando o agente".
+4. Na próxima rotina, o agente do módulo lê as linhas sem `processado_em`, aplica a decisão como aprovo ou refação e preenche `processado_em`.
+5. Na próxima leitura, o item aparece no novo estado (aprovado ou refazer).
+
+`item_id` é o id do pedido em `pedidos-de-arte.csv` (ex.: `P-20261111-02`) ou o id da arte em `Artes.csv` quando não há pedido. Posts usam `post:<id>`.
 
 ## Testes
 
@@ -94,6 +131,14 @@ Planejado: **Posts e anúncios** (ledger do Gestor de Tráfego), **Finanças** (
 ## Fuso horário
 
 O Drive criou o projeto com o fuso da conta. O código não depende disso: `agoraSp_()` usa sempre o horário de São Paulo para comparar as datas dos CSVs.
+
+## Problemas comuns
+
+- **"Não achei o painel-fontes.json"**: o arquivo saiu da pasta ou foi renomeado. Volte o nome para `painel-fontes.json`; o painel o acha pelo nome.
+- **Aviso vermelho numa fonte**: o CSV está ausente ou quebrado (aspas sem fechar, colunas faltando). O resto do painel funciona; corrija o arquivo e toque em **Atualizar agora**.
+- **Miniatura não aparece**: o painel tenta de novo pelo servidor. Se ainda falhar, o cartão mostra "Prévia indisponível" e o link do Drive continua funcionando.
+- **Dados desatualizados**: o cache dura 5 minutos. Use **Atualizar agora**.
+- **Mudei o código e nada mudou**: falta criar uma nova versão da implantação (veja acima).
 
 ## Segurança
 
