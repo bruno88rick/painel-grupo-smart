@@ -207,3 +207,8 @@ test('validarDecisao', () => {
   assert.throws(() => L.validarDecisao(null), /vazia/);
   assert.equal(L.validarDecisao({ modulo: 'design', item_id: 'post:P-1', decisao: 'refazer', comentario: 'trocar foto', snapshot_hash: H }).comentario, 'trocar foto');
 });
+
+test('versão do painel: semver e igual ao package.json', () => {
+  assert.match(L.VERSAO_PAINEL, /^\d+\.\d+\.\d+$/);
+  assert.equal(L.VERSAO_PAINEL, require('../package.json').version);
+});

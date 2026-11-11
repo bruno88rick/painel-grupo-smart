@@ -416,6 +416,8 @@ var PainelLib = (function () {
     return { modulo: d.modulo, item_id: d.item_id, decisao: d.decisao, comentario: c, snapshot_hash: d.snapshot_hash };
   }
 
+  /** Versão exibida no topo do painel. Atualize a cada implantação. */
+  var VERSAO_PAINEL = '1.2.0';
   var POSTS_INTEGRADOS = false;
   var ESTADOS_DECIDIVEIS = { design: ['entregue'], post: ['rascunho', 'aguardando_aprovo'] };
 
@@ -466,6 +468,7 @@ var PainelLib = (function () {
     conferirDecisao: conferirDecisao,
     parseRecibo: parseRecibo,
     sha256: sha256,
+    VERSAO_PAINEL: VERSAO_PAINEL,
     canonicoDesign: canonicoDesign,
     canonicoPost: canonicoPost,
     CABECALHO_DECISOES: CABECALHO_DECISOES,

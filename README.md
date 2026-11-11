@@ -154,7 +154,7 @@ O painel nunca deduz "publicado" pelo relógio. Programado com horário vencido 
 npm test
 ```
 
-21 testes: CSV com BOM, CRLF, aspas e quebra de linha; CSV quebrado; colunas ausentes; leitura dos CSVs reais; marcas `post:`; rascunho `post-*.md`; o modelo das telas; decisões, hash, versão velha, decisão repetida, estado inválido, recibos, cabeçalho antigo e a regra do relógio; e o `Code.gs` com os serviços do Google simulados (cache, fonte quebrada, gravação em `decisoes.csv`).
+22 testes: CSV com BOM, CRLF, aspas e quebra de linha; CSV quebrado; colunas ausentes; leitura dos CSVs reais; marcas `post:`; rascunho `post-*.md`; o modelo das telas; decisões, hash, versão velha, decisão repetida, estado inválido, recibos, cabeçalho antigo e a regra do relógio; a versão do painel; e o `Code.gs` com os serviços do Google simulados (cache, fonte quebrada, gravação em `decisoes.csv`).
 
 Para ver a página localmente com os dados das fixtures:
 
@@ -176,6 +176,8 @@ O projeto já existe no seu Drive: pasta `painel-grupo-smart`, arquivo **Painel 
 6. Copie a URL que termina em `/exec` e salve nos favoritos do celular.
 
 ## Como reimplantar depois de uma mudança
+
+Antes, suba `VERSAO_PAINEL` em `src/Lib.gs` e `version` no `package.json` (o teste confere que são iguais). A versão aparece no topo, ao lado de "Grupo Smart".
 
 1. Atualize os arquivos do projeto (cole o conteúdo de `src/` no editor ou suba de novo pelo Drive).
 2. **Implantar** > **Gerenciar implantações** > lápis na implantação ativa > **Versão: Nova versão** > **Implantar**.
