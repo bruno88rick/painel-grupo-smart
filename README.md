@@ -140,6 +140,10 @@ Nos posts, `legenda`, `hashtags`, `contas` e `horario` vêm do `post-<id>.md` (l
 - Antes de aplicar, o agente confere a versão atual: recalcula o hash ou, no mínimo, compara `versao` e `arte_fileId` com os arquivos. Se mudou, grava `rejeitado` com o motivo e não aplica.
 - Linha sem recibo = pendente. Recibo inválido ou repetido vira aviso no topo do painel.
 
+### Posts: integração pendente
+
+Decisões de post (`post:<id>`) ainda não têm consumidor. A tela não oferece botões de aprovação de post e o servidor recusa qualquer `post:<id>` (`POSTS_INTEGRADOS = false` em `Lib.gs`) até o fluxo do Gestor de Tráfego ficar pronto. Aprovar uma arte nunca autoriza o post.
+
 ### Publicado
 
 O painel nunca deduz "publicado" pelo relógio. Programado com horário vencido e sem `post:<link>` aparece como **Aguardando confirmação** em Início e em Posts, até o agente registrar o link.

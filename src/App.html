@@ -151,7 +151,7 @@
       cont(parados.length, 'Ajustes parados há mais de 2 dias', '#sec-parados', true) + cont(pend.length, 'Decisões aguardando o agente', '#sec-enviadas', false) + '</div>';
     h += '<h2 id="sec-entregues">Artes para aprovar <span class="qtd">' + entregues.length + '</span></h2>' +
       (entregues.length ? '<div class="grade duas">' + entregues.map(function (x) { return cartaoDesign(x, true); }).join('') + '</div>' : '<div class="vazio">Nenhuma arte esperando aprovação.</div>');
-    h += '<h2 id="sec-posts">Posts aguardando você <span class="qtd">' + posts.length + '</span></h2>' +
+    h += '<h2 id="sec-posts">Posts aguardando você <span class="qtd">' + posts.length + '</span></h2>' + '<p class="intro aviso-integracao">Aprovar posts pelo painel ainda não está integrado. Nada aqui publica nem programa post; aprovar uma arte não autoriza o post.</p>' +
       (posts.length ? posts.map(cartaoPost).join('') : '<div class="vazio">Todo rascunho de post já tem destino.</div>');
     if (semConf.length) h += '<h2 id="sec-confirmacao">Horário passou, sem link de confirmação <span class="qtd">' + semConf.length + '</span></h2><p class="intro">O painel não considera publicado só pelo relógio. Falta o agente registrar o link.</p>' + semConf.map(cartaoPost).join('');
     h += '<h2 id="sec-parados">Ajustes parados há mais de 2 dias <span class="qtd">' + parados.length + '</span></h2>' +
@@ -216,7 +216,7 @@
 
   function desenharPosts() {
     var d = estado.dados;
-    var h = '<h1>Posts</h1><p class="intro">Do rascunho à publicação. A legenda vem do arquivo post-*.md dos criativos.</p><div class="linha-tempo">';
+    var h = '<h1>Posts</h1><p class="intro">Do rascunho à publicação. A legenda vem do arquivo post-*.md dos criativos.</p>' + '<p class="intro aviso-integracao">Aprovar posts pelo painel ainda não está integrado. Nada aqui publica nem programa post; aprovar uma arte não autoriza o post.</p>' + '<div class="linha-tempo">';
     ORDEM_POSTS.forEach(function (e) {
       var l = d.posts.filter(function (p) { return p.estado === e; });
       h += '<h2>' + esc(ROTULO_POSTS[e]) + ' <span class="qtd">' + l.length + '</span></h2>' + (l.length ? l.map(cartaoPost).join('') : '<div class="vazio">Nenhum post aqui.</div>');

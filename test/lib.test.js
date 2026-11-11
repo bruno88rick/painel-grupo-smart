@@ -179,7 +179,9 @@ test('conferirDecisao: aceita a versão exibida e rejeita obsoleta, estado errad
   assert.throws(() => L.conferirDecisao(m, { item_id: 'P-20261111-01', snapshot_hash: aprovado.snapshot_hash }), /não aceita/);
   assert.throws(() => L.conferirDecisao(m, { item_id: 'P-99999999-99', snapshot_hash: d.snapshot_hash }), /não existe/);
   const p3 = m.posts.find((x) => x.id === 'P-20261109-03');
-  assert.throws(() => L.conferirDecisao(m, { item_id: 'post:P-20261109-03', snapshot_hash: p3.snapshot_hash }), /não aceita/);
+  assert.throws(() => L.conferirDecisao(m, { item_id: 'post:P-20261109-03', snapshot_hash: p3.snapshot_hash }), /não está integrada/);
+  const pr = m.posts.find((x) => x.estado === 'aguardando_aprovo' || x.estado === 'rascunho');
+  if (pr) assert.throws(() => L.conferirDecisao(m, { item_id: 'post:' + pr.id, snapshot_hash: pr.snapshot_hash }), /não está integrada/);
   const m2 = L.montarModelo(fontesReais(), [{ id: 'D-9', item_id: 'P-20261111-02', snapshot_hash: d.snapshot_hash, decisao: 'aprovar' }], AGORA);
   assert.throws(() => L.conferirDecisao(m2, { item_id: 'P-20261111-02', snapshot_hash: d.snapshot_hash }), /já existe/);
 });

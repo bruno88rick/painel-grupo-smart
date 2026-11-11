@@ -416,6 +416,7 @@ var PainelLib = (function () {
     return { modulo: d.modulo, item_id: d.item_id, decisao: d.decisao, comentario: c, snapshot_hash: d.snapshot_hash };
   }
 
+  var POSTS_INTEGRADOS = false;
   var ESTADOS_DECIDIVEIS = { design: ['entregue'], post: ['rascunho', 'aguardando_aprovo'] };
 
   /**
@@ -425,6 +426,8 @@ var PainelLib = (function () {
    */
   function conferirDecisao(modelo, d) {
     var ehPost = d.item_id.indexOf('post:') === 0;
+    // Posts ainda sem consumidor (fluxo do Tráfego pendente): o painel não grava decisão de post.
+    if (ehPost && !POSTS_INTEGRADOS) throw new Error('decisão de post pelo painel ainda não está integrada (fluxo do Tráfego pendente); nada foi gravado');
     var id = ehPost ? d.item_id.slice(5) : d.item_id;
     var lista = ehPost ? modelo.posts : modelo.designs;
     var item = null;
