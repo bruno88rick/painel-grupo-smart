@@ -168,6 +168,8 @@
     }).join('') + '</div>';
     var proximos = (d.modulos || []).filter(function (m) { return !m.ativo; });
     if (proximos.length) h += '<h2>Próximos módulos</h2><div class="modulos">' + proximos.map(function (m) { return '<div class="modulo"><b>' + esc(m.rotulo) + '</b>' + esc(m.agente || 'em breve') + '</div>'; }).join('') + '</div>';
+    var v = document.querySelector('.topo-versao');
+    if (v) h += '<p class="rodape-versao">Painel Grupo Smart ' + esc(v.textContent) + '</p>';
     $('#aba-inicio').innerHTML = h;
   }
 

@@ -9,6 +9,7 @@ var CACHE_PREFIXO = 'painel_v1_';
 
 function doGet() {
   var t = HtmlService.createTemplateFromFile('Index');
+  t.versao = PainelLib.VERSAO_PAINEL;
   return t.evaluate()
     .setTitle('Painel Grupo Smart')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover')

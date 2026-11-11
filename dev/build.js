@@ -51,7 +51,8 @@ window.google = { script: { get run() {
 </script>`;
 let html = ler('Index')
   .replace("<?!= include('Styles'); ?>", ler('Styles'))
-  .replace("<?!= include('App'); ?>", mock + ler('App'));
+  .replace("<?!= include('App'); ?>", mock + ler('App'))
+  .replace('<?= versao ?>', (fs.readFileSync(path.join(raiz, 'src', 'Lib.gs'), 'utf8').match(/VERSAO_PAINEL = '([^']+)'/) || [, '?'])[1]);
 if (/<\?/.test(html)) throw new Error('sobrou scriptlet');
 const out = path.join(__dirname, 'out');
 fs.mkdirSync(out, { recursive: true });
