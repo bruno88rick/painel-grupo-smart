@@ -101,8 +101,39 @@ function lerRascunhos_(rotulo, folderId, padrao) {
 }
 
 function lerDecisoes_(cfg) {
-  if (!cfg.decisoes || !cfg.decisoes.fileId) return { ok: false, linhas: [], erro: 'decisoes.csv não configurado', rotulo: 'Decisões' };
-  return lerCsv_('Decisões do painel', cfg.decisoes.fileId, ['id', 'item_id', 'decisao']);
+  if (!cfg.decisoes || !cfg.decisoes.fileId) return { ok: false, linhas: [], erro: 'decisoes.csv não configurado', rotulo: 'Decisões do painel' };
+  return lerCsv_('Decisões do painel', cfg.decisoes.fileId, PainelLib.CABECALHO_DECISOES);
+}
+
+/**
+ * Lê os recibos imutáveis dos agentes: recibos/<decision_id>.json.
+ * O agente cria um arquivo por decisão e nunca reescreve. O painel só lê.
+ */
+function lerRecibos_(cfg) {
+  var r = { rotulo: 'Recibos dos agentes', ok: false, mapa: {}, erro: '', avisos: [], atualizado: '' };
+  try {
+    if (!cfg.decisoes || !cfg.decisoes.recibos_folderId) throw new Error('pasta recibos não configurada');
+    var it = DriveApp.getFolderById(cfg.decisoes.recibos_folderId).getFiles();
+    var maisRecente = 0;
+    while (it.hasNext()) {
+      var f = it.next();
+      if (f.isTrashed() || !/^D-[\w-]+\.json$/.test(f.getName())) continue;
+      try {
+        var rec = PainelLib.parseRecibo(f.getBlob().getDataAsString('UTF-8'), f.getName());
+        if (r.mapa[rec.decision_id]) { r.avisos.push('recibo duplicado: ' + f.getName()); continue; }
+        r.mapa[rec.decision_id] = rec;
+      } catch (e) {
+        r.avisos.push(f.getName() + ': ' + (e && e.message || e));
+      }
+      var t = f.getLastUpdated().getTime();
+      if (t > maisRecente) maisRecente = t;
+    }
+    r.ok = true;
+    r.atualizado = maisRecente ? new Date(maisRecente).toISOString() : '';
+  } catch (e) {
+    r.erro = String(e && e.message || e);
+  }
+  return r;
 }
 
 /**
@@ -116,8 +147,8 @@ function agoraSp_() {
 }
 
 /** Monta tudo o que a tela precisa. */
-function montarDados_() {
-  var cfg = lerConfig_();
+function montarDados_(cfgPronta) {
+  var cfg = cfgPronta || lerConfig_();
   var mod = (cfg.modulos || []).filter(function (m) { return m.id === 'design'; })[0];
   if (!mod) throw new Error('O módulo "design" não está no ' + CONFIG_NOME + '.');
   var f = mod.fontes;
@@ -130,16 +161,18 @@ function montarDados_() {
   var checkpoints = lerAba_('Checkpoints (ledger do Design)', f.ledger.folderId, ab.checkpoints, []);
   var rasc = lerRascunhos_(f.criativos.rotulo, f.criativos.folderId, f.criativos.padrao);
   var decisoes = lerDecisoes_(cfg);
+  var recibos = lerRecibos_(cfg);
 
   var modelo = PainelLib.montarModelo(
     { pedidos: pedidos.ok ? pedidos : null, artes: artes.ok ? artes : null, posts: posts.ok ? posts : null, midia: midia.ok ? midia : null, produtos: produtos.ok ? produtos : null, rascunhos: rasc.ok ? rasc.itens : [] },
     decisoes.ok ? decisoes.linhas : [],
     agoraSp_(),
-    { dias_refazer_parado: cfg.dias_refazer_parado || 2 }
+    { dias_refazer_parado: cfg.dias_refazer_parado || 2, recibos: recibos.ok ? recibos.mapa : {} }
   );
 
   modelo.gerado_em = new Date().toISOString();
-  modelo.fontes = [pedidos, artes, posts, midia, produtos, checkpoints, rasc, decisoes].map(function (s) {
+  modelo.decisoes_ok = decisoes.ok && recibos.ok;
+  modelo.fontes = [pedidos, artes, posts, midia, produtos, checkpoints, rasc, decisoes, recibos].map(function (s) {
     return { rotulo: s.rotulo, ok: s.ok, erro: s.erro || '', avisos: (s.avisos || []).slice(0, 3), atualizado: s.atualizado || '' };
   });
   modelo.checkpoints = checkpoints.ok ? checkpoints.linhas : [];
@@ -208,25 +241,38 @@ function obterMiniatura(fileId) {
 
 /* ---------- Decisões: só acrescenta linha em decisoes.csv ---------- */
 
+/**
+ * Grava a decisão do Bruno ligada à versão exata que estava na tela.
+ * 1. Valida o formato (inclui snapshot_hash).
+ * 2. Relê o Drive sem cache e confere item, estado e snapshot_hash (rejeita versão obsoleta).
+ * 3. Acrescenta uma linha. Só este app escreve em decisoes.csv; os agentes respondem com recibos.
+ */
 function salvarDecisao(entrada) {
   var d = PainelLib.validarDecisao(entrada);
-  var cfg = lerConfig_();
-  if (!cfg.decisoes || !cfg.decisoes.fileId) throw new Error('decisoes.csv não configurado no ' + CONFIG_NOME);
-  var lock = LockService.getUserLock();
-  lock.waitLock(20000);
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) throw new Error('outra decisão está sendo gravada; tente de novo');
   try {
+    var cfg = lerConfig_();
+    if (!cfg.decisoes || !cfg.decisoes.fileId) throw new Error('decisoes.csv não configurado no ' + CONFIG_NOME);
+    var modelo = montarDados_(cfg);
+    if (!modelo.decisoes_ok) throw new Error('não consegui ler decisoes.csv ou os recibos; nada foi gravado');
+    var vinculo = PainelLib.conferirDecisao(modelo, d);
+
     var arq = DriveApp.getFileById(cfg.decisoes.fileId);
     var texto = arq.getBlob().getDataAsString('UTF-8');
-    var cab = 'id,quando,modulo,item_id,decisao,comentario,origem,processado_em';
+    var cab = PainelLib.CABECALHO_DECISOES.join(',');
     if (!texto.trim()) texto = cab + '\n';
+    if (texto.replace(/^\ufeff/, '').split(/\r?\n/)[0].trim() !== cab) throw new Error('cabeçalho de decisoes.csv diferente do contrato; nada foi gravado');
+    var antes = PainelLib.csvParaObjetos(texto, PainelLib.CABECALHO_DECISOES).linhas.length;
     if (!/\n$/.test(texto)) texto += '\n';
     var agora = new Date();
-    var id = 'D-' + Utilities.formatDate(agora, 'America/Sao_Paulo', 'yyyyMMdd-HHmmss') + '-' + Math.floor(Math.random() * 900 + 100);
+    var id = 'D-' + Utilities.formatDate(agora, 'America/Sao_Paulo', 'yyyyMMdd-HHmmss') + '-' + Utilities.getUuid().slice(0, 8);
     var quando = Utilities.formatDate(agora, 'America/Sao_Paulo', "yyyy-MM-dd'T'HH:mm:ssXXX");
-    texto += PainelLib.csvLinha([id, quando, d.modulo, d.item_id, d.decisao, d.comentario, 'painel', '']) + '\n';
+    texto += PainelLib.csvLinha([id, quando, d.modulo, d.item_id, vinculo.tipo_item, vinculo.versao, vinculo.arte_fileId, vinculo.snapshot_hash, d.decisao, d.comentario, 'painel']) + '\n';
+    if (PainelLib.csvParaObjetos(texto, PainelLib.CABECALHO_DECISOES).linhas.length !== antes + 1) throw new Error('falha ao montar a nova linha; nada foi gravado');
     arq.setContent(texto);
     cacheLimpar_(CACHE_PREFIXO + 'dados');
-    return { ok: true, id: id, quando: quando };
+    return { ok: true, id: id, quando: quando, versao: vinculo.versao, snapshot_hash: vinculo.snapshot_hash };
   } finally {
     lock.releaseLock();
   }

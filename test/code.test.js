@@ -6,7 +6,7 @@ const src = (n) => fs.readFileSync(path.join(__dirname, '..', 'src', n), 'utf8')
 const fx = (n) => fs.readFileSync(path.join(__dirname, 'fixtures', n), 'utf8');
 
 function ambiente(arquivos) {
-  const props = {}, cache = {};
+  const props = {}, cache = {}; let uuid = 0;
   const arquivo = (id) => {
     const a = arquivos[id]; if (!a) throw new Error('Arquivo não encontrado: ' + id);
     return { getId: () => id, getName: () => a.nome, isTrashed: () => false, getLastUpdated: () => new Date('2026-11-11T12:00:00Z'),
@@ -24,8 +24,8 @@ function ambiente(arquivos) {
       })
     },
     CacheService: { getUserCache: () => ({ get: (k) => cache[k] || null, getAll: (ks) => { const o = {}; ks.forEach((k) => { if (k in cache) o[k] = cache[k]; }); return o; }, putAll: (o) => Object.assign(cache, o), put: (k, v) => { cache[k] = v; }, remove: (k) => { delete cache[k]; } }) },
-    LockService: { getUserLock: () => ({ waitLock: () => {}, releaseLock: () => {} }) },
-    Utilities: { formatDate: (d, tz, f) => f === 'yyyy-MM-dd HH:mm:ss' ? '2026-11-11 15:00:00' : f.indexOf('yyyy-MM-dd') === 0 ? '2026-11-11T15:00:00-03:00' : '20261111-150000' }
+    LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => {} }) },
+    Utilities: { formatDate: (d, tz, f) => f === 'yyyy-MM-dd HH:mm:ss' ? '2026-11-11 15:00:00' : f.indexOf('yyyy-MM-dd') === 0 ? '2026-11-11T15:00:00-03:00' : '20261111-150000', getUuid: () => 'abcdef12-0000-4000-8000-' + String(++uuid).padStart(12, '0') }
   };
   const m = { exports: {} };
   const nomes = Object.keys(g);
@@ -35,13 +35,13 @@ function ambiente(arquivos) {
 
 function arquivosBase(cfgExtra) {
   const cfg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'config', 'painel-fontes.example.json'), 'utf8'));
-  cfg.decisoes.fileId = 'DEC';
+  cfg.decisoes.fileId = 'DEC'; cfg.decisoes.recibos_folderId = 'RECIBOS';
   const d = cfg.modulos[0].fontes;
   d.pedidos.fileId = 'PED'; d.produtos.fileId = 'PROD'; d.ledger.folderId = 'LEDGER'; d.criativos.folderId = 'CRIAT';
   Object.assign(cfg, cfgExtra || {});
   return {
     CFG: { nome: 'painel-fontes.json', texto: JSON.stringify(cfg) },
-    DEC: { nome: 'decisoes.csv', texto: 'id,quando,modulo,item_id,decisao,comentario,origem,processado_em\n' },
+    DEC: { nome: 'decisoes.csv', texto: 'id,quando,modulo,item_id,tipo_item,versao,arte_fileId,snapshot_hash,decisao,comentario,origem\n' },
     PED: { nome: 'pedidos-de-arte.csv', texto: fx('pedidos-de-arte.csv') },
     PROD: { nome: 'produtos.csv', texto: fx('produtos.csv') },
     A: { nome: 'Artes.csv', pasta: 'LEDGER', texto: fx('Artes.csv') },
@@ -82,19 +82,60 @@ test('CSV quebrado ou ausente vira aviso e o resto funciona', () => {
   assert.deepEqual(d.midia, []);
 });
 
-test('salvarDecisao só acrescenta uma linha em decisoes.csv e limpa o cache', () => {
+test('salvarDecisao grava a versão exibida, só acrescenta e rejeita snapshot obsoleto', () => {
   const e = ambiente(arquivosBase());
-  e.obterDados(false);
-  const r = e.salvarDecisao({ modulo: 'design', item_id: 'P-20261111-03', decisao: 'refazer', comentario: 'Trocar a foto, "maior"' });
+  const d = e.obterDados(false);
+  const item = d.designs.find((x) => x.id === 'P-20261111-03');
+  const r = e.salvarDecisao({ modulo: 'design', item_id: 'P-20261111-03', decisao: 'refazer', comentario: 'Trocar a foto, "maior"', snapshot_hash: item.snapshot_hash });
   assert.equal(r.ok, true);
+  assert.match(r.id, /^D-20261111-150000-abcdef12$/);
   const linhas = e.PainelLib.csvParaObjetos(e.arquivos.DEC.texto).linhas;
   assert.equal(linhas.length, 1);
   assert.equal(linhas[0].comentario, 'Trocar a foto, "maior"');
   assert.equal(linhas[0].origem, 'painel');
-  assert.equal(linhas[0].processado_em, '');
-  const d = e.obterDados(false);
-  assert.equal(d.do_cache, false);
-  assert.equal(d.designs.find((x) => x.id === 'P-20261111-03').decisao_pendente.decisao, 'refazer');
-  assert.throws(() => e.salvarDecisao({ modulo: 'design', item_id: 'P-1', decisao: 'refazer', comentario: '' }), /comentário/);
+  assert.equal(linhas[0].tipo_item, 'design');
+  assert.equal(linhas[0].versao, item.versao);
+  assert.equal(linhas[0].arte_fileId, item.arte_fileId);
+  assert.equal(linhas[0].snapshot_hash, item.snapshot_hash);
+  // repetida para a mesma versão
+  assert.throws(() => e.salvarDecisao({ modulo: 'design', item_id: 'P-20261111-03', decisao: 'aprovar', snapshot_hash: item.snapshot_hash }), /já existe/);
+  // o agente troca a arte do 02 depois que a tela carregou: snapshot antigo é recusado
+  const item02 = d.designs.find((x) => x.id === 'P-20261111-02');
+  e.arquivos.A.texto = e.arquivos.A.texto.replace(item02.arte_fileId, 'NOVA_ARTE_v2_0000000');
+  assert.throws(() => e.salvarDecisao({ modulo: 'design', item_id: 'P-20261111-02', decisao: 'aprovar', snapshot_hash: item02.snapshot_hash }), /mudou/);
+  // item que não aceita decisão
+  const ap = d.designs.find((x) => x.id === 'P-20261111-01');
+  assert.throws(() => e.salvarDecisao({ modulo: 'design', item_id: 'P-20261111-01', decisao: 'aprovar', snapshot_hash: ap.snapshot_hash }), /não aceita/);
   assert.equal(e.PainelLib.csvParaObjetos(e.arquivos.DEC.texto).linhas.length, 1);
+  const depois = e.obterDados(false);
+  assert.equal(depois.do_cache, false);
+  assert.equal(depois.designs.find((x) => x.id === 'P-20261111-03').decisao_pendente.versao, item.versao);
+});
+
+test('recibo imutável do agente encerra a pendência; recibo inválido vira aviso', () => {
+  const a = arquivosBase();
+  const e = ambiente(a);
+  const d = e.obterDados(true);
+  const item = d.designs.find((x) => x.id === 'P-20261111-02');
+  const r = e.salvarDecisao({ modulo: 'design', item_id: 'P-20261111-02', decisao: 'aprovar', snapshot_hash: item.snapshot_hash });
+  assert.equal(e.obterDados(true).inicio.decisoes_pendentes.length, 1);
+  a.REC1 = { nome: r.id + '.json', pasta: 'RECIBOS', texto: JSON.stringify({ decision_id: r.id, resultado: 'aplicado', processado_em: '2026-11-11T16:00:00-03:00', agente: 'Agente de Design', snapshot_hash: item.snapshot_hash }) };
+  a.REC2 = { nome: 'D-lixo.json', pasta: 'RECIBOS', texto: '{quebrado' };
+  const d2 = e.obterDados(true);
+  assert.equal(d2.inicio.decisoes_pendentes.length, 0);
+  const fr = d2.fontes.find((f) => f.rotulo === 'Recibos dos agentes');
+  assert.equal(fr.ok, true);
+  assert.match(fr.avisos[0], /D-lixo\.json/);
+  // o CSV de entrada não foi tocado pelo recibo
+  assert.equal(e.PainelLib.csvParaObjetos(a.DEC.texto).linhas.length, 1);
+});
+
+test('cabeçalho antigo de decisoes.csv: nada é gravado', () => {
+  const a = arquivosBase();
+  a.DEC.texto = 'id,quando,modulo,item_id,decisao,comentario,origem,processado_em\n';
+  const e = ambiente(a);
+  const d = e.obterDados(true);
+  const item = d.designs.find((x) => x.id === 'P-20261111-02');
+  assert.throws(() => e.salvarDecisao({ modulo: 'design', item_id: 'P-20261111-02', decisao: 'aprovar', snapshot_hash: item.snapshot_hash }), /decisoes\.csv|recibos/);
+  assert.equal(a.DEC.texto, 'id,quando,modulo,item_id,decisao,comentario,origem,processado_em\n');
 });
