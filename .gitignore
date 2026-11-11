@@ -1,0 +1,8 @@
+dev/raw/
+dev/img/
+dev/out/
+dev/shots/
+dev/gws.err
+node_modules/
+.env
+*.pem
