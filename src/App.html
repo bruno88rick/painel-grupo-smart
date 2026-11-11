@@ -1,0 +1,343 @@
+<script>
+(function () {
+  'use strict';
+
+  var ESTADOS = {
+    novo: 'Novo', em_criacao: 'Em criação', entregue: 'Entregue', aprovado: 'Aprovado', refazer: 'Refazer',
+    aguardando_canva: 'Aguardando Canva', cancelado: 'Cancelado',
+    rascunho: 'Rascunho', aguardando_aprovo: 'Aguardando aprovo', programado: 'Programado', publicado: 'Publicado', manual: 'Manual'
+  };
+  var ORDEM_POSTS = ['rascunho', 'aguardando_aprovo', 'aprovado', 'programado', 'publicado', 'manual'];
+  var ROTULO_POSTS = { rascunho: 'Rascunho', aguardando_aprovo: 'Aguardando seu aprovo', aprovado: 'Aprovado, a programar', programado: 'Programado', publicado: 'Publicado', manual: 'Manual' };
+
+  var estado = { dados: null, aba: 'inicio', filtro: { empresa: '', estado: '', tipo: '', busca: '' }, ajuste: null };
+
+  /* ---------- utilidades ---------- */
+  function $(s, el) { return (el || document).querySelector(s); }
+  function esc(s) { return String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function selo(e, texto) { return '<span class="selo s-' + esc(e) + '">' + esc(texto || ESTADOS[e] || e) + '</span>'; }
+  function dataBr(s) {
+    if (!s) return '';
+    var m = String(s).match(/(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/);
+    if (!m) return esc(s);
+    return m[3] + '/' + m[2] + (m[4] ? ' ' + m[4] + ':' + m[5] : '');
+  }
+  function quandoRel(iso) {
+    if (!iso) return 'sem data';
+    var d = new Date(iso); if (isNaN(d)) return esc(iso);
+    var min = Math.round((Date.now() - d.getTime()) / 60000);
+    if (min < 1) return 'agora';
+    if (min < 60) return 'há ' + min + ' min';
+    var h = Math.round(min / 60); if (h < 24) return 'há ' + h + ' h';
+    var dias = Math.round(h / 24); return 'há ' + dias + (dias === 1 ? ' dia' : ' dias');
+  }
+  function urlDrive(id) { return 'https://drive.google.com/file/d/' + encodeURIComponent(id) + '/view'; }
+  function urlPasta(id) { return 'https://drive.google.com/drive/folders/' + encodeURIComponent(id); }
+  function urlCanva(id) { return 'https://www.canva.com/design/' + encodeURIComponent(id) + '/edit'; }
+  function urlThumb(id, tam) {
+    if (window.PAINEL_THUMB) return window.PAINEL_THUMB(id);
+    return 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(id) + '&sz=w' + (tam || 1000);
+  }
+  function toast(msg) {
+    var t = $('#toast'); t.textContent = msg; t.hidden = false;
+    clearTimeout(toast._t); toast._t = setTimeout(function () { t.hidden = true; }, 3200);
+  }
+  function chamar(fn) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function (ok, falha) {
+      var r = google.script.run.withSuccessHandler(ok).withFailureHandler(function (e) { falha(e && e.message ? e : new Error(String(e))); });
+      r[fn].apply(r, args);
+    });
+  }
+
+  /* ---------- miniaturas com plano B ---------- */
+  function miniatura(id, opc) {
+    opc = opc || {};
+    if (!id) return '<div class="miniatura"><div class="sem-img">Sem arte ainda</div>' + (opc.extra || '') + '</div>';
+    return '<div class="miniatura"><img class="carregando" loading="lazy" decoding="async" alt="' + esc(opc.alt || 'Arte') + '" data-thumb="' + esc(id) + '" src="' + esc(urlThumb(id, opc.tam)) + '">' +
+      (opc.video ? '<span class="play"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>Vídeo</span>' : '') + (opc.extra || '') + '</div>';
+  }
+  function ligarImagens(raiz) {
+    Array.prototype.forEach.call((raiz || document).querySelectorAll('img[data-thumb]:not([data-ligada])'), function (img) {
+      img.setAttribute('data-ligada', '1');
+      img.addEventListener('load', function () { img.classList.remove('carregando'); });
+      img.addEventListener('error', function () {
+        if (img.getAttribute('data-planob')) { trocarPorAviso(img); return; }
+        img.setAttribute('data-planob', '1');
+        if (!window.google || !google.script) { trocarPorAviso(img); return; }
+        chamar('obterMiniatura', img.getAttribute('data-thumb')).then(function (u) { if (u) img.src = u; else trocarPorAviso(img); }).catch(function () { trocarPorAviso(img); });
+      });
+      if (img.complete && img.naturalWidth) img.classList.remove('carregando');
+    });
+  }
+  function trocarPorAviso(img) {
+    var d = document.createElement('div'); d.className = 'sem-img'; d.textContent = 'Prévia indisponível. Abra no Drive.';
+    img.replaceWith(d);
+  }
+
+  /* ---------- carregar ---------- */
+  function carregar(forcar) {
+    var b = $('#btn-atualizar'); b.disabled = true; b.classList.add('girando');
+    $('#status-atualizacao').textContent = forcar ? 'Atualizando…' : 'Carregando…';
+    if (!estado.dados) mostrarEsqueleto();
+    return chamar('obterDados', !!forcar).then(function (d) {
+      estado.dados = d;
+      $('#status-atualizacao').textContent = 'Atualizado ' + quandoRel(d.gerado_em) + (d.do_cache ? ' (cache de 5 min)' : '');
+      desenhar();
+      if (forcar) toast('Dados atualizados do Drive');
+    }).catch(function (e) {
+      $('#status-atualizacao').textContent = 'Erro ao carregar';
+      $('#avisos').innerHTML = '<div class="aviso">Não consegui ler o Drive: ' + esc(e.message) + '</div>';
+      if (!estado.dados) $('#aba-inicio').innerHTML = '';
+    }).then(function () { b.disabled = false; b.classList.remove('girando'); });
+  }
+  function mostrarEsqueleto() {
+    var h = '<div class="esqueleto" style="height:34px;width:60%;margin-bottom:16px"></div><div class="contadores">';
+    for (var i = 0; i < 4; i++) h += '<div class="esqueleto" style="height:84px"></div>';
+    h += '</div><div class="grade" style="margin-top:24px">';
+    for (var j = 0; j < 3; j++) h += '<div class="esqueleto" style="aspect-ratio:4/5"></div>';
+    $('#aba-inicio').innerHTML = h + '</div>';
+  }
+
+  function porId(lista, id) { for (var i = 0; i < lista.length; i++) if (lista[i].id === id) return lista[i]; return null; }
+
+  /* ---------- desenhar ---------- */
+  function desenhar() {
+    var d = estado.dados; if (!d) return;
+    var falhas = d.fontes.filter(function (f) { return !f.ok; });
+    var avisosLinhas = d.fontes.filter(function (f) { return f.ok && f.avisos && f.avisos.length; });
+    $('#avisos').innerHTML = falhas.map(function (f) { return '<div class="aviso"><span><b>' + esc(f.rotulo) + ':</b> ' + esc(f.erro) + '. O resto do painel segue.</span></div>'; }).join('') +
+      avisosLinhas.map(function (f) { return '<div class="aviso leve"><span><b>' + esc(f.rotulo) + ':</b> ' + esc(f.avisos[0]) + '</span></div>'; }).join('');
+    var n = d.inicio.artes_entregues.length + d.inicio.posts_pendentes.length + d.inicio.refazer_parados.length;
+    var c = $('#nav-cont-inicio'); c.hidden = !n; c.textContent = n;
+    desenharInicio(); desenharDesigns(); desenharPosts(); desenharBiblioteca();
+    ligarImagens();
+  }
+
+  function cartaoDesign(x, compacto) {
+    var pend = x.decisao_pendente;
+    var acoes = '';
+    if (pend) acoes = '<div class="enviado">Enviado: ' + (pend.decisao === 'aprovar' ? 'aprovar' : 'ajuste') + '. Aguardando o agente.</div>';
+    else if (x.estado === 'entregue') acoes = '<div class="cartao-acoes"><button class="botao botao-primario" data-aprovar="' + esc(x.id) + '">Aprovar</button><button class="botao" data-ajuste="' + esc(x.id) + '">Pedir ajuste</button></div>';
+    var titulo = x.tipo || x.id;
+    return '<article class="cartao"><button class="cartao-abrir" data-abrir="' + esc(x.id) + '" aria-label="Abrir ' + esc(titulo) + '">' +
+      miniatura(x.arte_fileId, { video: x.video, alt: titulo, extra: selo(x.estado) }) +
+      '<div class="cartao-corpo"><div class="cartao-empresa">' + esc(x.empresa) + '</div><div class="cartao-titulo">' + esc(titulo) + '</div>' +
+      '<div class="cartao-meta">' + esc(x.formato) + (x.versao ? ' · v' + esc(x.versao) : '') + (x.entregue_em ? ' · entregue ' + dataBr(x.entregue_em) : '') + '</div>' +
+      (!compacto && x.briefing ? '<div class="cartao-briefing">' + esc(x.briefing) + '</div>' : '') +
+      '</div></button>' + acoes + '</article>';
+  }
+
+  function desenharInicio() {
+    var d = estado.dados, ini = d.inicio;
+    var entregues = ini.artes_entregues.map(function (id) { return porId(d.designs, id); }).filter(Boolean);
+    var posts = ini.posts_pendentes.map(function (id) { return porId(d.posts, id); }).filter(Boolean);
+    var parados = ini.refazer_parados.map(function (id) { return porId(d.designs, id); }).filter(Boolean);
+    var pend = ini.decisoes_pendentes || [];
+    var total = entregues.length + posts.length + parados.length;
+    function cont(num, rot, alvo, destaque) { return '<button class="contador-card' + (num ? (destaque ? ' destaque' : '') : ' zero') + '" data-ir="' + alvo + '"><div class="num">' + num + '</div><div class="rot">' + rot + '</div></button>'; }
+    var h = '<h1>' + (total ? (total === 1 ? '1 item precisa de você' : total + ' itens precisam de você') : 'Nada precisa de você agora') + '</h1>' +
+      '<p class="intro">Artes para aprovar, posts sem publicação e ajustes parados. Os dados vêm direto do Drive dos agentes.</p>' +
+      '<div class="contadores">' + cont(entregues.length, 'Artes para aprovar', '#sec-entregues', true) + cont(posts.length, 'Posts aguardando você', '#sec-posts', true) +
+      cont(parados.length, 'Ajustes parados há mais de 2 dias', '#sec-parados', true) + cont(pend.length, 'Decisões aguardando o agente', '#sec-enviadas', false) + '</div>';
+    h += '<h2 id="sec-entregues">Artes para aprovar <span class="qtd">' + entregues.length + '</span></h2>' +
+      (entregues.length ? '<div class="grade duas">' + entregues.map(function (x) { return cartaoDesign(x, true); }).join('') + '</div>' : '<div class="vazio">Nenhuma arte esperando aprovação.</div>');
+    h += '<h2 id="sec-posts">Posts aguardando você <span class="qtd">' + posts.length + '</span></h2>' +
+      (posts.length ? posts.map(cartaoPost).join('') : '<div class="vazio">Todo rascunho de post já tem destino.</div>');
+    h += '<h2 id="sec-parados">Ajustes parados há mais de 2 dias <span class="qtd">' + parados.length + '</span></h2>' +
+      (parados.length ? '<div class="grade duas">' + parados.map(function (x) { return cartaoDesign(x, true); }).join('') + '</div>' : '<div class="vazio">Nenhum ajuste parado.</div>');
+    h += '<h2 id="sec-enviadas">Enviado, aguardando o agente <span class="qtd">' + pend.length + '</span></h2>' +
+      (pend.length ? '<div class="fontes">' + pend.map(function (p) {
+        return '<div class="fonte"><span>' + selo(p.decisao === 'aprovar' ? 'aprovado' : 'refazer', p.decisao === 'aprovar' ? 'Aprovar' : 'Ajuste') + ' &nbsp;<b>' + esc(p.item_id) + '</b>' + (p.comentario ? '<br><span class="mudo">' + esc(p.comentario) + '</span>' : '') + '</span><span class="quando">' + dataBr(p.quando) + '</span></div>';
+      }).join('') + '</div>' : '<div class="vazio">Nenhuma decisão esperando processamento.</div>');
+    h += '<h2>Última atualização de cada fonte</h2><div class="fontes">' + d.fontes.map(function (f) {
+      return '<div class="fonte"><span>' + esc(f.rotulo) + (f.ok ? '' : '<br><span class="erro">' + esc(f.erro) + '</span>') + '</span><span class="quando">' + (f.ok ? quandoRel(f.atualizado) : 'com erro') + '</span></div>';
+    }).join('') + '</div>';
+    var proximos = (d.modulos || []).filter(function (m) { return !m.ativo; });
+    if (proximos.length) h += '<h2>Próximos módulos</h2><div class="modulos">' + proximos.map(function (m) { return '<div class="modulo"><b>' + esc(m.rotulo) + '</b>' + esc(m.agente || 'em breve') + '</div>'; }).join('') + '</div>';
+    $('#aba-inicio').innerHTML = h;
+  }
+
+  function desenharDesigns() {
+    var d = estado.dados, f = estado.filtro;
+    var lista = d.designs.filter(function (x) {
+      if (f.empresa && x.empresa !== f.empresa) return false;
+      if (f.estado && x.estado !== f.estado) return false;
+      if (f.tipo && x.tipo !== f.tipo) return false;
+      if (f.busca) { var alvo = (x.id + ' ' + x.empresa + ' ' + x.tipo + ' ' + x.briefing + ' ' + x.formato).toLowerCase(); if (alvo.indexOf(f.busca.toLowerCase()) < 0) return false; }
+      return true;
+    });
+    var estadosUsados = []; d.designs.forEach(function (x) { if (estadosUsados.indexOf(x.estado) < 0) estadosUsados.push(x.estado); });
+    var opc = function (lista, sel, todos) { return '<option value="">' + todos + '</option>' + lista.map(function (v) { return '<option' + (v === sel ? ' selected' : '') + '>' + esc(v) + '</option>'; }).join(''); };
+    var h = '<h1>Designs</h1><p class="intro">' + d.designs.length + ' artes dos agentes. Toque num cartão para ver versões, refações e links.</p>' +
+      '<div class="filtros"><input type="search" id="f-busca" placeholder="Buscar por briefing, tipo, id" value="' + esc(f.busca) + '" aria-label="Buscar">' +
+      '<select id="f-empresa" aria-label="Empresa">' + opc(d.empresas, f.empresa, 'Todas as empresas') + '</select>' +
+      '<select id="f-tipo" aria-label="Tipo">' + opc(d.tipos, f.tipo, 'Todos os tipos') + '</select>' +
+      '<div class="chips" role="group" aria-label="Estado"><button class="chip" data-estado="" aria-pressed="' + (!f.estado) + '">Todos</button>' +
+      estadosUsados.map(function (e) { var n = d.designs.filter(function (x) { return x.estado === e; }).length; return '<button class="chip" data-estado="' + esc(e) + '" aria-pressed="' + (f.estado === e) + '">' + esc(ESTADOS[e] || e) + ' ' + n + '</button>'; }).join('') + '</div></div>';
+    h += lista.length ? '<div class="grade">' + lista.map(function (x) { return cartaoDesign(x, false); }).join('') + '</div>' : '<div class="vazio">Nada com esses filtros.</div>';
+    var foco = document.activeElement && document.activeElement.id === 'f-busca';
+    $('#aba-designs').innerHTML = h;
+    if (foco) { var i = $('#f-busca'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
+    ligarImagens($('#aba-designs'));
+  }
+
+  function cartaoPost(p) {
+    var publicado = p.marcas.filter(function (m) { return m.link; })[0];
+    var prog = p.marcas.filter(function (m) { return m.tipo === 'programado'; })[0];
+    var info = [];
+    if (p.contas) info.push('Contas: ' + p.contas.replace(/\s*\(.*?\)/g, '').slice(0, 90));
+    if (prog) info.push('Programado: ' + dataBr(prog.quando) + (prog.formato ? ' (' + prog.formato + ')' : ''));
+    else if (p.horario) info.push('Horário: ' + p.horario.slice(0, 70));
+    return '<button class="post" data-post="' + esc(p.id) + '">' + miniatura(p.arte_fileId, { video: p.video, tam: 400, alt: p.titulo }) +
+      '<div><div class="cartao-empresa">' + esc(p.empresa) + ' · ' + esc(p.id) + '</div><div class="cartao-titulo">' + esc(p.titulo) + '</div>' +
+      '<div style="margin-top:4px">' + selo(p.estado, ROTULO_POSTS[p.estado]) + (publicado ? ' <span class="post-info">com link publicado</span>' : '') + '</div>' +
+      (p.legenda ? '<div class="post-legenda">' + esc(p.legenda) + '</div>' : '<div class="post-legenda">Sem legenda no rascunho.</div>') +
+      '<div class="post-info">' + info.map(esc).join(' · ') + '</div></div></button>';
+  }
+
+  function desenharPosts() {
+    var d = estado.dados;
+    var h = '<h1>Posts</h1><p class="intro">Do rascunho à publicação. A legenda vem do arquivo post-*.md dos criativos.</p><div class="linha-tempo">';
+    ORDEM_POSTS.forEach(function (e) {
+      var l = d.posts.filter(function (p) { return p.estado === e; });
+      h += '<h2>' + esc(ROTULO_POSTS[e]) + ' <span class="qtd">' + l.length + '</span></h2>' + (l.length ? l.map(cartaoPost).join('') : '<div class="vazio">Nenhum post aqui.</div>');
+    });
+    $('#aba-posts').innerHTML = h + '</div>';
+  }
+
+  function desenharBiblioteca() {
+    var d = estado.dados;
+    var porEmp = {};
+    d.midia.forEach(function (m) { (porEmp[m.empresa] = porEmp[m.empresa] || []).push(m); });
+    var h = '<h1>Biblioteca e produtos</h1><p class="intro">Fotos e vídeos que os agentes usam, por empresa, e o catálogo de produtos.</p>';
+    var emps = Object.keys(porEmp).sort();
+    if (!emps.length) h += '<div class="vazio">Nenhuma mídia registrada ainda.</div>';
+    emps.forEach(function (emp) {
+      h += '<h2>' + esc(emp) + ' <span class="qtd">' + porEmp[emp].length + ' arquivos</span></h2><div class="midia-grade">' + porEmp[emp].map(function (m) {
+        var extra = (m.ia ? '<span class="tag-ia">IA</span>' : '') + (m.usado_em ? '<span class="tag-uso">em uso</span>' : '');
+        return '<a class="midia" href="' + esc(urlDrive(m.fileId)) + '" target="_blank" rel="noopener">' + miniatura(m.fileId, { tam: 400, alt: m.descricao, extra: extra }) + '<div class="midia-desc" title="' + esc(m.descricao) + '">' + esc(String(m.descricao || '').split('; ').slice(1).join('; ') || m.descricao) + '</div></a>';
+      }).join('') + '</div>';
+    });
+    h += '<h2>Produtos <span class="qtd">' + d.produtos.length + '</span></h2>';
+    h += d.produtos.length ? '<div class="grade">' + d.produtos.map(function (p) {
+      return '<div class="produto"><div><div class="cartao-empresa">' + esc(p.empresa) + ' · ' + esc(p.id) + '</div><div class="cartao-titulo">' + esc(p.produto) + '</div></div><div class="preco">' + esc(p.preco) + '</div>' +
+        '<div class="cartao-meta" style="grid-column:1/-1">' + esc(p.venda) + (p.colecao ? ' · ' + esc(p.colecao) : '') + ' · ' + esc(p.status) + '</div>' +
+        '<div class="cartao-briefing" style="grid-column:1/-1;-webkit-line-clamp:4">' + esc(p.descricao) + '</div>' +
+        (p.pasta_midia ? '<div style="grid-column:1/-1"><a href="' + esc(urlPasta(p.pasta_midia)) + '" target="_blank" rel="noopener">Abrir fotos no Drive</a></div>' : '') + '</div>';
+    }).join('') + '</div>' : '<div class="vazio">Catálogo vazio.</div>';
+    $('#aba-biblioteca').innerHTML = h;
+  }
+
+  /* ---------- detalhes ---------- */
+  function abrirFolha(html) {
+    $('#folha-conteudo').innerHTML = html; $('#folha').hidden = false; document.body.style.overflow = 'hidden';
+    ligarImagens($('#folha')); setTimeout(function () { $('#folha .folha-fechar').focus(); }, 30);
+  }
+  function fecharFolhas() { $('#folha').hidden = true; $('#dialogo-ajuste').hidden = true; document.body.style.overflow = ''; }
+
+  function abrirDesign(id, versaoSel) {
+    var x = porId(estado.dados.designs, id); if (!x) return;
+    var v = x.versoes.filter(function (v) { return v.versao === versaoSel; })[0] || x.versoes[x.versoes.length - 1] || { arte_fileId: x.arte_fileId };
+    var acoes = x.decisao_pendente ? '<div class="enviado" style="margin:12px 0 0">Enviado: ' + (x.decisao_pendente.decisao === 'aprovar' ? 'aprovar' : 'ajuste') + '. Aguardando o agente.</div>' :
+      (x.estado === 'entregue' ? '<div class="linha-botoes" style="justify-content:flex-start"><button class="botao botao-primario" data-aprovar="' + esc(x.id) + '">Aprovar</button><button class="botao" data-ajuste="' + esc(x.id) + '">Pedir ajuste</button></div>' : '');
+    var h = '<div class="detalhe"><div>' + miniatura(v.arte_fileId, { video: x.video, alt: x.tipo }) +
+      (x.versoes.length > 1 ? '<p class="mudo" style="margin:12px 0 6px;font-size:var(--text-xs)">Versões</p><div class="versoes">' + x.versoes.map(function (vv) {
+        return '<button class="versao" data-versao="' + esc(vv.versao) + '" data-design="' + esc(x.id) + '" aria-pressed="' + (vv.versao === v.versao) + '">' + miniatura(vv.arte_fileId, { tam: 200, alt: 'Versão ' + vv.versao }) + 'v' + esc(vv.versao) + '</button>';
+      }).join('') + '</div>' : '') + '</div><div>' +
+      '<div class="cartao-empresa">' + esc(x.empresa) + ' · ' + esc(x.id) + '</div><h1 id="folha-titulo">' + esc(x.tipo || x.id) + '</h1>' + selo(x.estado) +
+      '<dl><dt>Formato</dt><dd>' + esc(x.formato) + '</dd><dt>Versão</dt><dd>v' + esc(v.versao || x.versao) + ' de ' + (x.versoes.length || 1) + '</dd>' +
+      (x.quem_pediu ? '<dt>Pedido por</dt><dd>' + esc(x.quem_pediu) + (x.pedido_em ? ' em ' + dataBr(x.pedido_em) : '') + '</dd>' : '') +
+      (x.prazo ? '<dt>Prazo</dt><dd>' + dataBr(x.prazo) + '</dd>' : '') +
+      (x.entregue_em ? '<dt>Entregue</dt><dd>' + dataBr(x.entregue_em) + '</dd>' : '') +
+      (x.aprovado_em ? '<dt>Aprovado</dt><dd>' + dataBr(x.aprovado_em) + '</dd>' : '') + '</dl>' +
+      (x.briefing ? '<p class="mudo" style="margin:0 0 4px;font-size:var(--text-xs)">Briefing</p><div class="bloco-texto">' + esc(x.briefing) + '</div>' : '') +
+      (x.refacoes.length ? '<p class="mudo" style="margin:14px 0 6px;font-size:var(--text-xs)">Histórico de refação</p><ul class="historico">' + x.refacoes.map(function (r) { return '<li><b>v' + esc(r.versao) + ':</b> ' + esc(r.texto) + '</li>'; }).join('') + '</ul>' : '') +
+      (x.obs ? '<p class="mudo" style="margin:14px 0 4px;font-size:var(--text-xs)">Observações</p><div class="bloco-texto">' + esc(x.obs) + '</div>' : '') +
+      '<div class="links">' + (v.arte_fileId ? '<a class="botao" href="' + esc(urlDrive(v.arte_fileId)) + '" target="_blank" rel="noopener">' + (x.video ? 'Assistir no Drive' : 'Abrir no Drive') + '</a>' : '') +
+      ((v.canva_design_id || x.canva_design_id) ? '<a class="botao" href="' + esc(urlCanva(v.canva_design_id || x.canva_design_id)) + '" target="_blank" rel="noopener">Abrir no Canva</a>' : '') + '</div>' +
+      acoes + '</div></div>';
+    abrirFolha(h);
+  }
+
+  function abrirPost(id) {
+    var p = porId(estado.dados.posts, id); if (!p) return;
+    var marcas = p.marcas.map(function (m) {
+      return '<li style="background:var(--superficie-2);color:var(--texto)">' + selo(m.tipo === 'programado' ? 'programado' : m.tipo === 'manual' ? 'manual' : 'publicado', m.tipo === 'publicado' ? 'Publicado' + (m.formato ? ' (' + m.formato + ')' : '') : null) + ' ' +
+        (m.quando ? dataBr(m.quando) : '') + (m.link ? ' · <a href="' + esc(m.link) + '" target="_blank" rel="noopener">ver post</a>' : '') + '</li>';
+    }).join('');
+    var h = '<div class="detalhe"><div>' + miniatura(p.arte_fileId, { video: p.video, alt: p.titulo }) + '</div><div>' +
+      '<div class="cartao-empresa">' + esc(p.empresa) + ' · ' + esc(p.id) + '</div><h1 id="folha-titulo">' + esc(p.titulo) + '</h1>' + selo(p.estado, ROTULO_POSTS[p.estado]) +
+      '<dl>' + (p.estado_texto ? '<dt>Situação</dt><dd>' + esc(p.estado_texto) + '</dd>' : '') + (p.contas ? '<dt>Contas</dt><dd>' + esc(p.contas) + '</dd>' : '') + (p.horario ? '<dt>Horário</dt><dd>' + esc(p.horario) + '</dd>' : '') + '</dl>' +
+      (p.legenda ? '<p class="mudo" style="margin:0 0 4px;font-size:var(--text-xs)">' + esc(p.legenda_versao || 'Legenda') + '</p><div class="bloco-texto">' + esc(p.legenda) + (p.hashtags ? '\n\n' + esc(p.hashtags) : '') + '</div>' : '') +
+      (marcas ? '<p class="mudo" style="margin:14px 0 6px;font-size:var(--text-xs)">Publicações</p><ul class="historico">' + marcas + '</ul>' : '') +
+      '<div class="links">' + (p.rascunho_fileId ? '<a class="botao" href="' + esc(urlDrive(p.rascunho_fileId)) + '" target="_blank" rel="noopener">Abrir rascunho</a>' : '') +
+      (p.arte_fileId ? '<a class="botao" href="' + esc(urlDrive(p.arte_fileId)) + '" target="_blank" rel="noopener">Abrir arte</a>' : '') +
+      (porId(estado.dados.designs, p.id) ? '<button class="botao" data-abrir="' + esc(p.id) + '">Ver o design</button>' : '') + '</div></div></div>';
+    abrirFolha(h);
+  }
+
+  /* ---------- decisões ---------- */
+  function enviarDecisao(itemId, decisao, comentario) {
+    var x = porId(estado.dados.designs, itemId);
+    toast('Enviando…');
+    return chamar('salvarDecisao', { modulo: 'design', item_id: itemId, decisao: decisao, comentario: comentario || '' }).then(function (r) {
+      var reg = { id: r.id, quando: r.quando, modulo: 'design', item_id: itemId, decisao: decisao, comentario: comentario || '', origem: 'painel', processado_em: '' };
+      if (x) x.decisao_pendente = reg;
+      estado.dados.inicio.decisoes_pendentes.push(reg);
+      fecharFolhas(); desenhar();
+      toast(decisao === 'aprovar' ? 'Aprovação enviada. O agente aplica na próxima rotina.' : 'Ajuste enviado ao agente.');
+    }).catch(function (e) { toast('Não salvou: ' + e.message); });
+  }
+
+  /* ---------- eventos ---------- */
+  function trocarAba(a) {
+    estado.aba = a;
+    Array.prototype.forEach.call(document.querySelectorAll('.aba'), function (b) { var at = b.getAttribute('data-aba') === a; b.classList.toggle('ativa', at); if (at) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
+    ['inicio', 'designs', 'posts', 'biblioteca'].forEach(function (k) { $('#aba-' + k).hidden = k !== a; });
+    window.scrollTo(0, 0);
+  }
+
+  document.addEventListener('click', function (ev) {
+    var t = ev.target.closest('[data-aba],[data-abrir],[data-post],[data-aprovar],[data-ajuste],[data-fechar],[data-estado],[data-versao],[data-ir]');
+    if (!t) return;
+    if (t.hasAttribute('data-aba')) return trocarAba(t.getAttribute('data-aba'));
+    if (t.hasAttribute('data-aprovar')) { ev.preventDefault(); t.disabled = true; return enviarDecisao(t.getAttribute('data-aprovar'), 'aprovar'); }
+    if (t.hasAttribute('data-ajuste')) {
+      ev.preventDefault();
+      var id = t.getAttribute('data-ajuste'); estado.ajuste = id; var x = porId(estado.dados.designs, id);
+      $('#ajuste-item').textContent = (x ? x.empresa + ' · ' + (x.tipo || '') + ' · ' : '') + id;
+      $('#ajuste-texto').value = ''; $('#dialogo-ajuste').hidden = false; setTimeout(function () { $('#ajuste-texto').focus(); }, 30); return;
+    }
+    if (t.hasAttribute('data-versao')) return abrirDesign(t.getAttribute('data-design'), t.getAttribute('data-versao'));
+    if (t.hasAttribute('data-abrir')) return abrirDesign(t.getAttribute('data-abrir'));
+    if (t.hasAttribute('data-post')) return abrirPost(t.getAttribute('data-post'));
+    if (t.hasAttribute('data-fechar')) return fecharFolhas();
+    if (t.hasAttribute('data-estado')) { estado.filtro.estado = t.getAttribute('data-estado'); return desenharDesigns(); }
+    if (t.hasAttribute('data-ir')) { var alvo = $(t.getAttribute('data-ir')); if (alvo) alvo.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  });
+  document.addEventListener('input', function (ev) {
+    if (ev.target.id === 'f-busca') { estado.filtro.busca = ev.target.value; desenharDesigns(); }
+  });
+  document.addEventListener('change', function (ev) {
+    if (ev.target.id === 'f-empresa') { estado.filtro.empresa = ev.target.value; desenharDesigns(); }
+    if (ev.target.id === 'f-tipo') { estado.filtro.tipo = ev.target.value; desenharDesigns(); }
+  });
+  document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') fecharFolhas(); });
+  $('#form-ajuste').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var c = $('#ajuste-texto').value.trim(); if (!c) { $('#ajuste-texto').focus(); return; }
+    enviarDecisao(estado.ajuste, 'refazer', c);
+  });
+  $('#btn-atualizar').addEventListener('click', function () { carregar(true); });
+
+  /* tema */
+  function aplicarTema(t) { document.documentElement.setAttribute('data-tema', t); try { localStorage.setItem('painel-tema', t); } catch (e) {} }
+  var salvo = null; try { salvo = localStorage.getItem('painel-tema'); } catch (e) {}
+  aplicarTema(salvo || (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'escuro' : 'claro'));
+  $('#btn-tema').addEventListener('click', function () { aplicarTema(document.documentElement.getAttribute('data-tema') === 'escuro' ? 'claro' : 'escuro'); });
+
+  window.Painel = { trocarAba: trocarAba, abrirDesign: abrirDesign, abrirPost: abrirPost, carregar: carregar };
+  carregar(false);
+})();
+</script>
