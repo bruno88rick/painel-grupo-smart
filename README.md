@@ -68,7 +68,7 @@ python3 -m http.server 8765 -d dev/out
 
 O projeto já existe no seu Drive: pasta `painel-grupo-smart`, arquivo **Painel Grupo Smart**.
 
-1. Abra o projeto no [editor do Apps Script](https://script.google.com/d/1OG99ABrvByyYcEikqOdE9ZK0YBTtbCXR-d0ipruWwp6mLwsOmff7kpsm/edit) (ou, no Drive, clique duas vezes em **Painel Grupo Smart**).
+1. Abra o projeto no [editor do Apps Script](https://script.google.com/d/14gDaS5OQIBiMtWAeaCm5Nd5OVcCmuuqXMaguN1vUrgMpCBLsqINCe2xu/edit) (ou, no Drive, clique duas vezes em **Painel Grupo Smart**).
 2. Clique em **Implantar** > **Nova implantação**.
 3. Na engrenagem, escolha **App da Web**.
 4. **Executar como:** Eu. **Quem pode acessar:** Somente eu.

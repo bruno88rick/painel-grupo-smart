@@ -182,13 +182,18 @@
     ligarImagens($('#aba-designs'));
   }
 
+  /** Primeira frase, sem cortar palavra no meio. */
+  function curto(t) {
+    var f = String(t || '').split(/\.\s|,\s(?=[a-zà-ú]+\s)/)[0].replace(/\s*\([^)]*$/, '').trim();
+    return f.length > 80 ? f.slice(0, f.lastIndexOf(' ', 80)) + '…' : f;
+  }
   function cartaoPost(p) {
     var publicado = p.marcas.filter(function (m) { return m.link; })[0];
     var prog = p.marcas.filter(function (m) { return m.tipo === 'programado'; })[0];
     var info = [];
-    if (p.contas) info.push('Contas: ' + p.contas.replace(/\s*\(.*?\)/g, '').slice(0, 90));
+    if (p.contas) info.push('Contas: ' + curto(p.contas.replace(/\s*\(.*?\)/g, '')));
     if (prog) info.push('Programado: ' + dataBr(prog.quando) + (prog.formato ? ' (' + prog.formato + ')' : ''));
-    else if (p.horario) info.push('Horário: ' + p.horario.slice(0, 70));
+    else if (p.horario) info.push('Horário: ' + curto(p.horario));
     return '<button class="post" data-post="' + esc(p.id) + '">' + miniatura(p.arte_fileId, { video: p.video, tam: 400, alt: p.titulo }) +
       '<div><div class="cartao-empresa">' + esc(p.empresa) + ' · ' + esc(p.id) + '</div><div class="cartao-titulo">' + esc(p.titulo) + '</div>' +
       '<div style="margin-top:4px">' + selo(p.estado, ROTULO_POSTS[p.estado]) + (publicado ? ' <span class="post-info">com link publicado</span>' : '') + '</div>' +
