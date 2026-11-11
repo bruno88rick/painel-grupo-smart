@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <title>Painel Grupo Smart</title>
+  <?!= include('Styles'); ?>
+</head>
+<body>
+  <a class="pular" href="#conteudo">Pular para o conteúdo</a>
+  <header class="topo">
+    <div class="topo-marca">
+      <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="3" width="11" height="11" rx="3" fill="currentColor"/><rect x="18" y="3" width="11" height="11" rx="3" fill="currentColor" opacity=".45"/><rect x="3" y="18" width="11" height="11" rx="3" fill="currentColor" opacity=".45"/><rect x="18" y="18" width="11" height="11" rx="3" fill="currentColor" opacity=".7"/></svg>
+      <div>
+        <div class="topo-titulo">Grupo Smart</div>
+        <div class="topo-sub" id="status-atualizacao">Carregando…</div>
+      </div>
+    </div>
+    <nav class="abas" aria-label="Seções" id="abas">
+      <button data-aba="inicio" class="aba ativa" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.5 12 5l8 6.5V20a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1z"/></svg><span>Início</span><b class="contador" id="nav-cont-inicio" hidden></b></button>
+      <button data-aba="designs" class="aba"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9.5" cy="9.5" r="1.8"/><path d="m5 18 5-5 3 3 2-2 4 4"/></svg><span>Designs</span></button>
+      <button data-aba="posts" class="aba"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v10H9l-4 4z"/></svg><span>Posts</span></button>
+      <button data-aba="biblioteca" class="aba"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h4v16H5zM10 4h4v16h-4zM15.5 4.5l3.8 1 -3.9 15-3.8-1z"/></svg><span>Biblioteca</span></button>
+    </nav>
+    <div class="topo-acoes">
+      <button class="botao-icone" id="btn-tema" aria-label="Trocar tema claro ou escuro" title="Tema"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></svg></button>
+      <button class="botao" id="btn-atualizar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/></svg><span>Atualizar agora</span></button>
+    </div>
+  </header>
+
+  <main id="conteudo" tabindex="-1">
+    <div id="avisos"></div>
+    <section id="aba-inicio" class="painel-aba"></section>
+    <section id="aba-designs" class="painel-aba" hidden></section>
+    <section id="aba-posts" class="painel-aba" hidden></section>
+    <section id="aba-biblioteca" class="painel-aba" hidden></section>
+  </main>
+
+  <div class="folha" id="folha" hidden>
+    <div class="folha-fundo" data-fechar></div>
+    <div class="folha-caixa" role="dialog" aria-modal="true" aria-labelledby="folha-titulo">
+      <button class="botao-icone folha-fechar" data-fechar aria-label="Fechar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      <div id="folha-conteudo"></div>
+    </div>
+  </div>
+
+  <div class="folha" id="dialogo-ajuste" hidden>
+    <div class="folha-fundo" data-fechar></div>
+    <form class="folha-caixa caixa-pequena" role="dialog" aria-modal="true" aria-labelledby="ajuste-titulo" id="form-ajuste">
+      <h2 id="ajuste-titulo">Pedir ajuste</h2>
+      <p class="mudo" id="ajuste-item"></p>
+      <label for="ajuste-texto">O que precisa mudar?</label>
+      <textarea id="ajuste-texto" rows="5" required maxlength="2000" placeholder="Ex.: trocar a foto pela foto-5 e aumentar o preço no selo"></textarea>
+      <div class="linha-botoes">
+        <button type="button" class="botao" data-fechar>Cancelar</button>
+        <button type="submit" class="botao botao-alerta">Enviar ajuste</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="aviso-flutuante" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <?!= include('App'); ?>
+</body>
+</html>

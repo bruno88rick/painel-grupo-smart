@@ -1,0 +1,11 @@
+{
+  "name": "painel-grupo-smart",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Painel Grupo Smart: Apps Script Web App que lê os arquivos dos agentes no Google Drive",
+  "scripts": {
+    "test": "node --test test/",
+    "build:dev": "node dev/build.js",
+    "shots": "python3 dev/shots.py"
+  }
+}

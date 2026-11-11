@@ -1,0 +1,30 @@
+{
+  "versao": 1,
+  "cache_minutos": 5,
+  "dias_refazer_parado": 2,
+  "decisoes": { "rotulo": "Decisões do painel", "fileId": "ID_DO_decisoes.csv" },
+  "modulos": [
+    {
+      "id": "design",
+      "rotulo": "Designs e posts",
+      "ativo": true,
+      "agente": "Agente de Design",
+      "fontes": {
+        "pedidos": { "rotulo": "Pedidos de arte", "fileId": "ID_DO_pedidos-de-arte.csv" },
+        "produtos": { "rotulo": "Catálogo de produtos", "fileId": "ID_DO_produtos.csv" },
+        "ledger": {
+          "folderId": "ID_DA_PASTA_ledger_do_design",
+          "abas": { "artes": "Artes.csv", "posts": "Posts.csv", "midia": "Midia.csv", "checkpoints": "Checkpoints.csv" }
+        },
+        "criativos": { "rotulo": "Rascunhos de post", "folderId": "ID_DA_PASTA_criativos", "padrao": "^post-.+\\.md$" },
+        "artes_pasta": { "folderId": "ID_DA_PASTA_artes" }
+      }
+    },
+    { "id": "anuncios", "rotulo": "Posts e anúncios", "ativo": false, "agente": "Gestor de Tráfego", "fontes": { "ledger": { "folderId": "ID_DA_PASTA_ledger_trafego" } } },
+    { "id": "financas", "rotulo": "Finanças", "ativo": false, "agente": "Assistente Financeiro", "fontes": { "ledger": { "folderId": "ID_DA_PASTA_ledger_financas" } } },
+    { "id": "investimentos", "rotulo": "Investimentos", "ativo": false, "agente": "Analista de Investimentos", "fontes": {} },
+    { "id": "suporte", "rotulo": "Suporte RN Sports", "ativo": false, "agente": "Agente de Suporte RN Sports", "fontes": { "ledger": { "folderId": "ID_DA_PASTA_ledger_suporte" } } },
+    { "id": "estudos", "rotulo": "Estudos", "ativo": false, "agente": "Assistente de Estudos", "fontes": {} },
+    { "id": "emails", "rotulo": "E-mails (só resumo)", "ativo": false, "agente": "Gestor de E-mails", "fontes": {} }
+  ]
+}
