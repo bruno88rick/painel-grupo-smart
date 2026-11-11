@@ -233,6 +233,6 @@ h2 .qtd { font-size: var(--text-sm); color: var(--texto-3); font-weight: 500; }
 .esqueleto { background: linear-gradient(90deg, var(--superficie-2), var(--borda), var(--superficie-2)); background-size: 200% 100%; animation: brilho 1.2s ease-in-out infinite; border-radius: var(--r-md); }
 @keyframes brilho { to { background-position: -200% 0; } }
 
-.aviso-flutuante { position: fixed; left: 50%; bottom: calc(88px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 60; padding: 10px 16px; border-radius: var(--r-md); max-width: min(92vw, 520px); text-align: center; background: var(--texto); color: var(--fundo); font-size: var(--text-sm); font-weight: 600; box-shadow: var(--sombra); max-width: calc(100% - 32px); }
+.aviso-flutuante { position: fixed; left: 50%; bottom: calc(88px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 60; padding: 10px 16px; border-radius: var(--r-md); width: max-content; max-width: min(92vw, 520px); text-align: center; background: var(--texto); color: var(--fundo); font-size: var(--text-sm); font-weight: 600; box-shadow: var(--sombra); max-width: calc(100% - 32px); }
 @media (min-width: 900px) { .aviso-flutuante { bottom: 24px; } }
 </style>
