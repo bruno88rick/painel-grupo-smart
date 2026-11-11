@@ -25,7 +25,7 @@ function ambiente(arquivos) {
     },
     CacheService: { getUserCache: () => ({ get: (k) => cache[k] || null, getAll: (ks) => { const o = {}; ks.forEach((k) => { if (k in cache) o[k] = cache[k]; }); return o; }, putAll: (o) => Object.assign(cache, o), put: (k, v) => { cache[k] = v; }, remove: (k) => { delete cache[k]; } }) },
     LockService: { getUserLock: () => ({ waitLock: () => {}, releaseLock: () => {} }) },
-    Utilities: { formatDate: (d, tz, f) => f.indexOf('HH:mm:ss') > 0 && f.indexOf('yyyy-MM-dd') === 0 ? '2026-11-11T15:00:00-03:00' : '20261111-150000' }
+    Utilities: { formatDate: (d, tz, f) => f === 'yyyy-MM-dd HH:mm:ss' ? '2026-11-11 15:00:00' : f.indexOf('yyyy-MM-dd') === 0 ? '2026-11-11T15:00:00-03:00' : '20261111-150000' }
   };
   const m = { exports: {} };
   const nomes = Object.keys(g);
@@ -60,6 +60,9 @@ test('obterDados lê todas as fontes e usa o cache na segunda chamada', () => {
   assert.ok(d1.fontes.every((f) => f.ok), JSON.stringify(d1.fontes));
   assert.equal(d1.designs.length, 11);
   assert.equal(d1.modulos.filter((m) => !m.ativo).length, 6);
+  // agora = 11/11 15:00 em São Paulo: reels das 18:30 ainda programado
+  assert.equal(d1.posts.find((p) => p.id === 'P-20261109-01').estado, 'programado');
+  assert.deepEqual(d1.inicio.artes_entregues.sort(), ['P-20261111-02', 'P-20261111-03']);
   const d2 = e.obterDados(false);
   assert.equal(d2.do_cache, true);
   assert.equal(e.obterDados(true).do_cache, false);

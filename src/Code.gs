@@ -105,6 +105,16 @@ function lerDecisoes_(cfg) {
   return lerCsv_('Decisões do painel', cfg.decisoes.fileId, ['id', 'item_id', 'decisao']);
 }
 
+/**
+ * Hora de São Paulo como data "local" do script. Assim as datas dos CSVs
+ * (horário de Brasília) são comparadas certo, seja qual for o fuso do projeto.
+ */
+function agoraSp_() {
+  var s = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'yyyy-MM-dd HH:mm:ss');
+  var m = s.match(/(\d+)-(\d+)-(\d+) (\d+):(\d+):(\d+)/);
+  return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
+}
+
 /** Monta tudo o que a tela precisa. */
 function montarDados_() {
   var cfg = lerConfig_();
@@ -124,10 +134,11 @@ function montarDados_() {
   var modelo = PainelLib.montarModelo(
     { pedidos: pedidos.ok ? pedidos : null, artes: artes.ok ? artes : null, posts: posts.ok ? posts : null, midia: midia.ok ? midia : null, produtos: produtos.ok ? produtos : null, rascunhos: rasc.ok ? rasc.itens : [] },
     decisoes.ok ? decisoes.linhas : [],
-    new Date(),
+    agoraSp_(),
     { dias_refazer_parado: cfg.dias_refazer_parado || 2 }
   );
 
+  modelo.gerado_em = new Date().toISOString();
   modelo.fontes = [pedidos, artes, posts, midia, produtos, checkpoints, rasc, decisoes].map(function (s) {
     return { rotulo: s.rotulo, ok: s.ok, erro: s.erro || '', avisos: (s.avisos || []).slice(0, 3), atualizado: s.atualizado || '' };
   });

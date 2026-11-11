@@ -68,7 +68,7 @@ python3 -m http.server 8765 -d dev/out
 
 O projeto já existe no seu Drive: pasta `painel-grupo-smart`, arquivo **Painel Grupo Smart**.
 
-1. Abra o projeto em [script.google.com](https://script.google.com) (ou pelo Drive, clique duas vezes em **Painel Grupo Smart**).
+1. Abra o projeto no [editor do Apps Script](https://script.google.com/d/1OG99ABrvByyYcEikqOdE9ZK0YBTtbCXR-d0ipruWwp6mLwsOmff7kpsm/edit) (ou, no Drive, clique duas vezes em **Painel Grupo Smart**).
 2. Clique em **Implantar** > **Nova implantação**.
 3. Na engrenagem, escolha **App da Web**.
 4. **Executar como:** Eu. **Quem pode acessar:** Somente eu.
@@ -90,6 +90,10 @@ O projeto já existe no seu Drive: pasta `painel-grupo-smart`, arquivo **Painel 
 5. Se o módulo tiver decisões, use `salvarDecisao({modulo:'<id>', ...})`: a linha vai para o mesmo `decisoes.csv`, e o agente do módulo filtra por `modulo`.
 
 Planejado: **Posts e anúncios** (ledger do Gestor de Tráfego), **Finanças** (ledger do Assistente Financeiro), **Investimentos**, **Suporte RN Sports** (ledger do Suporte), **Estudos** e **E-mails** (só contagens e resumo, nunca o conteúdo dos e-mails).
+
+## Fuso horário
+
+O Drive criou o projeto com o fuso da conta. O código não depende disso: `agoraSp_()` usa sempre o horário de São Paulo para comparar as datas dos CSVs.
 
 ## Segurança
 
