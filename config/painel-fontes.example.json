@@ -2,7 +2,7 @@
   "versao": 1,
   "cache_minutos": 5,
   "dias_refazer_parado": 2,
-  "decisoes": { "rotulo": "Decisões do painel", "fileId": "ID_DO_decisoes.csv" },
+  "decisoes": { "rotulo": "Decisões do painel", "fileId": "ID_DO_decisoes.csv", "recibos_folderId": "ID_DA_PASTA_recibos" },
   "modulos": [
     {
       "id": "design",

@@ -3,8 +3,18 @@
 const fs = require('fs'), path = require('path');
 const raiz = path.join(__dirname, '..');
 const ler = (n) => fs.readFileSync(path.join(raiz, 'src', n + '.html'), 'utf8');
-const { modelo } = require('./modelo')();
 const comErro = process.argv.includes('--erro');
+const cenario = process.argv.includes('--cenario-decisoes');
+let modelo;
+if (cenario) {
+  // 11/11 20:00: reels das 18:30 sem link; uma decisão para versão antiga; uma recusada pelo agente
+  const dec = [
+    { id: 'D-20261111-171000-1a2b3c4d', quando: '2026-11-11T17:10:00-03:00', modulo: 'design', item_id: 'P-20261111-03', tipo_item: 'design', versao: '1', arte_fileId: 'x', snapshot_hash: 'a'.repeat(64), decisao: 'aprovar', comentario: '', origem: 'painel' },
+    { id: 'D-20261111-120000-5e6f7a8b', quando: '2026-11-11T12:00:00-03:00', modulo: 'design', item_id: 'P-20261111-01', tipo_item: 'design', versao: '1', arte_fileId: 'x', snapshot_hash: 'b'.repeat(64), decisao: 'refazer', comentario: 'trocar foto', origem: 'painel' }
+  ];
+  const rec = { 'D-20261111-120000-5e6f7a8b': { decision_id: 'D-20261111-120000-5e6f7a8b', resultado: 'rejeitado', motivo: 'A arte já tinha sido aprovada no chat antes desta decisão.', processado_em: '2026-11-11T14:00:00-03:00', agente: 'Agente de Design' } };
+  modelo = require('./modelo')(new Date(2026, 10, 11, 20), dec, rec).modelo;
+} else modelo = require('./modelo')().modelo;
 modelo.fontes = [
   { rotulo: 'Pedidos de arte', ok: true, atualizado: new Date(Date.now() - 22 * 60000).toISOString() },
   { rotulo: 'Artes (ledger do Design)', ok: true, atualizado: new Date(Date.now() - 3 * 3600000).toISOString() },
@@ -13,7 +23,8 @@ modelo.fontes = [
   { rotulo: 'Catálogo de produtos', ok: true, atualizado: new Date(Date.now() - 5 * 3600000).toISOString() },
   comErro ? { rotulo: 'Checkpoints (ledger do Design)', ok: false, erro: 'aspas sem fechar no fim do arquivo' } : { rotulo: 'Checkpoints (ledger do Design)', ok: true, atualizado: new Date(Date.now() - 4 * 3600000).toISOString() },
   { rotulo: 'Rascunhos de post', ok: true, atualizado: new Date(Date.now() - 6 * 3600000).toISOString() },
-  { rotulo: 'Decisões do painel', ok: true, atualizado: new Date(Date.now() - 86400000).toISOString() }
+  { rotulo: 'Decisões do painel', ok: true, atualizado: new Date(Date.now() - 86400000).toISOString() },
+  { rotulo: 'Recibos dos agentes', ok: true, atualizado: new Date(Date.now() - 3600000).toISOString() }
 ];
 modelo.modulos = [['design', 'Designs e posts', true, 'Agente de Design'], ['anuncios', 'Posts e anúncios', false, 'Gestor de Tráfego'], ['financas', 'Finanças', false, 'Assistente Financeiro'], ['investimentos', 'Investimentos', false, 'Analista de Investimentos'], ['suporte', 'Suporte RN Sports', false, 'Agente de Suporte RN Sports'], ['estudos', 'Estudos', false, 'Assistente de Estudos'], ['emails', 'E-mails (só resumo)', false, 'Gestor de E-mails']].map(([id, rotulo, ativo, agente]) => ({ id, rotulo, ativo, agente }));
 modelo.gerado_em = new Date().toISOString();
@@ -30,7 +41,9 @@ window.google = { script: { get run() {
     obterMiniatura: function () { setTimeout(function () { ok(''); }, 50); },
     salvarDecisao: function (d) { setTimeout(function () {
       if (d.decisao === 'refazer' && !String(d.comentario || '').trim()) return fal(new Error('o pedido de ajuste precisa de um comentário'));
-      var r = { ok: true, id: 'D-teste-' + (window.__DECISOES.length + 1), quando: new Date().toISOString() };
+      var it = window.__MODELO.designs.filter(function (x) { return x.id === d.item_id; })[0];
+      if (!it || it.snapshot_hash !== d.snapshot_hash || window.__FORCAR_OBSOLETO) return fal(new Error('o item ' + d.item_id + ' mudou desde que a tela foi carregada; atualize o painel e confira de novo'));
+      var r = { ok: true, id: 'D-teste-' + (window.__DECISOES.length + 1), quando: new Date().toISOString(), versao: it.versao, snapshot_hash: it.snapshot_hash };
       window.__DECISOES.push(Object.assign({}, d, r)); ok(r); }, 200); }
   };
   return api;

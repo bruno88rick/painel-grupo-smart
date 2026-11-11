@@ -5,10 +5,17 @@
   var ESTADOS = {
     novo: 'Novo', em_criacao: 'Em criação', entregue: 'Entregue', aprovado: 'Aprovado', refazer: 'Refazer',
     aguardando_canva: 'Aguardando Canva', cancelado: 'Cancelado',
-    rascunho: 'Rascunho', aguardando_aprovo: 'Aguardando aprovo', programado: 'Programado', publicado: 'Publicado', manual: 'Manual'
+    rascunho: 'Rascunho', aguardando_aprovo: 'Aguardando aprovo', programado: 'Programado', aguardando_confirmacao: 'Aguardando confirmação', publicado: 'Publicado', manual: 'Manual'
   };
-  var ORDEM_POSTS = ['rascunho', 'aguardando_aprovo', 'aprovado', 'programado', 'publicado', 'manual'];
-  var ROTULO_POSTS = { rascunho: 'Rascunho', aguardando_aprovo: 'Aguardando seu aprovo', aprovado: 'Aprovado, a programar', programado: 'Programado', publicado: 'Publicado', manual: 'Manual' };
+  var ORDEM_POSTS = ['rascunho', 'aguardando_aprovo', 'aprovado', 'programado', 'aguardando_confirmacao', 'publicado', 'manual'];
+  var ROTULO_POSTS = { rascunho: 'Rascunho', aguardando_aprovo: 'Aguardando seu aprovo', aprovado: 'Aprovado, a programar', programado: 'Programado', aguardando_confirmacao: 'Aguardando confirmação', publicado: 'Publicado', manual: 'Manual' };
+
+  /** Texto do estado de uma decisão já enviada. */
+  function textoEnvio(p) {
+    var qual = p.decisao === 'aprovar' ? 'aprovar' : 'ajuste';
+    if (p.obsoleta) return 'Enviado (' + qual + ') para a versão ' + (p.versao ? 'v' + p.versao : 'anterior') + '. O item mudou; o agente vai recusar.';
+    return 'Enviado: ' + qual + (p.versao ? ' da v' + p.versao : '') + '. Aguardando o agente.';
+  }
 
   var estado = { dados: null, aba: 'inicio', filtro: { empresa: '', estado: '', tipo: '', busca: '' }, ajuste: null };
 
@@ -76,7 +83,7 @@
   }
 
   /* ---------- carregar ---------- */
-  function carregar(forcar) {
+  function carregar(forcar, silencioso) {
     var b = $('#btn-atualizar'); b.disabled = true; b.classList.add('girando');
     $('#status-atualizacao').textContent = forcar ? 'Atualizando…' : 'Carregando…';
     if (!estado.dados) mostrarEsqueleto();
@@ -84,7 +91,7 @@
       estado.dados = d;
       $('#status-atualizacao').textContent = 'Atualizado ' + quandoRel(d.gerado_em) + (d.do_cache ? ' (cache de 5 min)' : '');
       desenhar();
-      if (forcar) toast('Dados atualizados do Drive');
+      if (forcar && !silencioso) toast('Dados atualizados do Drive');
     }).catch(function (e) {
       $('#status-atualizacao').textContent = 'Erro ao carregar';
       $('#avisos').innerHTML = '<div class="aviso">Não consegui ler o Drive: ' + esc(e.message) + '</div>';
@@ -117,8 +124,8 @@
   function cartaoDesign(x, compacto) {
     var pend = x.decisao_pendente;
     var acoes = '';
-    if (pend) acoes = '<div class="enviado">Enviado: ' + (pend.decisao === 'aprovar' ? 'aprovar' : 'ajuste') + '. Aguardando o agente.</div>';
-    else if (x.estado === 'entregue') acoes = '<div class="cartao-acoes"><button class="botao botao-primario" data-aprovar="' + esc(x.id) + '">Aprovar</button><button class="botao" data-ajuste="' + esc(x.id) + '">Pedir ajuste</button></div>';
+    if (pend && !pend.obsoleta) acoes = '<div class="enviado">' + esc(textoEnvio(pend)) + '</div>';
+    else if (x.estado === 'entregue') acoes = (pend ? '<div class="enviado obsoleta">' + esc(textoEnvio(pend)) + '</div>' : '') + '<div class="cartao-acoes"><button class="botao botao-primario" data-aprovar="' + esc(x.id) + '">Aprovar' + (x.versao ? ' v' + esc(x.versao) : '') + '</button><button class="botao" data-ajuste="' + esc(x.id) + '">Pedir ajuste</button></div>';
     var titulo = x.tipo || x.id;
     return '<article class="cartao"><button class="cartao-abrir" data-abrir="' + esc(x.id) + '" aria-label="Abrir ' + esc(titulo) + '">' +
       miniatura(x.arte_fileId, { video: x.video, alt: titulo, extra: selo(x.estado) }) +
@@ -134,6 +141,8 @@
     var posts = ini.posts_pendentes.map(function (id) { return porId(d.posts, id); }).filter(Boolean);
     var parados = ini.refazer_parados.map(function (id) { return porId(d.designs, id); }).filter(Boolean);
     var pend = ini.decisoes_pendentes || [];
+    var semConf = (ini.posts_sem_confirmacao || []).map(function (id) { return porId(d.posts, id); }).filter(Boolean);
+    var recusadas = ini.decisoes_recusadas || [];
     var total = entregues.length + posts.length + parados.length;
     function cont(num, rot, alvo, destaque) { return '<button class="contador-card' + (num ? (destaque ? ' destaque' : '') : ' zero') + '" data-ir="' + alvo + '"><div class="num">' + num + '</div><div class="rot">' + rot + '</div></button>'; }
     var h = '<h1>' + (total ? (total === 1 ? '1 item precisa de você' : total + ' itens precisam de você') : 'Nada precisa de você agora') + '</h1>' +
@@ -142,14 +151,18 @@
       cont(parados.length, 'Ajustes parados há mais de 2 dias', '#sec-parados', true) + cont(pend.length, 'Decisões aguardando o agente', '#sec-enviadas', false) + '</div>';
     h += '<h2 id="sec-entregues">Artes para aprovar <span class="qtd">' + entregues.length + '</span></h2>' +
       (entregues.length ? '<div class="grade duas">' + entregues.map(function (x) { return cartaoDesign(x, true); }).join('') + '</div>' : '<div class="vazio">Nenhuma arte esperando aprovação.</div>');
-    h += '<h2 id="sec-posts">Posts aguardando você <span class="qtd">' + posts.length + '</span></h2>' +
+    h += '<h2 id="sec-posts">Posts aguardando você <span class="qtd">' + posts.length + '</span></h2>' + '<p class="intro aviso-integracao">Aprovar posts pelo painel ainda não está integrado. Nada aqui publica nem programa post; aprovar uma arte não autoriza o post.</p>' +
       (posts.length ? posts.map(cartaoPost).join('') : '<div class="vazio">Todo rascunho de post já tem destino.</div>');
+    if (semConf.length) h += '<h2 id="sec-confirmacao">Horário passou, sem link de confirmação <span class="qtd">' + semConf.length + '</span></h2><p class="intro">O painel não considera publicado só pelo relógio. Falta o agente registrar o link.</p>' + semConf.map(cartaoPost).join('');
     h += '<h2 id="sec-parados">Ajustes parados há mais de 2 dias <span class="qtd">' + parados.length + '</span></h2>' +
       (parados.length ? '<div class="grade duas">' + parados.map(function (x) { return cartaoDesign(x, true); }).join('') + '</div>' : '<div class="vazio">Nenhum ajuste parado.</div>');
     h += '<h2 id="sec-enviadas">Enviado, aguardando o agente <span class="qtd">' + pend.length + '</span></h2>' +
       (pend.length ? '<div class="fontes">' + pend.map(function (p) {
-        return '<div class="fonte"><span>' + selo(p.decisao === 'aprovar' ? 'aprovado' : 'refazer', p.decisao === 'aprovar' ? 'Aprovar' : 'Ajuste') + ' &nbsp;<b>' + esc(p.item_id) + '</b>' + (p.comentario ? '<br><span class="mudo">' + esc(p.comentario) + '</span>' : '') + '</span><span class="quando">' + dataBr(p.quando) + '</span></div>';
+        return '<div class="fonte"><span>' + selo(p.decisao === 'aprovar' ? 'aprovado' : 'refazer', p.decisao === 'aprovar' ? 'Aprovar' : 'Ajuste') + ' &nbsp;<b>' + esc(p.item_id) + '</b>' + (p.versao ? ' v' + esc(p.versao) : '') + (p.obsoleta ? ' ' + selo('obsoleta', 'Versão mudou') : '') + (p.comentario ? '<br><span class="mudo">' + esc(p.comentario) + '</span>' : '') + '</span><span class="quando">' + dataBr(p.quando) + '</span></div>';
       }).join('') + '</div>' : '<div class="vazio">Nenhuma decisão esperando processamento.</div>');
+    if (recusadas.length) h += '<h2>Recusadas pelo agente <span class="qtd">' + recusadas.length + '</span></h2><div class="fontes">' + recusadas.map(function (p) {
+      return '<div class="fonte"><span>' + selo('refazer', 'Recusada') + ' &nbsp;<b>' + esc(p.item_id) + '</b>' + (p.versao ? ' v' + esc(p.versao) : '') + '<br><span class="mudo">' + esc(p.recibo.motivo || 'sem motivo') + '</span></span><span class="quando">' + dataBr(p.recibo.processado_em) + '</span></div>';
+    }).join('') + '</div>';
     h += '<h2>Última atualização de cada fonte</h2><div class="fontes">' + d.fontes.map(function (f) {
       return '<div class="fonte"><span>' + esc(f.rotulo) + (f.ok ? '' : '<br><span class="erro">' + esc(f.erro) + '</span>') + '</span><span class="quando">' + (f.ok ? quandoRel(f.atualizado) : 'com erro') + '</span></div>';
     }).join('') + '</div>';
@@ -196,14 +209,14 @@
     else if (p.horario) info.push('Horário: ' + curto(p.horario));
     return '<button class="post" data-post="' + esc(p.id) + '">' + miniatura(p.arte_fileId, { video: p.video, tam: 400, alt: p.titulo }) +
       '<div><div class="cartao-empresa">' + esc(p.empresa) + ' · ' + esc(p.id) + '</div><div class="cartao-titulo">' + esc(p.titulo) + '</div>' +
-      '<div style="margin-top:4px">' + selo(p.estado, ROTULO_POSTS[p.estado]) + (publicado ? ' <span class="post-info">com link publicado</span>' : '') + '</div>' +
+      '<div style="margin-top:4px">' + selo(p.estado, ROTULO_POSTS[p.estado]) + (publicado ? ' <span class="post-info">' + esc(publicado.formato ? publicado.formato + ' publicado com link' : 'publicado com link') + '</span>' : '') + '</div>' +
       (p.legenda ? '<div class="post-legenda">' + esc(p.legenda) + '</div>' : '<div class="post-legenda">Sem legenda no rascunho.</div>') +
       '<div class="post-info">' + info.map(esc).join(' · ') + '</div></div></button>';
   }
 
   function desenharPosts() {
     var d = estado.dados;
-    var h = '<h1>Posts</h1><p class="intro">Do rascunho à publicação. A legenda vem do arquivo post-*.md dos criativos.</p><div class="linha-tempo">';
+    var h = '<h1>Posts</h1><p class="intro">Do rascunho à publicação. A legenda vem do arquivo post-*.md dos criativos.</p>' + '<p class="intro aviso-integracao">Aprovar posts pelo painel ainda não está integrado. Nada aqui publica nem programa post; aprovar uma arte não autoriza o post.</p>' + '<div class="linha-tempo">';
     ORDEM_POSTS.forEach(function (e) {
       var l = d.posts.filter(function (p) { return p.estado === e; });
       h += '<h2>' + esc(ROTULO_POSTS[e]) + ' <span class="qtd">' + l.length + '</span></h2>' + (l.length ? l.map(cartaoPost).join('') : '<div class="vazio">Nenhum post aqui.</div>');
@@ -244,8 +257,9 @@
   function abrirDesign(id, versaoSel) {
     var x = porId(estado.dados.designs, id); if (!x) return;
     var v = x.versoes.filter(function (v) { return v.versao === versaoSel; })[0] || x.versoes[x.versoes.length - 1] || { arte_fileId: x.arte_fileId };
-    var acoes = x.decisao_pendente ? '<div class="enviado" style="margin:12px 0 0">Enviado: ' + (x.decisao_pendente.decisao === 'aprovar' ? 'aprovar' : 'ajuste') + '. Aguardando o agente.</div>' :
-      (x.estado === 'entregue' ? '<div class="linha-botoes" style="justify-content:flex-start"><button class="botao botao-primario" data-aprovar="' + esc(x.id) + '">Aprovar</button><button class="botao" data-ajuste="' + esc(x.id) + '">Pedir ajuste</button></div>' : '');
+    var pd = x.decisao_pendente;
+    var acoes = (pd && !pd.obsoleta) ? '<div class="enviado" style="margin:12px 0 0">' + esc(textoEnvio(pd)) + '</div>' :
+      (pd ? '<div class="enviado obsoleta" style="margin:12px 0 0">' + esc(textoEnvio(pd)) + '</div>' : '') + (x.estado === 'entregue' && String(v.versao || x.versao) === String(x.versao) ? '<div class="linha-botoes" style="justify-content:flex-start"><button class="botao botao-primario" data-aprovar="' + esc(x.id) + '">Aprovar v' + esc(x.versao) + '</button><button class="botao" data-ajuste="' + esc(x.id) + '">Pedir ajuste</button></div>' : '');
     var h = '<div class="detalhe"><div>' + miniatura(v.arte_fileId, { video: x.video, alt: x.tipo }) +
       (x.versoes.length > 1 ? '<p class="mudo" style="margin:12px 0 6px;font-size:var(--text-xs)">Versões</p><div class="versoes">' + x.versoes.map(function (vv) {
         return '<button class="versao" data-versao="' + esc(vv.versao) + '" data-design="' + esc(x.id) + '" aria-pressed="' + (vv.versao === v.versao) + '">' + miniatura(vv.arte_fileId, { tam: 200, alt: 'Versão ' + vv.versao }) + 'v' + esc(vv.versao) + '</button>';
@@ -286,13 +300,18 @@
   function enviarDecisao(itemId, decisao, comentario) {
     var x = porId(estado.dados.designs, itemId);
     toast('Enviando…');
-    return chamar('salvarDecisao', { modulo: 'design', item_id: itemId, decisao: decisao, comentario: comentario || '' }).then(function (r) {
-      var reg = { id: r.id, quando: r.quando, modulo: 'design', item_id: itemId, decisao: decisao, comentario: comentario || '', origem: 'painel', processado_em: '' };
+    if (!x) { toast('Item não encontrado; atualize o painel'); return Promise.resolve(); }
+    return chamar('salvarDecisao', { modulo: 'design', item_id: itemId, decisao: decisao, comentario: comentario || '', snapshot_hash: x.snapshot_hash }).then(function (r) {
+      var reg = { id: r.id, quando: r.quando, modulo: 'design', item_id: itemId, tipo_item: 'design', versao: r.versao, snapshot_hash: r.snapshot_hash, decisao: decisao, comentario: comentario || '', origem: 'painel', recibo: null, obsoleta: false };
       if (x) x.decisao_pendente = reg;
       estado.dados.inicio.decisoes_pendentes.push(reg);
       fecharFolhas(); desenhar();
       toast(decisao === 'aprovar' ? 'Aprovação enviada. O agente aplica na próxima rotina.' : 'Ajuste enviado ao agente.');
-    }).catch(function (e) { toast('Não salvou: ' + e.message); });
+    }).catch(function (e) {
+      toast('Não salvou: ' + e.message);
+      if (/mudou|não aceita|não existe|já existe/.test(e.message)) { fecharFolhas(); carregar(true, true); }
+      else desenhar();
+    });
   }
 
   /* ---------- eventos ---------- */

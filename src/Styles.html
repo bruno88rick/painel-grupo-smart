@@ -111,7 +111,7 @@ h2 .qtd { font-size: var(--text-sm); color: var(--texto-3); font-weight: 500; }
 .contador-card.zero .num { color: var(--texto-3); }
 
 /* Selos */
-.selo { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; font-size: var(--text-xs); font-weight: 650; line-height: 1.4; white-space: nowrap; }
+.selo { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; font-size: var(--text-xs); font-weight: 650; line-height: 1.4; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .selo::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .s-novo { background: var(--e-novo-bg); color: var(--e-novo); }
 .s-em_criacao { background: var(--e-criacao-bg); color: var(--e-criacao); }
@@ -121,6 +121,7 @@ h2 .qtd { font-size: var(--text-sm); color: var(--texto-3); font-weight: 500; }
 .s-aguardando_canva, .s-rascunho, .s-manual { background: var(--e-canva-bg); color: var(--e-canva); }
 .s-cancelado { background: var(--e-cancelado-bg); color: var(--e-cancelado); }
 .s-programado { background: var(--e-programado-bg); color: var(--e-programado); }
+.s-aguardando_confirmacao, .s-obsoleta { background: var(--e-entregue-bg); color: var(--e-entregue); }
 .s-publicado { background: var(--e-publicado-bg); color: var(--e-publicado); }
 .s-enviado { background: var(--acento-suave); color: var(--acento); }
 
@@ -144,6 +145,7 @@ h2 .qtd { font-size: var(--text-sm); color: var(--texto-3); font-weight: 500; }
 .cartao-briefing { font-size: var(--text-sm); color: var(--texto-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: 2px; }
 .cartao-acoes { display: flex; gap: 8px; padding: 0 14px 14px; }
 .cartao-acoes .botao { flex: 1; }
+.enviado.obsoleta { background: var(--e-entregue-bg); color: var(--e-entregue); }
 .enviado { margin: 0 14px 14px; padding: 8px 12px; border-radius: var(--r-sm); background: var(--acento-suave); color: var(--acento); font-size: var(--text-xs); font-weight: 600; }
 @media (max-width: 520px) {
   .grade.duas .cartao-corpo { padding: 10px; }
@@ -231,6 +233,7 @@ h2 .qtd { font-size: var(--text-sm); color: var(--texto-3); font-weight: 500; }
 .esqueleto { background: linear-gradient(90deg, var(--superficie-2), var(--borda), var(--superficie-2)); background-size: 200% 100%; animation: brilho 1.2s ease-in-out infinite; border-radius: var(--r-md); }
 @keyframes brilho { to { background-position: -200% 0; } }
 
-.aviso-flutuante { position: fixed; left: 50%; bottom: calc(88px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 60; padding: 10px 16px; border-radius: 999px; background: var(--texto); color: var(--fundo); font-size: var(--text-sm); font-weight: 600; box-shadow: var(--sombra); max-width: calc(100% - 32px); }
+.aviso-flutuante { position: fixed; left: 50%; bottom: calc(88px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 60; padding: 10px 16px; border-radius: var(--r-md); width: max-content; max-width: min(92vw, 520px); text-align: center; background: var(--texto); color: var(--fundo); font-size: var(--text-sm); font-weight: 600; box-shadow: var(--sombra); max-width: calc(100% - 32px); }
 @media (min-width: 900px) { .aviso-flutuante { bottom: 24px; } }
+.intro.aviso-integracao { background: var(--e-entregue-bg); color: var(--e-entregue); padding: 8px 12px; border-radius: var(--r-md); font-weight: 600; }
 </style>
