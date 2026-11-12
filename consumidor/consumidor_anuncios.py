@@ -1,21 +1,23 @@
 #!/usr/bin/env python3
 """Consumidor das decisões modulo=anuncios do Painel Grupo Smart.
 
-Roda do lado do Gestor de Tráfego. Só usa a biblioteca padrão do Python 3.
+Roda do lado do Gestor de Tráfego. Só biblioteca padrão do Python 3. Autocontido.
 
-Fluxo por execução:
-  1. Baixa decisoes.csv (nunca reescreve) e lista recibos/ no Drive.
-  2. Baixa Propostas.csv.
-  3. Para cada decisão modulo=anuncios sem recibo: valida (item, tipo, hash do
-     snapshot, estado, comentario, verba), aplica em Propostas.csv, grava o
-     ledger de fases e cria recibos/<decision_id>.json.
-  4. Grava a lista de ações para o agente (JSON local). Nunca publica, nunca
-     chama a Meta, nunca aumenta verba.
+  --plano                 lê decisoes.csv (modulo=anuncios), confere cada decisão contra a linha atual de
+                          Propostas.csv (item, tipo, hash do snapshot, estado, comentario, verba) e imprime em
+                          JSON as ações para o agente: programar_post, criar_campanha, pausar_campanha_meta,
+                          refazer_post, refazer_campanha, registrar_recusa_post, registrar_recusa_campanha.
+                          Não grava recibo de ação; decisões com versão velha ou inválidas recebem recibo rejeitado.
+  --confirmar <decision_id> [--link URL]
+                          depois que o agente executou a ação na Meta: grava o ledger, atualiza a linha em
+                          Propostas.csv (só ela; as outras ficam byte a byte iguais) e cria recibos/<decision_id>.json.
+  --teste                 só leitura: não grava Drive, ledger nem recibo (sozinho = --plano --teste).
+  --dry-run               obsoleto: apelido de --teste (avisa no stderr).
 
-Contrato: docs/contrato-propostas.md.
+Este script nunca publica, nunca chama a Meta e nunca aumenta verba. Contrato: docs/contrato-propostas.md.
 
-Códigos de saída: 0 ok; 1 alguma pendência/erro recuperável; 2 erro de
-autenticação no Drive (parou tudo); 3 configuração ou arquivo fora do contrato.
+Códigos de saída: 0 ok; 1 pendência/erro recuperável; 2 erro de autenticação no Drive (parou tudo);
+3 configuração, argumento ou arquivo fora do contrato.
 """
 
 import argparse
@@ -365,6 +367,17 @@ def _q(s):
 
 # ---------------------------------------------------------------- ledger
 
+# Fases do ledger por decisão (mesmos nomes dos outros consumidores)
+F_REJEITADA = "rejeitada"            # recibo rejeitado ainda não criado
+F_PLANEJADA = "planejada"            # ação entregue ao agente no --plano
+F_CONFIRMANDO = "confirmando"        # agente confirmou; hash_depois previsto gravado antes do upload
+F_ATUALIZADA = "propostas_atualizada"
+F_RECIBO = "recibo_criado"
+FASES_VALIDAS = (F_PLANEJADA, F_CONFIRMANDO, F_ATUALIZADA, F_RECIBO)
+# Fase do fluxo antigo (antes de --plano/--confirmar). Entradas com ela são tratadas como legado.
+F_LEGADO_RECEBIDA = "recebida"
+
+
 class Ledger:
     def __init__(self, caminho, somente_leitura=False):
         self.caminho = caminho
@@ -378,15 +391,17 @@ class Ledger:
     def get(self, did):
         return self.dados["decisoes"].get(did)
 
-    def aplicados(self):
-        return {(e.get("item_id"), e.get("snapshot_hash")) for e in self.dados["decisoes"].values()
-                if e.get("resultado") == "aplicado" and e.get("fase") in ("propostas_atualizada", "recibo_criado")}
+    def decididas(self):
+        """(item_id, hash) -> decision_id das decisões válidas já planejadas/aplicadas.
+        Rejeitadas não contam: uma decisão rejeitada não bloqueia outra sobre a mesma versão."""
+        return {(e.get("item_id"), (e.get("snapshot_hash") or "").lower()): did
+                for did, e in self.dados["decisoes"].items()
+                if e.get("fase") in FASES_VALIDAS and e.get("resultado") != "rejeitado"}
 
-    def gravar(self, did, **campos):
+    def gravar(self, did, em, **campos):
         e = self.dados["decisoes"].setdefault(did, {"decision_id": did})
         e.update(campos)
-        e.setdefault("historico", []).append({"fase": e.get("fase"), "em": campos.get("_em") or agora_iso()})
-        e.pop("_em", None)
+        e.setdefault("historico", []).append({"fase": e.get("fase"), "em": em})
         if self.ro or not self.caminho:
             return
         pasta = os.path.dirname(os.path.abspath(self.caminho))
@@ -405,9 +420,9 @@ def agora_iso(agora=None):
 
 # ---------------------------------------------------------------- regras de decisão
 
-def avaliar(dec, propostas, aplicados):
-    """Decide o que fazer com uma decisão. Retorna dict:
-    {resultado: aplicado|rejeitado, motivo, linha_nova?, acoes?, hash_antes?, hash_depois?}
+def avaliar(dec, propostas, decididas):
+    """Decide o que fazer com uma decisão, sem gravar nada. Retorna dict:
+    {resultado: aplicado|rejeitado, motivo, linha_nova?, acoes?, pid?}
     """
     did = dec["id"]
     item_id, tipo_item, decisao = dec["item_id"], dec["tipo_item"], dec["decisao"]
@@ -423,7 +438,8 @@ def avaliar(dec, propostas, aplicados):
     pid = item_id.split(":", 1)[1]
     if not re.match(r"^[0-9a-f]{64}$", h):
         return rej("snapshot_hash inválido")
-    if (item_id, h) in aplicados:
+    outra = decididas.get((item_id, h))
+    if outra and outra != did:
         return rej("decisão duplicada: esta versão já foi decidida")
     linha, erro = propostas.buscar(pid)
     if erro:
@@ -515,179 +531,271 @@ def avaliar(dec, propostas, aplicados):
             motivo = "pausada pelo Bruno" + (": %s" % texto if texto else "")
             acoes.append(dict(base, acao="pausar_campanha_meta", campanha_id=nova["campanha_id"], observacao=texto,
                               nota="pausar na Meta pelo agente; este consumidor não chama a Meta"))
-    return {"resultado": "aplicado", "motivo": motivo, "linha_nova": nova, "acoes": acoes,
-            "hash_antes": h, "pid": pid}
+    return {"resultado": "aplicado", "motivo": motivo, "linha_nova": nova, "acoes": acoes, "pid": pid}
 
 
-# ---------------------------------------------------------------- execução
+# ---------------------------------------------------------------- consumidor
 
 class Consumidor:
-    def __init__(self, cfg, drive, ledger, dry_run=False, agora=None, log=None):
+    def __init__(self, cfg, drive, ledger, teste=False, agora=None, log=None):
         self.cfg = cfg
         self.drive = drive
         self.ledger = ledger
-        self.dry = dry_run
+        self.teste = teste
         self.agora = agora or (lambda: datetime.now(TZ_SP))
         self.log = log or (lambda m: print(m, file=sys.stderr))
-        self.resumo = {"aplicadas": [], "rejeitadas": [], "ignoradas": [], "pendentes": [], "avisos": [],
-                       "acoes": [], "ja_com_recibo": 0}
+        self.avisos = []
+        self.ignoradas = []
+        self.md5_esperado = None
 
     def aviso(self, m):
-        self.resumo["avisos"].append(m)
+        self.avisos.append(m)
         self.log("aviso: " + m)
 
-    def rodar(self):
-        cfg = self.cfg
-        texto_dec = self.drive.baixar(cfg["decisoes_fileId"], "decisoes.csv")
-        decisoes = [d for d in ler_decisoes(texto_dec) if d["modulo"] == "anuncios"]
-        recibos = self.drive.listar(cfg["recibos_folderId"])
-        contagem = {}
-        for r in recibos:
-            contagem[r.get("name")] = contagem.get(r.get("name"), 0) + 1
-        for nome, n in sorted(contagem.items()):
-            if n > 1:
-                self.aviso("recibo duplicado em recibos/: %s (%d arquivos)" % (nome, n))
+    def _fase(self, did, **campos):
+        self.ledger.gravar(did, agora_iso(self.agora()), **campos)
 
-        vistos, fila = set(), []
-        for d in decisoes:
+    def _propostas_id(self):
+        v = self.cfg.get("propostas_fileId") or ""
+        return "" if v == "PREENCHER" else v
+
+    def _decisoes(self):
+        texto = self.drive.baixar(self.cfg["decisoes_fileId"], "decisoes.csv")
+        decs, vistos = [], set()
+        for d in ler_decisoes(texto):
+            if d["modulo"] != "anuncios":
+                continue
             if not d["id"]:
                 self.aviso("decisão sem id ignorada (item %s)" % d["item_id"])
                 continue
             if d["id"] in vistos:
-                self.resumo["ignoradas"].append({"decision_id": d["id"], "motivo": "id repetido em decisoes.csv"})
+                self.ignoradas.append({"decision_id": d["id"], "motivo": "id repetido em decisoes.csv"})
                 self.aviso("id repetido em decisoes.csv: %s (só a primeira linha vale)" % d["id"])
                 continue
             vistos.add(d["id"])
-            if contagem.get(d["id"] + ".json"):
-                self.resumo["ja_com_recibo"] += 1
-                continue
-            fila.append(d)
+            decs.append(d)
+        return decs
 
-        if not fila:
-            return self.resumo
+    def _propostas(self):
+        texto = self.drive.baixar(self._propostas_id(), "propostas.csv")
+        self.md5_esperado = hashlib.md5(texto.encode("utf-8")).hexdigest()
+        return Propostas(texto)
 
-        pfid = cfg.get("propostas_fileId") or ""
-        if not pfid or pfid == "PREENCHER":
-            self.resumo["sem_propostas"] = True
-            self.log("Propostas.csv ainda não configurado (propostas_fileId). %d decisão(ões) aguardando; nada foi feito." % len(fila))
-            return self.resumo
+    def _contagem_recibos(self):
+        c = {}
+        for r in self.drive.listar(self.cfg["recibos_folderId"]):
+            c[r.get("name")] = c.get(r.get("name"), 0) + 1
+        for nome, n in sorted(c.items()):
+            if n > 1:
+                self.aviso("recibo duplicado em recibos/: %s (%d arquivos)" % (nome, n))
+        return c
 
-        texto_p = self.drive.baixar(pfid, "propostas.csv")
-        self.md5_esperado = hashlib.md5(texto_p.encode("utf-8")).hexdigest()
-        self.propostas = Propostas(texto_p)
-        aplicados = self.ledger.aplicados()
+    def _recibo(self, did, hash_, resultado, motivo, link=""):
+        r = {"decision_id": did, "snapshot_hash": hash_, "resultado": resultado, "motivo": motivo,
+             "processado_em": agora_iso(self.agora()), "agente": self.cfg.get("agente", AGENTE)}
+        if link:
+            r["link"] = link
+        return r
 
-        for d in fila:
-            ok = self._processar(d, aplicados)
-            if ok is False:
-                break
-        return self.resumo
-
-    def _processar(self, d, aplicados):
-        did = d["id"]
-        e = self.ledger.get(did)
-        if e:
-            if e.get("fase") == "recibo_criado":
-                self.aviso("ledger diz recibo criado para %s, mas ele não aparece em recibos/; não recriei" % did)
-                self.resumo["pendentes"].append(did)
-                return True
-            if e.get("resultado") == "rejeitado" and e.get("recibo"):
-                return self._criar_recibo(did, e["recibo"], e, retomada=True)
-            if e.get("fase") == "propostas_atualizada":
-                linha, _ = self.propostas.buscar(e.get("pid", ""))
-                if not linha or hash_snapshot(linha, d["tipo_item"]) != e.get("hash_depois"):
-                    self.aviso("%s: Propostas mudou depois da aplicação; recibo criado com o registro do ledger" % did)
-                aplicados.add((e["item_id"], e["snapshot_hash"]))
-                return self._criar_recibo(did, e["recibo"], e, retomada=True)
-            if e.get("resultado") == "aplicado" and e.get("fase") == "recebida":
-                linha, _ = self.propostas.buscar(e.get("pid", ""))
-                if linha and hash_snapshot(linha, d["tipo_item"]) == e.get("hash_depois"):
-                    # update chegou ao Drive mas o ledger não registrou: só avançar
-                    self._fase(did, fase="propostas_atualizada")
-                    aplicados.add((e["item_id"], e["snapshot_hash"]))
-                    return self._criar_recibo(did, e["recibo"], e, retomada=True)
-                # senão reavalia do zero
-
-        r = avaliar(d, self.propostas, aplicados)
-        recibo = {"decision_id": did, "snapshot_hash": d["snapshot_hash"], "resultado": r["resultado"],
-                  "motivo": r["motivo"], "processado_em": agora_iso(self.agora()), "agente": self.cfg.get("agente", AGENTE)}
-        if r["resultado"] == "rejeitado":
-            self._fase(did, fase="recebida", resultado="rejeitado", item_id=d["item_id"],
-                       snapshot_hash=d["snapshot_hash"], recibo=recibo)
-            return self._criar_recibo(did, recibo, self.ledger.get(did) or {})
-
-        nova = r["linha_nova"]
-        nova["atualizado_em"] = recibo["processado_em"]
-        hash_depois = hash_snapshot(nova, d["tipo_item"])
-        self._fase(did, fase="recebida", resultado="aplicado", item_id=d["item_id"], pid=r["pid"],
-                   snapshot_hash=d["snapshot_hash"], hash_depois=hash_depois, recibo=recibo, acoes=r["acoes"])
-        antes = self.propostas.texto()
-        self.propostas.substituir(r["pid"], nova)
-        if not self.dry:
-            try:
-                atual = self.drive.md5(self.cfg["propostas_fileId"])
-                if self.md5_esperado and atual and atual != self.md5_esperado:
-                    self.propostas = Propostas(antes)
-                    self.aviso("Propostas.csv mudou no Drive durante a execução; parei sem gravar")
-                    self.resumo["pendentes"].append(did)
-                    return False
-                caminho = os.path.join(self.drive.workdir, "propostas-novo.csv")
-                with open(caminho, "w", encoding="utf-8", newline="") as f:
-                    f.write(self.propostas.texto())
-                self.drive.atualizar(self.cfg["propostas_fileId"], "propostas-novo.csv")
-                self.md5_esperado = hashlib.md5(self.propostas.texto().encode("utf-8")).hexdigest()
-            except ErroDrive as ex:
-                self.aviso("%s: falha ao atualizar Propostas.csv (%s); rode de novo para conciliar" % (did, ex))
-                self.resumo["pendentes"].append(did)
-                return False
-        self._fase(did, fase="propostas_atualizada", hash_depois=hash_depois)
-        aplicados.add((d["item_id"], d["snapshot_hash"].lower()))
-        return self._criar_recibo(did, recibo, self.ledger.get(did) or {})
-
-    def _fase(self, did, **campos):
-        self.ledger.gravar(did, _em=agora_iso(self.agora()), **campos)
-
-    def _criar_recibo(self, did, recibo, entrada, retomada=False):
+    def _criar_recibo(self, did, recibo, conferir_antes):
+        """True se o recibo existe ao final; False se ficou pendente."""
+        if self.teste:
+            return True
         nome = did + ".json"
-        if not self.dry:
-            os.makedirs(os.path.join(self.drive.workdir, "recibos"), exist_ok=True)
-            rel = os.path.join("recibos", nome)
-            with open(os.path.join(self.drive.workdir, rel), "w", encoding="utf-8") as f:
-                json.dump(recibo, f, ensure_ascii=False, indent=2)
-            if retomada:
-                existentes = self.drive.listar(self.cfg["recibos_folderId"], nome)
-                if existentes:
-                    if len(existentes) > 1:
-                        self.aviso("recibo duplicado: %s (%d arquivos); não criei outro" % (nome, len(existentes)))
-                    return self._concluir(did, recibo, entrada, retomada)
-            try:
-                self.drive.criar(nome, self.cfg["recibos_folderId"], rel)
-            except ErroDrive as ex:
-                existentes = self.drive.listar(self.cfg["recibos_folderId"], nome)
-                if not existentes:
-                    self.aviso("%s: criação do recibo falhou (%s) e ele não existe; fica pendente para a próxima execução" % (did, ex))
-                    self.resumo["pendentes"].append(did)
-                    return True
+        os.makedirs(os.path.join(self.drive.workdir, "recibos"), exist_ok=True)
+        rel = os.path.join("recibos", nome)
+        with open(os.path.join(self.drive.workdir, rel), "w", encoding="utf-8") as f:
+            json.dump(recibo, f, ensure_ascii=False, indent=2)
+        if conferir_antes:
+            existentes = self.drive.listar(self.cfg["recibos_folderId"], nome)
+            if existentes:
                 if len(existentes) > 1:
                     self.aviso("recibo duplicado: %s (%d arquivos); não criei outro" % (nome, len(existentes)))
-                else:
-                    self.aviso("%s: create respondeu erro, mas o recibo existe; considerado feito" % did)
-        return self._concluir(did, recibo, entrada, retomada)
-
-    def _concluir(self, did, recibo, entrada, retomada):
-        self._fase(did, fase="recibo_criado")
-        item = {"decision_id": did, "motivo": recibo["motivo"]}
-        if retomada:
-            item["retomada"] = True
-        if recibo["resultado"] == "aplicado":
-            self.resumo["aplicadas"].append(item)
-            self.resumo["acoes"].extend(entrada.get("acoes") or [])
-        else:
-            self.resumo["rejeitadas"].append(item)
+                self._fase(did, fase=F_RECIBO)
+                return True
+        try:
+            self.drive.criar(nome, self.cfg["recibos_folderId"], rel)
+        except ErroDrive as ex:
+            existentes = self.drive.listar(self.cfg["recibos_folderId"], nome)
+            if not existentes:
+                self.aviso("%s: criação do recibo falhou (%s) e ele não existe; rode de novo" % (did, ex))
+                return False
+            if len(existentes) > 1:
+                self.aviso("recibo duplicado: %s (%d arquivos); não criei outro" % (nome, len(existentes)))
+            else:
+                self.aviso("%s: create respondeu erro, mas o recibo existe; considerado feito" % did)
+        self._fase(did, fase=F_RECIBO)
         return True
+
+    def _entrada(self, did, d, propostas):
+        """Entrada do ledger, convertendo a do fluxo antigo (fase "recebida").
+        Antigo aplicado com o upload já feito vira propostas_atualizada; sem o upload, é descartado
+        (a decisão volta a ser avaliada do zero); antigo rejeitado vira rejeitada."""
+        e = self.ledger.get(did)
+        if not e or e.get("fase") != F_LEGADO_RECEBIDA:
+            return e
+        if e.get("resultado") == "rejeitado" and e.get("recibo"):
+            return dict(e, fase=F_REJEITADA, legado=True)
+        if e.get("resultado") == "aplicado" and propostas is not None:
+            linha, _ = propostas.buscar(e.get("pid", ""))
+            if linha and hash_snapshot(linha, d["tipo_item"]) == e.get("hash_depois"):
+                return dict(e, fase=F_ATUALIZADA, legado=True)
+        return None
+
+    # ---------------- --plano
+
+    def plano(self):
+        res = {"modo": "plano", "teste": self.teste, "acoes": [], "rejeitadas": [], "pendentes": [],
+               "ignoradas": self.ignoradas, "ja_com_recibo": 0, "avisos": self.avisos}
+        decs = self._decisoes()
+        recibos = self._contagem_recibos()
+        fila = []
+        for d in decs:
+            if recibos.get(d["id"] + ".json"):
+                res["ja_com_recibo"] += 1
+            else:
+                fila.append(d)
+        if not fila:
+            return res
+        if not self._propostas_id():
+            res["sem_propostas"] = True
+            self.aviso("Propostas.csv ainda não configurado (propostas_fileId). %d decisão(ões) aguardando; "
+                       "nada foi feito." % len(fila))
+            return res
+        prop = self._propostas()
+        decididas = self.ledger.decididas()
+        for d in fila:
+            did = d["id"]
+            e = self._entrada(did, d, prop)
+            if e and e.get("fase") == F_RECIBO:
+                self.aviso("ledger diz recibo criado para %s, mas ele não aparece em recibos/; não recriei" % did)
+                continue
+            if e and e.get("fase") == F_REJEITADA and e.get("recibo"):
+                ok = self._criar_recibo(did, e["recibo"], conferir_antes=True)
+                (res["rejeitadas"] if ok else res["pendentes"]).append({"decision_id": did, "motivo": e["recibo"]["motivo"]})
+                continue
+            if e and e.get("legado") and e.get("fase") == F_ATUALIZADA:
+                # fluxo antigo: Propostas já foi atualizado e as ações nunca chegaram ao agente
+                ok = self._criar_recibo(did, e["recibo"], conferir_antes=True)
+                if ok:
+                    res["acoes"].extend(dict(a, legado=True) for a in (e.get("acoes") or []))
+                else:
+                    res["pendentes"].append({"decision_id": did, "motivo": "recibo do fluxo antigo não criado; rode de novo"})
+                continue
+            if e and e.get("fase") in (F_CONFIRMANDO, F_ATUALIZADA):
+                res["pendentes"].append({"decision_id": did, "motivo": "confirmação incompleta; rode --confirmar de novo"})
+                continue
+            r = avaliar(d, prop, decididas)
+            h = d["snapshot_hash"].lower()
+            if r["resultado"] == "rejeitado":
+                recibo = self._recibo(did, d["snapshot_hash"], "rejeitado", r["motivo"])
+                self._fase(did, fase=F_REJEITADA, resultado="rejeitado", item_id=d["item_id"], snapshot_hash=h,
+                           recibo=recibo)
+                ok = self._criar_recibo(did, recibo, conferir_antes=False)
+                (res["rejeitadas"] if ok else res["pendentes"]).append({"decision_id": did, "motivo": r["motivo"]})
+                continue
+            for a in r["acoes"]:
+                acao = dict({"decision_id": did, "item_id": d["item_id"], "decisao": d["decisao"], "snapshot_hash": h},
+                            **a)
+                acao["motivo"] = r["motivo"]
+                if e and e.get("fase") == F_PLANEJADA:
+                    acao["ja_planejada"] = True
+                res["acoes"].append(acao)
+            if not (e and e.get("fase") == F_PLANEJADA):
+                self._fase(did, fase=F_PLANEJADA, resultado="planejado", item_id=d["item_id"], snapshot_hash=h,
+                           decisao=d["decisao"], pid=r["pid"], acao=r["acoes"][0]["acao"])
+            decididas[(d["item_id"], h)] = did
+        return res
+
+    # ---------------- --confirmar
+
+    def confirmar(self, did, link=""):
+        res = {"modo": "confirmar", "teste": self.teste, "decision_id": did, "resultado": None, "avisos": self.avisos}
+        if link and not re.match(r"^https?://\S+$", link):
+            raise ErroContrato("link deve começar com http:// ou https://")
+        if not self._propostas_id():
+            raise ErroContrato("propostas_fileId não configurado")
+        decs = self._decisoes()
+        d = next((x for x in decs if x["id"] == did), None)
+        if d is None:
+            raise ErroContrato("decisão %s não existe em decisoes.csv com modulo=anuncios" % did)
+        nome = did + ".json"
+        existentes = self.drive.listar(self.cfg["recibos_folderId"], nome)
+        if existentes:
+            if len(existentes) > 1:
+                self.aviso("recibo duplicado: %s (%d arquivos); não criei outro" % (nome, len(existentes)))
+            if not self.teste and (self.ledger.get(did) or {}).get("fase") != F_RECIBO:
+                self._fase(did, fase=F_RECIBO)
+            res["resultado"] = "ja_existia"
+            return res
+
+        prop = self._propostas()
+        e = self._entrada(did, d, prop) or {}
+        if e.get("fase") == F_REJEITADA:
+            raise ErroContrato("decisão %s foi rejeitada no plano (%s); nada a confirmar" % (did, e["recibo"]["motivo"]))
+        if e.get("fase") in (F_ATUALIZADA, F_RECIBO):
+            ok = self._criar_recibo(did, e["recibo"], conferir_antes=True)
+            res.update(resultado="aplicado" if ok else "pendente", recibo=e["recibo"], retomada=True)
+            return res
+        if e.get("fase") == F_CONFIRMANDO:
+            linha, _ = prop.buscar(e.get("pid", ""))
+            if linha and hash_snapshot(linha, d["tipo_item"]) == e.get("hash_depois"):
+                # o upload chegou ao Drive, mas o ledger não registrou: só avançar
+                if not self.teste:
+                    self._fase(did, fase=F_ATUALIZADA)
+                ok = self._criar_recibo(did, e["recibo"], conferir_antes=True)
+                res.update(resultado="aplicado" if ok else "pendente", recibo=e["recibo"], retomada=True)
+                return res
+            # upload não chegou: refazer a confirmação do zero
+
+        r = avaliar(d, prop, self.ledger.decididas())
+        if r["resultado"] != "aplicado":
+            raise ErroContrato("não dá para confirmar %s: %s. Nada foi gravado; se o agente já agiu na Meta, "
+                               "corrija Propostas.csv à mão" % (did, r["motivo"]))
+        quando = agora_iso(self.agora())
+        nova = r["linha_nova"]
+        nova["atualizado_em"] = quando
+        hash_depois = hash_snapshot(nova, d["tipo_item"])
+        h = d["snapshot_hash"].lower()
+        recibo = self._recibo(did, d["snapshot_hash"], "aplicado", r["motivo"], link)
+        res["recibo"] = recibo
+        res["estado_novo"] = nova["estado"]
+        res["versao_nova"] = nova["versao"]
+        if self.teste:
+            res["resultado"] = "aplicado (teste, nada gravado)"
+            return res
+        # ledger antes de tudo: com o hash_depois previsto, uma queda depois do upload é reconhecida
+        self._fase(did, fase=F_CONFIRMANDO, resultado="aplicado", item_id=d["item_id"], snapshot_hash=h,
+                   decisao=d["decisao"], pid=r["pid"], hash_depois=hash_depois, recibo=recibo, acoes=r["acoes"])
+        prop.substituir(r["pid"], nova)
+        atual = self.drive.md5(self._propostas_id())
+        if self.md5_esperado and atual and atual != self.md5_esperado:
+            self.aviso("Propostas.csv mudou no Drive durante a execução; parei sem gravar")
+            res["resultado"] = "pendente"
+            return res
+        with open(os.path.join(self.drive.workdir, "propostas-novo.csv"), "w", encoding="utf-8", newline="") as f:
+            f.write(prop.texto())
+        try:
+            self.drive.atualizar(self._propostas_id(), "propostas-novo.csv")
+        except ErroDrive as ex:
+            self.aviso("falha ao atualizar Propostas.csv (%s); rode --confirmar de novo" % ex)
+            res["resultado"] = "pendente"
+            return res
+        self._fase(did, fase=F_ATUALIZADA)
+        ok = self._criar_recibo(did, recibo, conferir_antes=False)
+        res["resultado"] = "aplicado" if ok else "pendente"
+        return res
 
 
 # ---------------------------------------------------------------- CLI
+
+class _Parser(argparse.ArgumentParser):
+    """Argumento inválido sai com 3 (fora do contrato), não com o 2 do argparse, que é o código de autenticação."""
+
+    def error(self, message):
+        self.print_usage(sys.stderr)
+        self.exit(3, "%s: erro: %s\n" % (self.prog, message))
+
 
 def carregar_config(caminho):
     with open(caminho, encoding="utf-8") as f:
@@ -696,39 +804,34 @@ def carregar_config(caminho):
         if not cfg.get(k) or cfg[k] == "PREENCHER":
             raise ErroContrato("config sem %s" % k)
     base = os.path.dirname(os.path.abspath(caminho))
-    for k, padrao in (("pasta_trabalho", "trabalho"), ("ledger_path", "ledger-anuncios.json"),
-                      ("acoes_path", "acoes-anuncios.json")):
+    for k, padrao in (("pasta_trabalho", "trabalho"), ("ledger_path", "ledger-anuncios.json")):
         v = cfg.get(k) or padrao
         cfg[k] = v if os.path.isabs(v) else os.path.join(base, v)
     return cfg
 
 
-def imprimir_resumo(res, dry):
-    p = print
-    p("Consumidor de anúncios" + (" (dry-run, nada foi gravado)" if dry else ""))
-    if res.get("sem_propostas"):
-        p("- Propostas.csv não configurado: decisões aguardando.")
-    p("- aplicadas: %d | rejeitadas: %d | ignoradas: %d | pendentes: %d | já com recibo: %d"
-      % (len(res["aplicadas"]), len(res["rejeitadas"]), len(res["ignoradas"]), len(res["pendentes"]), res["ja_com_recibo"]))
-    for x in res["aplicadas"]:
-        p("  aplicada %s: %s%s" % (x["decision_id"], x["motivo"], " (retomada)" if x.get("retomada") else ""))
-    for x in res["rejeitadas"]:
-        p("  rejeitada %s: %s" % (x["decision_id"], x["motivo"]))
-    for x in res["ignoradas"]:
-        p("  ignorada %s: %s" % (x["decision_id"], x["motivo"]))
-    for a in res["acoes"]:
-        p("  ação: %s %s" % (a["acao"], a["item_id"]))
-    for a in res["avisos"]:
-        p("  aviso: %s" % a)
-
-
 def main(argv=None, runner=None, agora=None):
-    ap = argparse.ArgumentParser(description="Consumidor das decisões de anúncios do Painel Grupo Smart")
+    ap = _Parser(description="Consumidor das decisões modulo=anuncios do Painel Grupo Smart (não chama a Meta)")
     ap.add_argument("--config", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json"))
-    ap.add_argument("--dry-run", action="store_true", help="não grava nada (Drive, ledger, ações)")
-    ap.add_argument("--ledger", help="caminho do ledger de fases (sobrepõe a config)")
-    ap.add_argument("--acoes", help="caminho do JSON de ações (sobrepõe a config)")
+    g = ap.add_mutually_exclusive_group()
+    g.add_argument("--plano", action="store_true", help="lista em JSON as ações para o agente (padrão)")
+    g.add_argument("--confirmar", metavar="DECISION_ID", help="registra a ação que o agente já fez na Meta")
+    ap.add_argument("--link", default="", help="com --confirmar: link opcional da evidência (vai no recibo)")
+    ap.add_argument("--teste", action="store_true", help="só leitura: não grava Drive, ledger nem recibo")
+    ap.add_argument("--dry-run", action="store_true", help="obsoleto: apelido de --teste")
+    ap.add_argument("--ledger", help="caminho do ledger (sobrepõe a config)")
+    ap.add_argument("--acoes", help=argparse.SUPPRESS)
     a = ap.parse_args(argv)
+    if a.acoes is not None:
+        print("erro: --acoes foi removido. As ações agora saem em JSON no stdout de --plano; "
+              "veja a migração no README.", file=sys.stderr)
+        return 3
+    if a.dry_run:
+        print("aviso: --dry-run está obsoleto; use --teste (mesmo efeito).", file=sys.stderr)
+        a.teste = True
+    if a.link and not a.confirmar:
+        print("erro: --link só vale com --confirmar", file=sys.stderr)
+        return 3
     try:
         cfg = carregar_config(a.config)
     except (OSError, ValueError, ErroContrato) as e:
@@ -736,28 +839,27 @@ def main(argv=None, runner=None, agora=None):
         return 3
     if a.ledger:
         cfg["ledger_path"] = a.ledger
-    if a.acoes:
-        cfg["acoes_path"] = a.acoes
     os.makedirs(cfg["pasta_trabalho"], exist_ok=True)
     drive = Drive(cfg["pasta_trabalho"], runner or runner_subprocess(cfg.get("gws_bin", "gws")))
-    ledger = Ledger(cfg["ledger_path"], somente_leitura=a.dry_run)
-    c = Consumidor(cfg, drive, ledger, dry_run=a.dry_run, agora=agora)
+    c = Consumidor(cfg, drive, Ledger(cfg["ledger_path"], somente_leitura=a.teste), teste=a.teste, agora=agora)
     try:
-        res = c.rodar()
+        if a.confirmar:
+            res = c.confirmar(a.confirmar, a.link)
+            rc = 0 if res["resultado"] != "pendente" else 1
+        else:
+            res = c.plano()
+            rc = 1 if res["pendentes"] else 0
     except ErroAuth as e:
         print("ERRO DE AUTENTICAÇÃO no Google Drive: %s. Parei tudo; reconecte o Drive e rode de novo." % e, file=sys.stderr)
         return 2
     except ErroContrato as e:
-        print("arquivo fora do contrato: %s. Nada foi gravado nesta etapa." % e, file=sys.stderr)
+        print("erro: %s" % e, file=sys.stderr)
         return 3
     except ErroDrive as e:
         print("falha no Drive: %s" % e, file=sys.stderr)
         return 1
-    if not a.dry_run and res["acoes"]:
-        with open(cfg["acoes_path"], "w", encoding="utf-8") as f:
-            json.dump({"gerado_em": agora_iso(agora() if agora else None), "acoes": res["acoes"]}, f, ensure_ascii=False, indent=2)
-    imprimir_resumo(res, a.dry_run)
-    return 1 if res["pendentes"] else 0
+    print(json.dumps(res, ensure_ascii=False, indent=2))
+    return rc
 
 
 if __name__ == "__main__":
