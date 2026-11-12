@@ -208,3 +208,81 @@ test('telas v3: os scripts dos módulos compilam (pega aspas quebradas antes da 
     });
   });
 });
+
+test('financas: estado e origem mostrados sem os tokens que o painel já extraiu (hash usa o texto cru)', () => {
+  assert.equal(L.limparTokens('a pagar; gmail:f480ac4dae299313'), 'a pagar');
+  assert.equal(L.limparTokens('Extrato_2026-11-18-1.ofx (chat 10/11); outlook:AbCdEfGh123==; pdf 1ExemploExemploExemploExemplo12345'), 'Extrato_2026-11-18-1.ofx (chat 10/11)');
+  assert.equal(L.limparTokens('fatura no chat 10/11; icloud:XyZ123@mta-exemplo-62'), 'fatura no chat 10/11');
+  assert.equal(L.limparTokens('sem confirmação de pagamento; total R$ 861,53'), 'sem confirmação de pagamento; total R$ 861,53');
+  const s = L.montarModulosV3({ financas: fontes() }, [], AGORA).financas;
+  s.itens.filter((i) => i.tipo_item === 'conta').forEach((c) => {
+    assert.ok(!/\b(gmail|outlook|icloud):|\bpdf\s+\w{25,}/.test(c.estado_mostrado + ' ' + c.link_mostrado), c.item_id);
+  });
+});
+
+// Formato novo que o Assistente Financeiro vai gravar (test/fixtures/financas-novo/): CSV com aspas, última coluna
+// nomeada, message_id/codigo/pdf_fileId em Contas, pago_em limpo, "em atraso", entradas e dono em Lancamentos,
+// emissor e pagantes em Rateios. O painel aceita os dois formatos.
+const txtN = (n) => fs.readFileSync(path.join(__dirname, 'fixtures', 'financas-novo', n), 'utf8');
+const fontesNovo = () => {
+  const f = {};
+  ['contas:Contas.csv', 'recebidas:contas-recebidas.csv', 'lancamentos:Lancamentos.csv', 'rateios:Rateios.csv'].forEach((p) => { const [k, n] = p.split(':'); f[k] = L.csvParaObjetos(txtN(n)); });
+  return f;
+};
+
+test('financas formato novo: contas com message_id, codigo e pdf_fileId em colunas, sem conserto de linha', () => {
+  const f = fontesNovo();
+  assert.equal(f.contas.cabecalho[f.contas.cabecalho.length - 1], 'obs');
+  // "total R$ 861" seguido de link "10/11 chat": no formato atual isso seria juntado; no novo não mexe
+  const tv = f.contas.linhas[2];
+  assert.equal(L.consertarLinha(tv, f.contas.cabecalho), tv);
+  const s = montar(f);
+  assert.equal(s.contas.consertadas, 0);
+  const tvi = item(s, 'conta:TV Estrela (minha parte 1/4)|2026-11');
+  assert.equal(tvi.estado_texto, 'sem confirmação de pagamento; total R$ 861');
+  assert.equal(tvi.link, '10/11 chat');
+  // message_id na coluna liga a recebida (Pix e PDF dela)
+  const en = item(s, 'conta:Energia Minas|2026-11');
+  assert.equal(en.tipo_codigo, 'pix');
+  assert.equal(en.pdf_fileId, '1ExemploPdfEnergiaMinas12345678');
+  assert.equal(en.message_id, 'gmail:0a1b2c3d4e5f6071');
+  assert.equal(s.recebidas_soltas.length, 0);
+  // codigo e pdf_fileId da própria conta
+  const fac = item(s, 'conta:Faculdade Pós Dados|2026-11');
+  assert.equal(fac.tipo_codigo, 'barras');
+  assert.equal(fac.codigo, '23793.38128 60000.000003 12000.000400 1 98760000057130');
+  assert.equal(item(s, 'conta:Banco Roxo PF cartão (pessoal)|2026-11').pdf_fileId, '1ExemploPdfFaturaBancoRoxo12345');
+  // "em atraso" pelo começo do texto; pago com pago_em limpo
+  const ag = item(s, 'conta:Águas do Vale água casa|2026-10');
+  assert.equal(ag.estado, 'atraso');
+  assert.equal(ag.situacao, 'atraso');
+  assert.deepEqual(s.contas.pagas.map((p) => [p.emissor, p.pago_em]), [['Internet Fibra Net', '2026-11-10']]);
+  assert.equal(s.contas.urgentes.length, 2);
+  // hash da conta continua com os mesmos campos (codigo e pdf_fileId vindos da coluna)
+  assert.equal(fac.snapshot_hash, L.sha256(L.canonicoConta(fac)));
+});
+
+test('financas formato novo: entradas e dono em Lancamentos, emissor e pagantes em Rateios', () => {
+  const s = montar(fontesNovo());
+  const nov = s.meses.find((x) => x.mes === '2026-11');
+  assert.equal(nov.entradas, 5840.5);
+  assert.equal(nov.saidas, 1561.6);
+  assert.equal(nov.saldo, 4278.9);
+  assert.equal(nov.sem_dono, 0);
+  assert.equal(nov.empresa, 96.4);
+  assert.equal(nov.a_pagar, 1);
+  const r = item(s, s.rateio);
+  assert.equal(r.item_id, 'rateio:2026-10');
+  assert.equal(r.emissor, 'TV Estrela');
+  assert.deepEqual(r.pagantes, ['Ana', 'Rita']);
+  assert.equal(r.recebidos, 2);
+  assert.equal(r.de, 3);
+  assert.equal(r.estado, 'aberto');
+  assert.deepEqual(r.decisoes_possiveis, ['recebi_mais_um']);
+  assert.deepEqual(s.precisa.partes[2], { rotulo: 'rateio TV Estrela esperando', n: 1 });
+  // canônico novo: emissor e pagantes no fim (vetor do contrato)
+  const can = L.canonicoRateio({ mes_ref: '2026-10', total: '861,53', por_pessoa: '136,34', enviado: 's (09/11 09:17 WhatsApp Grupo TV)', recebidos: '2/3', emissor: 'TV Estrela', pagantes: 'Ana; Rita' }, true);
+  assert.equal(can, ['rateio', '2026-10', '861,53', '136,34', 's (09/11 09:17 WhatsApp Grupo TV)', '2/3', 'TV Estrela', 'Ana; Rita'].join('\u001F'));
+  assert.equal(r.snapshot_hash, L.sha256(can));
+  assert.equal(L.sha256(can), '6ff1894773e2ff47970e3fa90cc8dea57b65809d44d12dca10f2b91143c7673f');
+});

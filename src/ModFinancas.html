@@ -38,9 +38,9 @@
       '<div class="v3-topo"><span class="cartao-empresa">' + e(nomeMes(x.mes_ref)) + ' · ' + e(x.forma || 'forma não informada') + '</span>' + U.selo(s[0], s[1]) + '</div>' +
       '<div class="fin-linha-titulo"><span class="cartao-titulo">' + e(x.emissor) + '</span><span class="fin-valor">' + e(valorConta(x)) + '</span></div>' +
       '<div class="v3-meta"><span class="' + (x.dias !== null && x.dias <= 2 ? 'prazo-urgente' : '') + '">' + e(prazo(x.dias)) + '</span><span>Vencimento ' + U.dataBr(x.vencimento) + '</span></div>' +
-      '<p class="v3-resumo"><b>Estado:</b> ' + e(x.estado_texto || '(vazio)') + '</p>' +
+      '<p class="v3-resumo"><b>Estado:</b> ' + e(x.estado_mostrado || x.estado_texto || '(vazio)') + '</p>' +
       (estadoDif ? '<p class="mudo ajuda">' + e(estadoDif) + '</p>' : '') +
-      (x.link ? '<p class="mudo ajuda">Origem: ' + e(x.link) + '</p>' : '') +
+      (x.link_mostrado ? '<p class="mudo ajuda">Origem: ' + e(x.link_mostrado) + '</p>' : '') +
       (x.pdf_fileId ? '<p class="ajuda"><a href="' + e(U.urlDrive(x.pdf_fileId)) + '" target="_blank" rel="noopener">Abrir o PDF no Drive</a></p>' : '') +
       (x.codigo ? blocoCodigo('fin-cod-' + n, x.codigo, x.tipo_codigo, U) : '') +
       (x.codigo_obs ? '<p class="mudo ajuda">Pagamento: ' + e(x.codigo_obs) + '</p>' : '') +
@@ -98,13 +98,14 @@
     if (!x) return '<div class="vazio">Nenhum rateio no Rateios.csv.</div>';
     var e = U.esc, de = x.de || 0, pontos = '';
     for (var i = 0; i < de; i++) pontos += '<i class="fin-ponto' + (i < x.recebidos ? ' ok' : '') + '"></i>';
-    x.titulo_curto = 'Rateio SKY ' + nomeMes(x.mes_ref) + ' · ' + x.recebidos + '/' + (x.de === null ? '?' : x.de);
+    x.titulo_curto = 'Rateio ' + x.emissor + ' ' + nomeMes(x.mes_ref) + ' · ' + x.recebidos + '/' + (x.de === null ? '?' : x.de);
     var sel = x.estado === 'completo' ? U.selo('aprovado', 'Todos pagaram') : x.estado === 'nao_enviado' ? U.selo('cancelado', 'Ainda não enviado') : U.selo('entregue', 'Esperando');
     return '<article class="cartao-v3 fin-rateio"><div class="v3-topo"><span class="cartao-empresa">Fatura de ' + e(nomeMes(x.mes_ref)) + '</span>' + sel + '</div>' +
       '<div class="fin-linha-titulo"><span class="cartao-titulo">Recebidos ' + x.recebidos + ' de ' + (x.de === null ? '?' : x.de) + '</span><span class="fin-pontos" aria-hidden="true">' + pontos + '</span></div>' +
       '<div class="v3-meta"><span>Total ' + e(x.total !== null ? brl(x.total) : x.total_texto) + '</span><span>Por pessoa ' + e(x.por_pessoa !== null ? brl(x.por_pessoa) : x.por_pessoa_texto) + '</span>' +
       (x.de ? '<span>Falta receber ' + brl((x.por_pessoa || 0) * Math.max(0, x.de - x.recebidos)) + '</span>' : '') + '</div>' +
       '<p class="v3-resumo"><b>Enviado:</b> ' + e(x.enviado ? 'sim' + (x.enviado_texto.replace(/^s(im)?\s*/i, '') ? ', ' + x.enviado_texto.replace(/^s(im)?\s*/i, '').replace(/^\((.*)\)$/, '$1') : '') : (x.enviado_texto || 'não')) + '</p>' +
+      (x.pagantes && x.pagantes.length ? '<p class="v3-resumo"><b>Já pagaram:</b> ' + e(x.pagantes.join(', ')) + '</p>' : '') +
       V3.botoes('financas', x, { recebi_mais_um: 'Recebi de mais um' }) + '</article>';
   }
 
@@ -152,7 +153,7 @@
       }
 
       h += '<h2 id="fin-mes">Mês por categoria</h2><div id="fin-bloco-mes">' + blocoMes(m, mesSel, U) + '</div>';
-      h += '<h2 id="fin-rateio">Rateio SKY</h2>' + blocoRateio(m.rateio ? it(m.rateio) : null, U, V3);
+      h += '<h2 id="fin-rateio">Rateio ' + U.esc((m.rateio && it(m.rateio) || {}).emissor || 'SKY') + '</h2>' + blocoRateio(m.rateio ? it(m.rateio) : null, U, V3);
       h += '<div class="duas-colunas"><div><h2>Fechamentos</h2>' + tabela(m.fechamentos, 'Ainda sem fechamento.', U) + '</div>' +
         '<div><h2>Orçamento</h2>' + tabela(m.orcamento, 'Ainda sem orçamento.', U) + '</div></div>';
 

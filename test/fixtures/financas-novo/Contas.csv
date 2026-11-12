@@ -1,0 +1,7 @@
+emissor,mes_ref,valor,vencimento,forma,estado,link,pago_em,message_id,codigo,pdf_fileId,obs
+Energia Minas,2026-11,"309,07",2026-11-18,boleto,a pagar,chat 10/11,,gmail:0a1b2c3d4e5f6071,,,
+Águas do Vale água casa,2026-10,"174,53",2026-10-30,Pix/boleto,"em atraso; usuário avisa quando pagar (lançar com encargos)",chat 10/11,,,,,
+TV Estrela (minha parte 1/4),2026-11,"136,34",2026-11-05,boleto,"sem confirmação de pagamento; total R$ 861",10/11 chat,,,,,"fatura enviada no chat 09/11, com PDF"
+Banco Roxo PF cartão (pessoal),2026-11,"3.015,73",2026-11-18,débito automático,"a pagar; fechou 11/11 em R$ 3.015,73",Extrato_2026-11-18.ofx (chat 10/11),,outlook:QWxhZGRpbkV4ZW1wbG8==,,1ExemploPdfFaturaBancoRoxo12345,
+Faculdade Pós Dados,2026-11,"571,30",2026-11-15,boleto,a pagar,chat 10/11,,,23793.38128 60000.000003 12000.000400 1 98760000057130,,
+Internet Fibra Net,2026-11,"121,93",2026-11-10,Pix,pago,chat 10/11,2026-11-10,,,,

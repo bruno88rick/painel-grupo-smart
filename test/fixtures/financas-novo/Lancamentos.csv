@@ -1,0 +1,7 @@
+data,descricao,categoria,essencial,tipo,valor,conta,parcela,origem,estado,dono
+2026-11-05,Salário,Renda,n,entrada,"5.200,00",Banco Roxo PF,,extrato,recebido,pessoal
+2026-11-06,Venda de peças,Renda empresa,n,entrada,"640,50",Banco Roxo PJ,,extrato,recebido,empresa
+2026-11-10,Internet Fibra Net,"TV, internet e telefone",s,saída,"121,93",Banco Roxo PF,,extrato,pago,pessoal
+2026-11-12,Mercado do mês,Mercado,s,saída,"1.034,20",Banco Roxo PF,,extrato,pago,pessoal
+2026-11-12,Filamento,Matéria-prima BD 3D,s,saída,"96,40",Banco Roxo PJ,,extrato,pago,empresa
+2026-11-18,Energia Minas,Contas da casa,s,saída,"309,07",Banco Roxo PF,,conta,a pagar,pessoal

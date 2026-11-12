@@ -1238,6 +1238,8 @@ var PainelLib = (function () {
    * recebe o que sobrou). Junta "...R$ 321" com "66..." e puxa os campos de volta.
    */
   function consertarLinha(o, cab) {
+    // Só no formato atual (última coluna sem nome). No formato novo o CSV vem com aspas e nada é mexido.
+    if (!cab.length || String(cab[cab.length - 1]).trim() !== '') return o;
     var l = cab.map(function (k) { return o[k] === undefined ? '' : String(o[k]); });
     var mudou = false;
     for (var i = 0; i < l.length - 1; i++) {
@@ -1258,10 +1260,22 @@ var PainelLib = (function () {
     return s ? 'texto' : '';
   }
 
+  /** Tira do texto mostrado os tokens que o painel já extraiu (message_id gmail:/outlook:/icloud: e "pdf <fileId>"). */
+  function limparTokens(t) {
+    return String(t || '').replace(/\b(gmail|outlook|icloud):[^\s;,()]+/g, '').replace(/\bpdf\s+[A-Za-z0-9_-]{25,}/g, '')
+      .replace(/\(\s*\)/g, '').replace(/\s*;\s*(?=;|$)/g, '').replace(/^\s*;\s*/, '').replace(/\s{2,}/g, ' ').replace(/\s+([;,.)])/g, '$1').trim();
+  }
   function canonicoConta(x) {
     return canonicoV3('conta', [x.emissor, x.mes_ref, x.valor_texto, x.vencimento, x.forma, x.estado_texto, x.link, x.pago_em, x.codigo, x.pdf_fileId]);
   }
-  function canonicoRateio(r) { return canonicoV3('rateio', [r.mes_ref, r.total, r.por_pessoa, r.enviado, r.recebidos]); }
+  /** Formato atual: 5 campos. Formato novo (Rateios.csv com emissor e pagantes): os dois entram no fim. */
+  function canonicoRateio(r, novo) {
+    var c = [r.mes_ref, r.total, r.por_pessoa, r.enviado, r.recebidos];
+    if (novo) c = c.concat([r.emissor, r.pagantes]);
+    return canonicoV3('rateio', c);
+  }
+  /** "Ana; João, Rita" -> ['Ana', 'João', 'Rita']. */
+  function listaNomes(t) { return String(t || '').split(/[;,]/).map(function (x) { return x.trim(); }).filter(Boolean); }
 
   function resumoMes(linhas) {
     var r = { entradas: 0, saidas: 0, essenciais: 0, nao_essenciais: 0, pessoal: 0, empresa: 0, sem_dono: 0, a_pagar: 0, a_pagar_valor: 0, lancamentos: linhas.length, sem_valor: 0, cat: {} };
@@ -1297,21 +1311,25 @@ var PainelLib = (function () {
     var contas = ultimaPor(L('contas').map(function (o) { var r = consertarLinha(o, cabC); if (r !== o) consertadas++; return r; })
       .filter(function (x) { return String(x.emissor || '').trim(); }).map(function (x) { x._k = String(x.emissor).trim() + '|' + String(x.mes_ref || '').trim(); return x; }), '_k').map(function (x) {
       var texto = [x.link, x.estado].join(' ');
-      var rec = null;
-      recebidas.forEach(function (r) { if (r.message_id && texto.indexOf(r.message_id) >= 0) { rec = r; r.ligada = true; } });
-      var pdf = (String(x.link || '').match(/\bpdf\s+([A-Za-z0-9_-]{25,})/) || [])[1] || (rec && rec.pdf_fileId) || '';
-      var codigo = rec && (rec.tipo_codigo === 'pix' || rec.tipo_codigo === 'barras') ? rec.codigo : '';
+      var rec = null, mid = String(x.message_id || '').trim();
+      // Formato novo: coluna message_id; formato atual: message_id citado no texto de link/estado.
+      recebidas.forEach(function (r) { if (r.message_id && (mid ? r.message_id === mid : texto.indexOf(r.message_id) >= 0)) { rec = r; r.ligada = true; } });
+      var pdf = String(x.pdf_fileId || '').trim() || (String(x.link || '').match(/\bpdf\s+([A-Za-z0-9_-]{25,})/) || [])[1] || (rec && rec.pdf_fileId) || '';
+      var codCol = String(x.codigo || '').trim(), tipoCol = tipoCodigo(codCol);
+      var codigo = tipoCol === 'pix' || tipoCol === 'barras' ? codCol : rec && (rec.tipo_codigo === 'pix' || rec.tipo_codigo === 'barras') ? rec.codigo : '';
+      var tipoCod = codigo ? tipoCodigo(codigo) : '';
+      var codObs = tipoCol === 'texto' ? codCol : rec && rec.tipo_codigo === 'texto' ? rec.codigo : '';
       var venc = parseData(x.vencimento);
       var est = classificarComeco(x.estado, ESTADOS_CONTA);
       var dias = venc ? Math.round((soDia(venc) - hoje) / DIA_MS) : null;
       var situacao = est === 'pago' ? 'pago' : est === 'atraso' || (est === 'a_pagar' && dias !== null && dias < 0) ? 'atraso' : est === 'sem_confirmacao' ? 'sem_confirmacao' : est === 'a_pagar' ? 'a_pagar' : 'outro';
       var pago = parseData(x.pago_em);
       var c = {
-        item_id: 'conta:' + x._k, tipo_item: 'conta', versao: '', estado: est, estado_texto: String(x.estado || '').trim(), situacao: situacao,
+        item_id: 'conta:' + x._k, tipo_item: 'conta', versao: '', estado: est, estado_texto: String(x.estado || '').trim(), estado_mostrado: limparTokens(x.estado), link_mostrado: limparTokens(x.link), situacao: situacao,
         emissor: String(x.emissor).trim(), mes_ref: String(x.mes_ref || '').trim(), valor_texto: String(x.valor || '').trim(), valor: numBr(x.valor),
         vencimento: String(x.vencimento || '').trim(), dias: dias, forma: String(x.forma || '').trim(), link: String(x.link || '').trim(),
         pago_em: pago ? diaIso(pago) : '', pago_em_texto: String(x.pago_em || '').trim(),
-        codigo: codigo, tipo_codigo: codigo ? rec.tipo_codigo : '', codigo_obs: rec && rec.tipo_codigo === 'texto' ? rec.codigo : '', pdf_fileId: pdf,
+        codigo: codigo, tipo_codigo: tipoCod, codigo_obs: codObs, pdf_fileId: pdf, message_id: mid || (rec ? rec.message_id : ''),
         recebida: rec ? { caixa: rec.caixa, recebido_em: rec.recebido_em } : null, consertada: !!x._consertada
       };
       c.snapshot_hash = sha256(canonicoConta(c));
@@ -1350,17 +1368,20 @@ var PainelLib = (function () {
     var rateio = null, itensRateio = [];
     if (rateios.length) {
       var r = rateios[rateios.length - 1];
+      var cabR = (f.rateios && f.rateios.cabecalho) || [];
+      var novo = cabR.indexOf('emissor') >= 0 || cabR.indexOf('pagantes') >= 0;
+      var pagantes = listaNomes(r.pagantes);
       var m = String(r.recebidos || '').match(/(\d+)\s*\/\s*(\d+)/);
-      var rec = m ? +m[1] : 0, de = m ? +m[2] : null;
+      var rec = m ? Math.max(+m[1], pagantes.length) : pagantes.length, de = m ? +m[2] : null;
       var enviado = /^s/i.test(String(r.enviado || '').trim());
       rateio = {
         item_id: 'rateio:' + String(r.mes_ref).trim(), tipo_item: 'rateio', versao: '', mes_ref: String(r.mes_ref).trim(),
         total_texto: r.total || '', total: numBr(r.total), por_pessoa_texto: r.por_pessoa || '', por_pessoa: numBr(r.por_pessoa),
-        enviado: enviado, enviado_texto: String(r.enviado || '').trim(), recebidos: rec, de: de, recebidos_texto: String(r.recebidos || '').trim(),
+        enviado: enviado, enviado_texto: String(r.enviado || '').trim(), recebidos: rec, emissor: String(r.emissor || '').trim() || 'SKY', pagantes: pagantes, formato_novo: novo, de: de, recebidos_texto: String(r.recebidos || '').trim(),
         estado: !enviado ? 'nao_enviado' : de !== null && rec >= de ? 'completo' : 'aberto',
         anteriores: rateios.length - 1
       };
-      rateio.snapshot_hash = sha256(canonicoRateio(r));
+      rateio.snapshot_hash = sha256(canonicoRateio(r, novo));
       itensRateio = [rateio];
     }
 
@@ -1375,7 +1396,7 @@ var PainelLib = (function () {
     var precisa = [
       { rotulo: urgentes.length === 1 ? 'conta atrasada ou sem confirmação' : 'contas atrasadas ou sem confirmação', n: urgentes.length },
       { rotulo: semana.length === 1 ? 'conta vence em 7 dias' : 'contas vencem em 7 dias', n: semana.length },
-      { rotulo: 'rateio SKY esperando', n: rateio && rateio.estado === 'aberto' ? 1 : 0 }
+      { rotulo: 'rateio ' + (rateio ? rateio.emissor : 'SKY') + ' esperando', n: rateio && rateio.estado === 'aberto' ? 1 : 0 }
     ];
     return {
       itens: abertas.concat(itensRateio),
@@ -1523,7 +1544,7 @@ var PainelLib = (function () {
     decisoesComRecibos: decisoesComRecibos,
     montarModulosV3: montarModulosV3,
     conferirDecisaoV3: conferirDecisaoV3,
-    numBr: numBr, tipoCodigo: tipoCodigo, consertarLinha: consertarLinha, canonicoConta: canonicoConta, canonicoRateio: canonicoRateio, ESTADOS_CONTA: ESTADOS_CONTA,
+    numBr: numBr, tipoCodigo: tipoCodigo, consertarLinha: consertarLinha, canonicoConta: canonicoConta, canonicoRateio: canonicoRateio, limparTokens: limparTokens, ESTADOS_CONTA: ESTADOS_CONTA,
     parseComentarioV3: parseComentarioV3,
     montarComentarioV3: montarComentarioV3,
     classificarComeco: classificarComeco,

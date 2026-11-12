@@ -23,6 +23,20 @@ Contagem do Início ("precisa de você"): contas atrasadas ou sem confirmação 
 
 O `pdf <fileId>` citado no `link` da conta tem preferência sobre o `pdf_fileId` da recebida.
 
+## Formato novo (aceito junto com o atual)
+
+O Assistente Financeiro vai passar a gravar um formato mais limpo. O painel lê os dois, pelo nome das colunas (a ordem não importa), e escolhe sozinho:
+
+| Arquivo | Formato novo | O que muda no painel |
+| --- | --- | --- |
+| `Contas.csv` | CSV com aspas; última coluna com nome (ex. `obs`); colunas `message_id`, `codigo` e `pdf_fileId`; `pago_em` só com a data; `estado` `em atraso` quando vence | o conserto de linha só roda quando a última coluna não tem nome (formato atual); `message_id` da coluna liga a recebida por igualdade; `codigo` (Pix ou barras) e `pdf_fileId` da própria conta têm preferência sobre os da recebida |
+| `Lancamentos.csv` | entradas com `tipo=entrada` e `dono` sempre preenchido | nada novo: entradas, saldo e pessoal/empresa já saem das colunas |
+| `Rateios.csv` | `mes_ref,emissor,total,por_pessoa,enviado,recebidos,pagantes` (`pagantes` = nomes separados por `;`) | título e contagem do Início com o `emissor`; "Já pagaram: ..." no cartão; recebidos = o maior entre `x` de `x/y` e o número de nomes |
+
+Fixture de exemplo: `test/fixtures/financas-novo/`.
+
+Na tela, o estado e a origem da conta aparecem sem os tokens que o painel já extraiu (`gmail:`/`outlook:`/`icloud:` e `pdf <fileId>`). O hash usa o texto cru do arquivo.
+
 ## Itens e hash
 
 Texto canônico igual ao dos outros módulos: cada campo (vazio se ausente) com `\r\n` e `\r` trocados por `\n` e espaços das pontas tirados (trim do JS); campos unidos com U+001F (␟); SHA-256 do UTF-8, hex minúsculo. Os campos entram como texto do arquivo (depois do conserto da linha quebrada), não como número.
@@ -52,6 +66,14 @@ rateio␟mes_ref␟total␟por_pessoa␟enviado␟recebidos
 
 Vetor: `2026-10`, `600,00`, `150,00`, `s (09/11 WhatsApp)`, `1/3` → `c982befc6ef4cfcfda0f839df7beda3bf14247c3e82ab201c0f7b64f57976f65`.
 
+Formato novo (o `Rateios.csv` tem `emissor` ou `pagantes` no cabeçalho): os dois entram no fim.
+
+```
+rateio␟mes_ref␟total␟por_pessoa␟enviado␟recebidos␟emissor␟pagantes
+```
+
+Vetor: `2026-10`, `861,53`, `136,34`, `s (09/11 09:17 WhatsApp Grupo TV)`, `2/3`, `TV Estrela`, `Ana; Rita` → `6ff1894773e2ff47970e3fa90cc8dea57b65809d44d12dca10f2b91143c7673f`.
+
 ## Decisão (linha em decisoes.csv)
 
 Mesmo arquivo e cabeçalho; o agente filtra por `modulo=financas`. `arte_fileId` vazio, `origem=painel`.
@@ -74,7 +96,7 @@ Antes de aplicar, o agente recalcula o hash da conta ou do rateio. Se for difere
 
 ## Colunas sugeridas ao agente
 
-Nada disso é exigido pelo painel (ele já contorna), mas deixaria a leitura sem adivinhação:
+Nada disso é exigido pelo painel (ele já contorna o formato atual); é o que o formato novo acima traz:
 
 - Escrever o CSV com aspas (o `R$ 321,45` sem aspas quebra a linha) e dar nome à última coluna de `Contas.csv`.
 - Em `Contas.csv`: colunas `message_id`, `codigo` e `pdf_fileId` (hoje o painel procura o `message_id` dentro de `link`/`estado` e o `pdf <id>` no `link`).
