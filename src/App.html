@@ -12,12 +12,12 @@
 
   /** Texto do estado de uma decisão já enviada. */
   function textoEnvio(p) {
-    var qual = p.decisao === 'aprovar' ? 'aprovar' : 'ajuste';
+    var qual = ({ aprovar: 'aprovar', refazer: 'ajuste', recusar: 'recusar', pausar: 'pausar' })[p.decisao] || p.decisao;
     if (p.obsoleta) return 'Enviado (' + qual + ') para a versão ' + (p.versao ? 'v' + p.versao : 'anterior') + '. O item mudou; o agente vai recusar.';
     return 'Enviado: ' + qual + (p.versao ? ' da v' + p.versao : '') + '. Aguardando o agente.';
   }
 
-  var estado = { dados: null, aba: 'inicio', filtro: { empresa: '', estado: '', tipo: '', busca: '' }, ajuste: null };
+  var estado = { dados: null, aba: 'inicio', filtro: { empresa: '', estado: '', tipo: '', busca: '' }, filtroAn: { empresa: '', conta: '' }, ajuste: null, decAn: null };
 
   /* ---------- utilidades ---------- */
   function $(s, el) { return (el || document).querySelector(s); }
@@ -58,8 +58,12 @@
   }
 
   /* ---------- miniaturas com plano B ---------- */
+  /** Campos de mídia aceitam vários ids separados por ";" (carrossel). */
+  function midiasDe(txt) { return String(txt || '').split(';').map(function (x) { return x.trim(); }).filter(Boolean); }
+  function primeira(txt) { return midiasDe(txt)[0] || ''; }
   function miniatura(id, opc) {
     opc = opc || {};
+    id = primeira(id);
     if (!id) return '<div class="miniatura"><div class="sem-img">Sem arte ainda</div>' + (opc.extra || '') + '</div>';
     return '<div class="miniatura"><img class="carregando" loading="lazy" decoding="async" alt="' + esc(opc.alt || 'Arte') + '" data-thumb="' + esc(id) + '" src="' + esc(urlThumb(id, opc.tam)) + '">' +
       (opc.video ? '<span class="play"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>Vídeo</span>' : '') + (opc.extra || '') + '</div>';
@@ -111,13 +115,16 @@
   /* ---------- desenhar ---------- */
   function desenhar() {
     var d = estado.dados; if (!d) return;
-    var falhas = d.fontes.filter(function (f) { return !f.ok; });
+    var falhas = d.fontes.filter(function (f) { return !f.ok && !f.ausente; });
     var avisosLinhas = d.fontes.filter(function (f) { return f.ok && f.avisos && f.avisos.length; });
     $('#avisos').innerHTML = falhas.map(function (f) { return '<div class="aviso"><span><b>' + esc(f.rotulo) + ':</b> ' + esc(f.erro) + '. O resto do painel segue.</span></div>'; }).join('') +
       avisosLinhas.map(function (f) { return '<div class="aviso leve"><span><b>' + esc(f.rotulo) + ':</b> ' + esc(f.avisos[0]) + '</span></div>'; }).join('');
-    var n = d.inicio.artes_entregues.length + d.inicio.posts_pendentes.length + d.inicio.refazer_parados.length;
+    var a = d.anuncios;
+    var n = d.inicio.artes_entregues.length + (a ? a.inicio.posts_aguardando.length + a.inicio.planos_aguardando.length + a.inicio.alertas.length : d.inicio.posts_pendentes.length) + d.inicio.refazer_parados.length;
     var c = $('#nav-cont-inicio'); c.hidden = !n; c.textContent = n;
-    desenharInicio(); desenharDesigns(); desenharPosts(); desenharBiblioteca();
+    $('#tab-campanhas').hidden = !a;
+    document.getElementById('abas').classList.toggle('cinco', !!a);
+    desenharInicio(); desenharDesigns(); if (a) desenharPostsAnuncios(); else desenharPosts(); desenharCampanhas(); desenharBiblioteca();
     ligarImagens();
   }
 
@@ -128,7 +135,7 @@
     else if (x.estado === 'entregue') acoes = (pend ? '<div class="enviado obsoleta">' + esc(textoEnvio(pend)) + '</div>' : '') + '<div class="cartao-acoes"><button class="botao botao-primario" data-aprovar="' + esc(x.id) + '">Aprovar' + (x.versao ? ' v' + esc(x.versao) : '') + '</button><button class="botao" data-ajuste="' + esc(x.id) + '">Pedir ajuste</button></div>';
     var titulo = x.tipo || x.id;
     return '<article class="cartao"><button class="cartao-abrir" data-abrir="' + esc(x.id) + '" aria-label="Abrir ' + esc(titulo) + '">' +
-      miniatura(x.arte_fileId, { video: x.video, alt: titulo, extra: selo(x.estado) }) +
+      miniatura(x.arte_fileId, { video: x.video, alt: titulo, extra: selo(x.estado) + (midiasDe(x.arte_fileId).length > 1 ? '<span class="tag-qtd">1/' + midiasDe(x.arte_fileId).length + '</span>' : '') }) +
       '<div class="cartao-corpo"><div class="cartao-empresa">' + esc(x.empresa) + '</div><div class="cartao-titulo">' + esc(titulo) + '</div>' +
       '<div class="cartao-meta">' + esc(x.formato) + (x.versao ? ' · v' + esc(x.versao) : '') + (x.entregue_em ? ' · entregue ' + dataBr(x.entregue_em) : '') + '</div>' +
       (!compacto && x.briefing ? '<div class="cartao-briefing">' + esc(x.briefing) + '</div>' : '') +
@@ -143,28 +150,44 @@
     var pend = ini.decisoes_pendentes || [];
     var semConf = (ini.posts_sem_confirmacao || []).map(function (id) { return porId(d.posts, id); }).filter(Boolean);
     var recusadas = ini.decisoes_recusadas || [];
-    var total = entregues.length + posts.length + parados.length;
+    var a = d.anuncios;
+    if (a) {
+      posts = a.inicio.posts_aguardando.map(function (id) { return itemAnuncio('post:' + id); }).filter(Boolean);
+      semConf = a.posts.filter(function (p) { return p.estado === 'aguardando_confirmacao'; });
+    }
+    var planos = a ? a.inicio.planos_aguardando.map(function (id) { return a.campanhas.filter(function (c) { return c.id === id; })[0]; }).filter(Boolean) : [];
+    var alertas = a ? a.inicio.alertas : [];
+    var total = entregues.length + posts.length + parados.length + planos.length + alertas.length;
     function cont(num, rot, alvo, destaque) { return '<button class="contador-card' + (num ? (destaque ? ' destaque' : '') : ' zero') + '" data-ir="' + alvo + '"><div class="num">' + num + '</div><div class="rot">' + rot + '</div></button>'; }
     var h = '<h1>' + (total ? (total === 1 ? '1 item precisa de você' : total + ' itens precisam de você') : 'Nada precisa de você agora') + '</h1>' +
-      '<p class="intro">Artes para aprovar, posts sem publicação e ajustes parados. Os dados vêm direto do Drive dos agentes.</p>' +
-      '<div class="contadores">' + cont(entregues.length, 'Artes para aprovar', '#sec-entregues', true) + cont(posts.length, 'Posts aguardando você', '#sec-posts', true) +
+      '<p class="intro">' + (a ? 'Artes, posts e planos de campanha para aprovar, alertas de gasto e ajustes parados.' : 'Artes para aprovar, posts sem publicação e ajustes parados.') + ' Os dados vêm direto do Drive dos agentes.</p>' +
+      '<div class="contadores' + (a ? ' seis' : '') + '">' + cont(entregues.length, 'Artes para aprovar', '#sec-entregues', true) + cont(posts.length, 'Posts aguardando você', '#sec-posts', true) +
+      (a ? cont(planos.length, 'Planos aguardando seu sim', '#sec-planos', true) + cont(alertas.length, 'Alertas de gasto', '#sec-alertas', true) : '') +
       cont(parados.length, 'Ajustes parados há mais de 2 dias', '#sec-parados', true) + cont(pend.length, 'Decisões aguardando o agente', '#sec-enviadas', false) + '</div>';
+    if (a && a.inicio.por_empresa.length) h += '<div class="por-empresa" aria-label="Pendências por empresa">' + a.inicio.por_empresa.map(function (e) {
+      var t = []; if (e.posts) t.push(e.posts + (e.posts === 1 ? ' post' : ' posts')); if (e.planos) t.push(e.planos + (e.planos === 1 ? ' plano' : ' planos')); if (e.alertas) t.push(e.alertas + (e.alertas === 1 ? ' alerta' : ' alertas'));
+      return '<span class="empresa-chip"><b>' + esc(e.empresa) + '</b> ' + esc(t.join(' · ')) + '</span>';
+    }).join('') + '</div>';
+    if (alertas.length) h += '<h2 id="sec-alertas">Alertas de gasto <span class="qtd">' + alertas.length + '</span></h2>' + alertas.map(function (x) { return '<button class="alerta-gasto alerta-linha" data-ancamp="campanha:' + esc(x.campanha) + '"><b>' + esc(x.campanha) + '</b> · ' + esc(x.empresa) + ': ' + esc(x.texto) + '</button>'; }).join('');
     h += '<h2 id="sec-entregues">Artes para aprovar <span class="qtd">' + entregues.length + '</span></h2>' +
       (entregues.length ? '<div class="grade duas">' + entregues.map(function (x) { return cartaoDesign(x, true); }).join('') + '</div>' : '<div class="vazio">Nenhuma arte esperando aprovação.</div>');
-    h += '<h2 id="sec-posts">Posts aguardando você <span class="qtd">' + posts.length + '</span></h2>' + '<p class="intro aviso-integracao">Aprovar posts pelo painel ainda não está integrado. Nada aqui publica nem programa post; aprovar uma arte não autoriza o post.</p>' +
-      (posts.length ? posts.map(cartaoPost).join('') : '<div class="vazio">Todo rascunho de post já tem destino.</div>');
-    if (semConf.length) h += '<h2 id="sec-confirmacao">Horário passou, sem link de confirmação <span class="qtd">' + semConf.length + '</span></h2><p class="intro">O painel não considera publicado só pelo relógio. Falta o agente registrar o link.</p>' + semConf.map(cartaoPost).join('');
+    var cp = a ? cartaoAnPost : cartaoPost;
+    h += '<h2 id="sec-posts">Posts aguardando você <span class="qtd">' + posts.length + '</span></h2>' +
+      (a ? (!a.propostas_ativas ? '<p class="intro aviso-integracao">' + esc(AVISO_PROPOSTAS) + '</p>' : (!a.integrados ? '<p class="intro aviso-integracao">' + esc(AVISO_CHAVE) + '</p>' : '')) : '<p class="intro aviso-integracao">Aprovar posts pelo painel ainda não está integrado. Nada aqui publica nem programa post; aprovar uma arte não autoriza o post.</p>') +
+      (posts.length ? posts.map(cp).join('') : '<div class="vazio">Nenhum post esperando seu aprovo.</div>');
+    if (a) h += '<h2 id="sec-planos">Planos aguardando seu sim <span class="qtd">' + planos.length + '</span></h2>' + (planos.length ? '<div class="grade">' + planos.map(cartaoCampanha).join('') + '</div>' : '<div class="vazio">Nenhum plano de campanha esperando.</div>');
+    if (semConf.length) h += '<h2 id="sec-confirmacao">Horário passou, sem link de confirmação <span class="qtd">' + semConf.length + '</span></h2><p class="intro">O painel não considera publicado só pelo relógio. Falta o agente registrar o link.</p>' + semConf.map(cp).join('');
     h += '<h2 id="sec-parados">Ajustes parados há mais de 2 dias <span class="qtd">' + parados.length + '</span></h2>' +
       (parados.length ? '<div class="grade duas">' + parados.map(function (x) { return cartaoDesign(x, true); }).join('') + '</div>' : '<div class="vazio">Nenhum ajuste parado.</div>');
     h += '<h2 id="sec-enviadas">Enviado, aguardando o agente <span class="qtd">' + pend.length + '</span></h2>' +
       (pend.length ? '<div class="fontes">' + pend.map(function (p) {
-        return '<div class="fonte"><span>' + selo(p.decisao === 'aprovar' ? 'aprovado' : 'refazer', p.decisao === 'aprovar' ? 'Aprovar' : 'Ajuste') + ' &nbsp;<b>' + esc(p.item_id) + '</b>' + (p.versao ? ' v' + esc(p.versao) : '') + (p.obsoleta ? ' ' + selo('obsoleta', 'Versão mudou') : '') + (p.comentario ? '<br><span class="mudo">' + esc(p.comentario) + '</span>' : '') + '</span><span class="quando">' + dataBr(p.quando) + '</span></div>';
+        return '<div class="fonte"><span>' + selo(p.decisao === 'aprovar' ? 'aprovado' : 'refazer', ({ aprovar: 'Aprovar', refazer: 'Ajuste', recusar: 'Recusar', pausar: 'Pausar' })[p.decisao] || p.decisao) + ' &nbsp;<b>' + esc(p.item_id) + '</b>' + (p.versao ? ' v' + esc(p.versao) : '') + (p.obsoleta ? ' ' + selo('obsoleta', 'Versão mudou') : '') + (p.comentario ? '<br><span class="mudo">' + esc(p.comentario) + '</span>' : '') + '</span><span class="quando">' + dataBr(p.quando) + '</span></div>';
       }).join('') + '</div>' : '<div class="vazio">Nenhuma decisão esperando processamento.</div>');
     if (recusadas.length) h += '<h2>Recusadas pelo agente <span class="qtd">' + recusadas.length + '</span></h2><div class="fontes">' + recusadas.map(function (p) {
       return '<div class="fonte"><span>' + selo('refazer', 'Recusada') + ' &nbsp;<b>' + esc(p.item_id) + '</b>' + (p.versao ? ' v' + esc(p.versao) : '') + '<br><span class="mudo">' + esc(p.recibo.motivo || 'sem motivo') + '</span></span><span class="quando">' + dataBr(p.recibo.processado_em) + '</span></div>';
     }).join('') + '</div>';
     h += '<h2>Última atualização de cada fonte</h2><div class="fontes">' + d.fontes.map(function (f) {
-      return '<div class="fonte"><span>' + esc(f.rotulo) + (f.ok ? '' : '<br><span class="erro">' + esc(f.erro) + '</span>') + '</span><span class="quando">' + (f.ok ? quandoRel(f.atualizado) : 'com erro') + '</span></div>';
+      return '<div class="fonte"><span>' + esc(f.rotulo) + (f.ok ? '' : '<br><span class="erro">' + esc(f.erro) + '</span>') + '</span><span class="quando">' + (f.ausente ? 'ainda não criado' : f.ok ? quandoRel(f.atualizado) : 'com erro') + '</span></div>';
     }).join('') + '</div>';
     var proximos = (d.modulos || []).filter(function (m) { return !m.ativo; });
     if (proximos.length) h += '<h2>Próximos módulos</h2><div class="modulos">' + proximos.map(function (m) { return '<div class="modulo"><b>' + esc(m.rotulo) + '</b>' + esc(m.agente || 'em breve') + '</div>'; }).join('') + '</div>';
@@ -254,7 +277,7 @@
     $('#folha-conteudo').innerHTML = html; $('#folha').hidden = false; document.body.style.overflow = 'hidden';
     ligarImagens($('#folha')); setTimeout(function () { $('#folha .folha-fechar').focus(); }, 30);
   }
-  function fecharFolhas() { $('#folha').hidden = true; $('#dialogo-ajuste').hidden = true; document.body.style.overflow = ''; }
+  function fecharFolhas() { $('#folha').hidden = true; $('#dialogo-ajuste').hidden = true; $('#dialogo-anuncio').hidden = true; document.body.style.overflow = ''; }
 
   function abrirDesign(id, versaoSel) {
     var x = porId(estado.dados.designs, id); if (!x) return;
@@ -262,7 +285,7 @@
     var pd = x.decisao_pendente;
     var acoes = (pd && !pd.obsoleta) ? '<div class="enviado" style="margin:12px 0 0">' + esc(textoEnvio(pd)) + '</div>' :
       (pd ? '<div class="enviado obsoleta" style="margin:12px 0 0">' + esc(textoEnvio(pd)) + '</div>' : '') + (x.estado === 'entregue' && String(v.versao || x.versao) === String(x.versao) ? '<div class="linha-botoes" style="justify-content:flex-start"><button class="botao botao-primario" data-aprovar="' + esc(x.id) + '">Aprovar v' + esc(x.versao) + '</button><button class="botao" data-ajuste="' + esc(x.id) + '">Pedir ajuste</button></div>' : '');
-    var h = '<div class="detalhe"><div>' + miniatura(v.arte_fileId, { video: x.video, alt: x.tipo }) +
+    var h = '<div class="detalhe"><div>' + galeria(midiasDe(v.arte_fileId), { video: x.video, alt: x.tipo }) +
       (x.versoes.length > 1 ? '<p class="mudo" style="margin:12px 0 6px;font-size:var(--text-xs)">Versões</p><div class="versoes">' + x.versoes.map(function (vv) {
         return '<button class="versao" data-versao="' + esc(vv.versao) + '" data-design="' + esc(x.id) + '" aria-pressed="' + (vv.versao === v.versao) + '">' + miniatura(vv.arte_fileId, { tam: 200, alt: 'Versão ' + vv.versao }) + 'v' + esc(vv.versao) + '</button>';
       }).join('') + '</div>' : '') + '</div><div>' +
@@ -275,7 +298,7 @@
       (x.briefing ? '<p class="mudo" style="margin:0 0 4px;font-size:var(--text-xs)">Briefing</p><div class="bloco-texto">' + esc(x.briefing) + '</div>' : '') +
       (x.refacoes.length ? '<p class="mudo" style="margin:14px 0 6px;font-size:var(--text-xs)">Histórico de refação</p><ul class="historico">' + x.refacoes.map(function (r) { return '<li><b>v' + esc(r.versao) + ':</b> ' + esc(r.texto) + '</li>'; }).join('') + '</ul>' : '') +
       (x.obs ? '<p class="mudo" style="margin:14px 0 4px;font-size:var(--text-xs)">Observações</p><div class="bloco-texto">' + esc(x.obs) + '</div>' : '') +
-      '<div class="links">' + (v.arte_fileId ? '<a class="botao" href="' + esc(urlDrive(v.arte_fileId)) + '" target="_blank" rel="noopener">' + (x.video ? 'Assistir no Drive' : 'Abrir no Drive') + '</a>' : '') +
+      '<div class="links">' + (v.arte_fileId ? '<a class="botao" href="' + esc(urlDrive(primeira(v.arte_fileId))) + '" target="_blank" rel="noopener">' + (x.video ? 'Assistir no Drive' : 'Abrir no Drive') + '</a>' : '') +
       ((v.canva_design_id || x.canva_design_id) ? '<a class="botao" href="' + esc(urlCanva(v.canva_design_id || x.canva_design_id)) + '" target="_blank" rel="noopener">Abrir no Canva</a>' : '') + '</div>' +
       acoes + '</div></div>';
     abrirFolha(h);
@@ -296,6 +319,262 @@
       (p.arte_fileId ? '<a class="botao" href="' + esc(urlDrive(p.arte_fileId)) + '" target="_blank" rel="noopener">Abrir arte</a>' : '') +
       (porId(estado.dados.designs, p.id) ? '<button class="botao" data-abrir="' + esc(p.id) + '">Ver o design</button>' : '') + '</div></div></div>';
     abrirFolha(h);
+  }
+
+  /* ---------- Posts e anúncios (Gestor de Tráfego) ---------- */
+  var ORDEM_AN = ['aguardando_aprovo', 'rascunho', 'ajuste', 'aprovado', 'programado', 'aguardando_confirmacao', 'publicado', 'recusado'];
+  var ROTULO_AN = { rascunho: 'Rascunho', aguardando_aprovo: 'Aguardando seu aprovo', ajuste: 'Em ajuste', aprovado: 'Aprovado, a programar', programado: 'Programado', aguardando_confirmacao: 'Aguardando confirmação', publicado: 'Publicado', recusado: 'Recusado' };
+  var ROTULO_CAMP = { plano: 'Plano aguardando sim', aprovado: 'Aprovada', ativo: 'Ativa', pausado: 'Pausada', encerrado: 'Encerrada', ajuste: 'Em ajuste' };
+  var SELO_CAMP = { plano: 'aguardando_aprovo', aprovado: 'aprovado', ativo: 'publicado', pausado: 'rascunho', encerrado: 'cancelado', ajuste: 'refazer' };
+  var AVISO_CHAVE = 'O Gestor de Tráfego ainda não lê estas decisões. Os botões ficam desligados e nada é gravado.';
+  var AVISO_PROPOSTAS = 'Propostas estruturadas ainda não ativadas: os posts vêm dos rascunhos .md e do ledger do Tráfego, só para consulta.';
+
+  function an() { return estado.dados && estado.dados.anuncios; }
+  function itemAnuncio(itemId) {
+    var a = an(); if (!a) return null;
+    var l = a.posts.concat(a.campanhas);
+    for (var i = 0; i < l.length; i++) if (l[i].item_id === itemId) return l[i];
+    return null;
+  }
+  function reais(n) { return n === null || n === undefined || n === '' ? '-' : 'R$ ' + Number(n).toFixed(2).replace('.', ','); }
+  function inteiro(n) { return Number(n || 0).toLocaleString('pt-BR'); }
+  function periodo(c) { return (c.inicio ? (/^\d{4}-/.test(c.inicio) ? dataBr(c.inicio) : c.inicio) : '?') + ' a ' + (c.fim ? (/^\d{4}-/.test(c.fim) ? dataBr(c.fim) : c.fim) : '?'); }
+
+  function textoRecibo(r) {
+    if (!r) return '';
+    var t = r.resultado === 'aplicado' ? 'Processado pelo agente' : 'Recusado pelo agente';
+    return '<div class="enviado' + (r.resultado === 'aplicado' ? '' : ' obsoleta') + '">' + esc(t) + (r.motivo ? ': ' + esc(r.motivo) : '') +
+      (r.link ? ' · <a href="' + esc(r.link) + '" target="_blank" rel="noopener">aplicado, ver link</a>' : '') + '</div>';
+  }
+
+  function cartaoAnPost(p) {
+    var n = p.midias.length;
+    var extra = selo(p.estado, ROTULO_AN[p.estado]) + (n > 1 ? '<span class="tag-qtd">' + n + ' mídias</span>' : '');
+    var info = [];
+    if (p.horario) info.push((p.estado === 'publicado' ? 'Publicado ' : 'Horário ') + dataBr(p.horario));
+    if (p.contas_rotulo.length) info.push(p.contas_rotulo.join(' + '));
+    var leg = p.legenda_escolhida === '2' ? p.legenda_2 : (p.legenda_1 || p.legenda_2);
+    return '<button class="post" data-anpost="' + esc(p.item_id) + '">' + miniatura(primeira(p.midia_fileIds), { video: p.formato === 'reels', tam: 400, alt: p.titulo, extra: n > 1 ? '<span class="tag-qtd">1/' + n + '</span>' : '' }) +
+      '<div><div class="cartao-empresa">' + esc(p.empresa) + ' · ' + esc(p.formato || 'post') + (p.versao ? ' v' + esc(p.versao) : '') + ' · ' + esc(p.id) + '</div><div class="cartao-titulo">' + esc(p.titulo) + '</div>' +
+      '<div style="margin-top:4px">' + selo(p.estado, ROTULO_AN[p.estado]) + (p.link ? ' <span class="post-info">com link</span>' : '') + (p.decisao_pendente ? ' ' + selo('enviado', 'Decisão enviada') : '') + '</div>' +
+      (leg ? '<div class="post-legenda">' + esc(leg) + '</div>' : (p.resumo ? '<div class="post-legenda">' + esc(p.resumo) + '</div>' : '')) +
+      '<div class="post-info">' + info.map(esc).join(' · ') + '</div></div></button>';
+  }
+
+  function desenharPostsAnuncios() {
+    var a = an(), f = estado.filtroAn;
+    var lista = a.posts.filter(function (p) {
+      if (f.empresa && p.empresa !== f.empresa) return false;
+      if (f.conta && p.contas.indexOf(f.conta) < 0) return false;
+      return true;
+    });
+    var empresas = []; a.posts.forEach(function (p) { if (p.empresa && empresas.indexOf(p.empresa) < 0) empresas.push(p.empresa); });
+    var opc = function (vals, sel, todos, rot) { return '<option value="">' + todos + '</option>' + vals.map(function (v) { return '<option value="' + esc(v) + '"' + (v === sel ? ' selected' : '') + '>' + esc(rot ? rot(v) : v) + '</option>'; }).join(''); };
+    var h = '<h1>Posts</h1><p class="intro">Do rascunho à publicação, com as duas legendas, contas e horário. Publicado só conta com link.</p>' +
+      (!a.propostas_ativas ? '<p class="intro aviso-integracao">' + esc(AVISO_PROPOSTAS) + '</p>' : (!a.integrados ? '<p class="intro aviso-integracao">' + esc(AVISO_CHAVE) + '</p>' : '')) +
+      '<div class="filtros"><select id="fa-empresa" aria-label="Empresa">' + opc(empresas.sort(), f.empresa, 'Todas as empresas') + '</select>' +
+      '<select id="fa-conta" aria-label="Conta">' + opc(a.contas, f.conta, 'Todas as contas', rotuloConta) + '</select></div><div class="linha-tempo">';
+    ORDEM_AN.forEach(function (e) {
+      var l = lista.filter(function (p) { return p.estado === e; });
+      if (!l.length && ['ajuste', 'recusado'].indexOf(e) >= 0) return;
+      h += '<h2>' + esc(ROTULO_AN[e]) + ' <span class="qtd">' + l.length + '</span></h2>' + (l.length ? l.map(cartaoAnPost).join('') : '<div class="vazio">Nenhum post aqui.</div>');
+    });
+    $('#aba-posts').innerHTML = h + '</div>';
+    ligarImagens($('#aba-posts'));
+  }
+  function rotuloConta(c) {
+    var m = String(c).match(/^(ig|fb|tt|yt|li):(.+)$/);
+    return m ? ({ ig: 'Instagram ', fb: 'Facebook ', tt: 'TikTok ', yt: 'YouTube ', li: 'LinkedIn ' })[m[1]] + m[2] : c;
+  }
+
+  /** Galeria: carrossel com deslize e contador no celular, grade no desktop. */
+  function galeria(ids, opc) {
+    opc = opc || {};
+    if (ids.length <= 1) return miniatura(ids[0], opc);
+    return '<div class="galeria" data-galeria><div class="galeria-trilho" tabindex="0" aria-label="Carrossel com ' + ids.length + ' mídias">' +
+      ids.map(function (id, i) { return '<div class="galeria-item">' + miniatura(id, { alt: (opc.alt || 'Mídia') + ' ' + (i + 1) + ' de ' + ids.length, tam: 1000 }) + '<span class="galeria-num">' + (i + 1) + '</span></div>'; }).join('') +
+      '</div><div class="galeria-contador" aria-live="polite"><span data-galeria-pos>1</span>/' + ids.length + '</div></div>';
+  }
+
+  function botoesDecisao(x, tipo) {
+    var a = an();
+    if (x.decisao_pendente && !x.decisao_pendente.obsoleta) return '<div class="enviado" style="margin:12px 0 0">' + esc(textoEnvio(x.decisao_pendente)) + '</div>';
+    var h = x.decisao_pendente ? '<div class="enviado obsoleta" style="margin:12px 0 0">' + esc(textoEnvio(x.decisao_pendente)) + '</div>' : '';
+    if (x.origem !== 'propostas') {
+      if (tipo === 'post' && ['aguardando_aprovo', 'rascunho'].indexOf(x.estado) >= 0 || tipo === 'campanha' && ['plano', 'ativo'].indexOf(x.estado) >= 0)
+        h += '<p class="intro aviso-integracao" style="margin-top:12px">' + esc(a.propostas_ativas ? 'Este item ainda não está em Propostas.csv; decisão pelo painel indisponível.' : 'Propostas estruturadas ainda não ativadas; decisão pelo painel indisponível.') + '</p>';
+      return h;
+    }
+    var ds = x.decisoes_possiveis || [];
+    if (!ds.length) return h;
+    var dis = a.integrados ? '' : ' disabled aria-disabled="true"';
+    var b = [];
+    if (tipo === 'post') {
+      if (ds.indexOf('aprovar') >= 0) { b.push('<button class="botao botao-primario" data-an-dec="aprovar" data-leg="1" data-item="' + esc(x.item_id) + '"' + dis + '>Aprovar com legenda 1</button>'); b.push('<button class="botao botao-primario" data-an-dec="aprovar" data-leg="2" data-item="' + esc(x.item_id) + '"' + dis + '>Aprovar com legenda 2</button>'); }
+    } else if (ds.indexOf('aprovar') >= 0) b.push('<button class="botao botao-primario" data-an-dec="aprovar" data-item="' + esc(x.item_id) + '"' + dis + '>Aprovar plano</button>');
+    if (ds.indexOf('refazer') >= 0) b.push('<button class="botao" data-an-dec="refazer" data-item="' + esc(x.item_id) + '"' + dis + '>Pedir ajuste</button>');
+    if (ds.indexOf('recusar') >= 0) b.push('<button class="botao" data-an-dec="recusar" data-item="' + esc(x.item_id) + '"' + dis + '>Recusar</button>');
+    if (ds.indexOf('pausar') >= 0) b.push('<button class="botao botao-alerta" data-an-dec="pausar" data-item="' + esc(x.item_id) + '"' + dis + '>Pausar campanha</button>');
+    h += '<div class="linha-botoes acoes-an">' + b.join('') + '</div>';
+    if (!a.integrados) h += '<p class="intro aviso-integracao" style="margin-top:10px">' + esc(AVISO_CHAVE) + '</p>';
+    return h;
+  }
+
+  function abrirAnPost(itemId) {
+    var p = itemAnuncio(itemId); if (!p) return;
+    var leg = function (n, txt) {
+      var esc1 = p.legenda_escolhida === n;
+      return '<div class="legenda' + (esc1 ? ' escolhida' : '') + '"><p class="mudo legenda-rot">Legenda ' + n + (esc1 ? ' · escolhida' : '') + '</p><div class="bloco-texto">' + (txt ? esc(txt) : '<span class="mudo">Sem legenda ' + n + '.</span>') + '</div></div>';
+    };
+    var h = '<div class="detalhe"><div>' + galeria(p.midias, { alt: p.titulo, video: p.formato === 'reels' }) + '</div><div>' +
+      '<div class="cartao-empresa">' + esc(p.empresa) + ' · ' + esc(p.id) + '</div><h1 id="folha-titulo">' + esc(p.titulo) + '</h1>' + selo(p.estado, ROTULO_AN[p.estado]) +
+      '<dl><dt>Formato</dt><dd>' + esc(p.formato || '-') + (p.midias.length > 1 ? ' · ' + p.midias.length + ' mídias' : '') + '</dd>' + (p.versao ? '<dt>Versão</dt><dd>v' + esc(p.versao) + '</dd>' : '') +
+      '<dt>Contas</dt><dd>' + (p.contas_rotulo.length ? esc(p.contas_rotulo.join(' + ')) : '-') + '</dd>' +
+      '<dt>Horário</dt><dd>' + (p.horario ? dataBr(p.horario) : '-') + '</dd>' +
+      (p.pedido_id ? '<dt>Pedido</dt><dd>' + esc(p.pedido_id) + '</dd>' : '') +
+      (p.link ? '<dt>Link</dt><dd><a href="' + esc(p.link) + '" target="_blank" rel="noopener">ver publicação</a></dd>' : (p.onde ? '<dt>Onde</dt><dd>' + esc(p.onde) + ' (sem link ainda)</dd>' : '')) +
+      (p.edicao_do_bruno ? '<dt>Seu pedido</dt><dd>' + esc(p.edicao_do_bruno) + '</dd>' : '') + '</dl>' +
+      (p.estado === 'aguardando_confirmacao' ? '<p class="intro aviso-integracao">O horário passou e o agente ainda não registrou o link. O painel não considera publicado só pelo relógio.</p>' : '') +
+      '</div></div>' +
+      '<div class="legendas">' + leg('1', p.legenda_1) + leg('2', p.legenda_2) + '</div>' +
+      (p.hashtags ? '<p class="mudo legenda-rot" style="margin-top:12px">Hashtags</p><div class="bloco-texto">' + esc(p.hashtags) + '</div>' : '') +
+      (p.resumo ? '<p class="mudo legenda-rot" style="margin-top:12px">Registro do Tráfego</p><div class="bloco-texto">' + esc(p.resumo) + '</div>' : '') +
+      textoRecibo(p.ultimo_recibo) + botoesDecisao(p, 'post') +
+      '<div class="links">' + (p.midias[0] ? '<a class="botao" href="' + esc(urlDrive(p.midias[0])) + '" target="_blank" rel="noopener">Abrir mídia no Drive</a>' : '') +
+      (p.rascunho_fileId ? '<a class="botao" href="' + esc(urlDrive(p.rascunho_fileId)) + '" target="_blank" rel="noopener">Abrir rascunho</a>' : '') + '</div>';
+    abrirFolha(h);
+  }
+
+  /** Barras de gasto por dia (CSS puro). */
+  function grafico(diario, max) {
+    var l = diario.slice(-(max || 14));
+    if (!l.length) return '<div class="grafico-vazio">Sem gasto diário registrado.</div>';
+    var topo = Math.max.apply(null, l.map(function (x) { return x.gasto; })) || 1;
+    return '<div class="grafico" role="img" aria-label="Gasto por dia">' + l.map(function (x) {
+      var pct = Math.max(2, Math.round(x.gasto / topo * 100));
+      return '<div class="barra" title="' + esc(dataBr(x.data) + ': ' + reais(x.gasto)) + '"><span class="barra-valor">' + esc(Number(x.gasto).toFixed(0)) + '</span><span class="barra-col" style="height:' + pct + '%"></span><span class="barra-dia">' + esc(x.data.slice(8, 10)) + '</span></div>';
+    }).join('') + '</div>';
+  }
+
+  function numerosCampanha(c) {
+    var n = [['Gasto acumulado', reais(c.gasto_total)], ['Últimos 7 dias', reais(c.gasto_7d)], ['Impressões', inteiro(c.impressoes)], ['Cliques', inteiro(c.cliques)], ['Contatos', inteiro(c.contatos)]];
+    if (c.custo_contato !== null) n.push(['Custo por contato', reais(c.custo_contato)]);
+    return '<div class="numeros">' + n.map(function (x) { return '<div><div class="num-v">' + esc(x[1]) + '</div><div class="num-r">' + esc(x[0]) + '</div></div>'; }).join('') + '</div>';
+  }
+
+  function cartaoCampanha(c) {
+    var temGasto = c.diario.length || c.periodos.length;
+    return '<article class="cartao campanha"><button class="cartao-abrir" data-ancamp="' + esc(c.item_id) + '" aria-label="Abrir campanha ' + esc(c.id) + '"><div class="cartao-corpo">' +
+      '<div class="camp-topo"><div class="cartao-empresa">' + esc(c.empresa) + ' · ' + esc(c.canal || '') + ' · ' + esc(c.id) + '</div>' + selo(SELO_CAMP[c.estado] || 'rascunho', ROTULO_CAMP[c.estado] || c.estado) + '</div>' +
+      '<div class="cartao-titulo">' + esc(c.objetivo || 'Sem objetivo registrado') + '</div>' +
+      '<div class="cartao-meta">Verba diária ' + (c.verba_diaria ? reais(String(c.verba_diaria).replace(',', '.')) : '-') + ' · ' + esc(periodo(c)) + (c.versao ? ' · v' + esc(c.versao) : '') + '</div>' +
+      c.alertas.map(function (t) { return '<div class="alerta-gasto">' + esc(t) + '</div>'; }).join('') +
+      (temGasto ? numerosCampanha(c) + grafico(c.diario, 10) : '') +
+      (c.plano ? '<div class="cartao-meta">Plano: ' + esc(c.plano.nome) + '</div>' : '') +
+      (c.decisao_pendente ? '<div style="margin-top:4px">' + selo('enviado', 'Decisão enviada') + '</div>' : '') +
+      '</div></button></article>';
+  }
+
+  function md(txt) {
+    var linhas = String(txt || '').replace(/\r/g, '').split('\n'), h = '', lista = false;
+    var inl = function (s) { return esc(s).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>'); };
+    linhas.forEach(function (l) {
+      var m;
+      if ((m = l.match(/^\s*[-*]\s+(.*)$/))) { if (!lista) { h += '<ul>'; lista = true; } h += '<li>' + inl(m[1]) + '</li>'; return; }
+      if (lista) { h += '</ul>'; lista = false; }
+      if ((m = l.match(/^(#{1,4})\s+(.*)$/))) { h += '<p class="md-h' + m[1].length + '">' + inl(m[2]) + '</p>'; return; }
+      if (l.trim()) h += '<p>' + inl(l) + '</p>';
+    });
+    return h + (lista ? '</ul>' : '');
+  }
+
+  function abrirCampanha(itemId) {
+    var c = itemAnuncio(itemId); if (!c) return;
+    var h = '<div class="cartao-empresa" style="padding-right:44px">' + esc(c.empresa) + ' · ' + esc(c.canal || '') + ' · ' + esc(c.id) + '</div><h1 id="folha-titulo" style="padding-right:44px">' + esc(c.objetivo || c.id) + '</h1>' + selo(SELO_CAMP[c.estado] || 'rascunho', ROTULO_CAMP[c.estado] || c.estado) +
+      '<div class="detalhe-camp"><dl><dt>Verba diária</dt><dd>' + (c.verba_diaria ? reais(String(c.verba_diaria).replace(',', '.')) : '-') + '</dd><dt>Período</dt><dd>' + esc(periodo(c)) + '</dd>' +
+      (c.plataforma_id ? '<dt>Id na plataforma</dt><dd>' + esc(c.plataforma_id) + '</dd>' : '') + (c.publico_resumo ? '<dt>Público</dt><dd>' + esc(c.publico_resumo) + '</dd>' : '') +
+      (c.aprovado_em ? '<dt>Aprovada</dt><dd>' + esc(c.aprovado_em) + '</dd>' : '') + (c.versao ? '<dt>Versão</dt><dd>v' + esc(c.versao) + '</dd>' : '') + '</dl>' +
+      c.alertas.map(function (t) { return '<div class="alerta-gasto">' + esc(t) + '</div>'; }).join('') +
+      numerosCampanha(c) + '<p class="mudo legenda-rot">Gasto por dia (leituras diárias)</p>' + grafico(c.diario, 14) +
+      (c.periodos.length ? '<p class="mudo legenda-rot" style="margin-top:12px">Leituras por período (separadas do diário)</p><div class="fontes">' + c.periodos.map(function (p) { return '<div class="fonte"><span>' + esc(p.data) + '</span><span class="quando">' + reais(p.gasto) + ' · ' + inteiro(p.impressoes) + ' impr. · ' + inteiro(p.cliques) + ' cliques</span></div>'; }).join('') + '</div>' : '') +
+      '</div>' + textoRecibo(c.ultimo_recibo) + botoesDecisao(c, 'campanha') +
+      (c.plano ? '<h2>Plano de campanha</h2><div class="plano-md">' + md(c.plano.texto) + '</div><div class="links"><a class="botao" href="' + esc(urlDrive(c.plano.fileId)) + '" target="_blank" rel="noopener">Abrir plano no Drive</a></div>' : '<p class="mudo" style="margin-top:16px">Sem plano .md ligado a esta campanha.</p>');
+    abrirFolha(h);
+  }
+
+  function desenharCampanhas() {
+    var a = an(); if (!a) { $('#aba-campanhas').innerHTML = ''; return; }
+    var s = a.semana;
+    var h = '<h1>Campanhas</h1><p class="intro">Planos, campanhas ativas e resultados lidos pelo Gestor de Tráfego. O painel não muda verba nem ativa nada.</p>' +
+      (!a.integrados && a.propostas_ativas ? '<p class="intro aviso-integracao">' + esc(AVISO_CHAVE) + '</p>' : '') +
+      '<h2>Resultados da semana <span class="qtd">' + dataBr(s.de) + ' a ' + dataBr(s.ate) + '</span></h2>';
+    h += s.empresas.length ? '<div class="grade semana">' + s.empresas.map(function (e) {
+      return '<div class="produto semana-card"><div class="cartao-empresa" style="grid-column:1/-1">' + esc(e.empresa) + '</div><div class="numeros">' +
+        '<div><div class="num-v">' + reais(e.gasto) + '</div><div class="num-r">Gasto</div></div><div><div class="num-v">' + inteiro(e.contatos) + '</div><div class="num-r">Contatos</div></div>' +
+        (e.custo_contato !== null ? '<div><div class="num-v">' + reais(e.custo_contato) + '</div><div class="num-r">Custo por contato</div></div>' : '') +
+        '<div><div class="num-v">' + e.posts_publicados + '</div><div class="num-r">Posts publicados</div></div></div></div>';
+    }).join('') + '</div>' : '<div class="vazio">Sem gasto nem posts publicados nos últimos 7 dias.</div>';
+    if (a.leituras.length) h += '<div class="fontes" style="margin-top:12px">' + a.leituras.map(function (l) { return '<div class="fonte"><span>Última leitura ' + esc(l.fonte.replace(/^leitura_/, '')) + '<br><span class="mudo">' + esc(l.cursor) + '</span></span><span class="quando">' + dataBr(l.quando) + '</span></div>'; }).join('') + '</div>';
+    var grupos = [['ativo', 'Ativas'], ['plano', 'Planos aguardando seu sim'], ['ajuste', 'Em ajuste'], ['aprovado', 'Aprovadas, a criar'], ['pausado', 'Pausadas'], ['encerrado', 'Encerradas']];
+    grupos.forEach(function (g) {
+      var l = a.campanhas.filter(function (c) { return c.estado === g[0]; });
+      if (!l.length) return;
+      h += '<h2>' + esc(g[1]) + ' <span class="qtd">' + l.length + '</span></h2><div class="grade">' + l.map(cartaoCampanha).join('') + '</div>';
+    });
+    var outras = a.campanhas.filter(function (c) { return grupos.every(function (g) { return g[0] !== c.estado; }); });
+    if (outras.length) h += '<h2>Outras <span class="qtd">' + outras.length + '</span></h2><div class="grade">' + outras.map(cartaoCampanha).join('') + '</div>';
+    if (a.rules.length) h += '<h2>Regras do Tráfego <span class="qtd">só leitura</span></h2><div class="fontes">' + a.rules.map(function (r) { return '<div class="fonte"><span><b>' + esc(r.id) + '</b> ' + esc(r.escopo) + ': ' + esc(r.efeito) + '<br><span class="mudo">' + esc(r.evidencia) + '</span></span></div>'; }).join('') + '</div>';
+    $('#aba-campanhas').innerHTML = h;
+  }
+
+  /* Diálogo de decisão de Posts e anúncios */
+  function abrirDialogoAn(itemId, decisao, legenda) {
+    var x = itemAnuncio(itemId); if (!x) return;
+    var tipo = itemId.indexOf('post:') === 0 ? 'post' : 'campanha';
+    estado.decAn = { item_id: itemId, decisao: decisao, legenda: legenda || '', tipo: tipo };
+    var titulos = { aprovar: tipo === 'post' ? 'Aprovar com legenda ' + legenda : 'Aprovar plano', refazer: 'Pedir ajuste', recusar: tipo === 'post' ? 'Recusar post' : 'Recusar plano', pausar: 'Pausar campanha' };
+    $('#an-titulo').textContent = titulos[decisao];
+    $('#an-item').textContent = x.empresa + ' · ' + x.id + (x.versao ? ' · v' + x.versao : '');
+    $('#an-campo-horario').hidden = !(tipo === 'post' && decisao === 'aprovar');
+    $('#an-horario').value = (x.horario || '').slice(0, 16);
+    $('#an-campo-verba').hidden = !(tipo === 'campanha' && decisao === 'aprovar');
+    $('#an-verba').value = ''; $('#an-verba').max = String(x.verba_diaria || '').replace(',', '.');
+    $('#an-verba-ajuda').textContent = x.verba_diaria ? 'Proposta: R$ ' + x.verba_diaria + ' por dia. Deixe vazio para manter; só aceita igual ou menor.' : '';
+    $('#an-texto').value = ''; $('#an-texto').required = decisao === 'refazer';
+    $('#an-texto-rot').textContent = decisao === 'refazer' ? 'O que precisa mudar? (obrigatório)' : 'Comentário (opcional)';
+    $('#an-erro').textContent = '';
+    $('#an-enviar').className = 'botao ' + (decisao === 'aprovar' ? 'botao-primario' : 'botao-alerta');
+    $('#an-enviar').textContent = decisao === 'pausar' ? 'Pausar' : decisao === 'recusar' ? 'Recusar' : decisao === 'refazer' ? 'Enviar ajuste' : 'Aprovar';
+    $('#dialogo-anuncio').hidden = false;
+    setTimeout(function () { (decisao === 'refazer' ? $('#an-texto') : $('#an-enviar')).focus(); }, 30);
+  }
+  function enviarDecisaoAn() {
+    var s = estado.decAn; if (!s) return;
+    var x = itemAnuncio(s.item_id);
+    var horario = $('#an-horario').value.trim(), verba = $('#an-verba').value.trim().replace(',', '.'), texto = $('#an-texto').value.trim();
+    if (s.decisao === 'refazer' && !texto) { $('#an-erro').textContent = 'Escreva o que precisa mudar.'; $('#an-texto').focus(); return; }
+    if (horario && !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(horario)) { $('#an-erro').textContent = 'Horário no formato aaaa-mm-dd HH:mm.'; return; }
+    if (verba && (!(+verba > 0) || +verba > +String(x.verba_diaria).replace(',', '.'))) { $('#an-erro').textContent = 'A verba precisa ser maior que zero e igual ou menor que a proposta.'; return; }
+    var comentario = montarComentario({ legenda: s.decisao === 'aprovar' ? s.legenda : '', horario: horario && horario !== (x.horario || '').slice(0, 16) ? horario : '', verba: verba, texto: texto });
+    var b = $('#an-enviar'); b.disabled = true;
+    toast('Enviando…');
+    chamar('salvarDecisao', { modulo: 'anuncios', item_id: s.item_id, decisao: s.decisao, comentario: comentario, snapshot_hash: x.snapshot_hash }).then(function (r) {
+      var reg = { id: r.id, quando: r.quando, modulo: 'anuncios', item_id: s.item_id, tipo_item: s.tipo, versao: r.versao, snapshot_hash: r.snapshot_hash, decisao: s.decisao, comentario: comentario, origem: 'painel', recibo: null, obsoleta: false };
+      x.decisao_pendente = reg; estado.dados.inicio.decisoes_pendentes.push(reg);
+      fecharFolhas(); desenhar(); toast('Decisão enviada ao Gestor de Tráfego.');
+    }).catch(function (e) {
+      $('#an-erro').textContent = 'Não salvou: ' + e.message; toast('Não salvou: ' + e.message);
+      if (/mudou|não aceita|não existe|já existe/.test(e.message)) { fecharFolhas(); carregar(true, true); }
+    }).then(function () { b.disabled = false; });
+  }
+  function montarComentario(o) {
+    var p = [];
+    if (o.legenda) p.push('legenda=' + o.legenda);
+    if (o.horario) p.push('horario=' + o.horario);
+    if (o.verba) p.push('verba=' + o.verba);
+    var t = String(o.texto || '').replace(/[\r\n]+/g, ' ').trim();
+    if (t) p.push('texto=' + t);
+    return p.join(';');
   }
 
   /* ---------- decisões ---------- */
@@ -320,13 +599,17 @@
   function trocarAba(a) {
     estado.aba = a;
     Array.prototype.forEach.call(document.querySelectorAll('.aba'), function (b) { var at = b.getAttribute('data-aba') === a; b.classList.toggle('ativa', at); if (at) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
-    ['inicio', 'designs', 'posts', 'biblioteca'].forEach(function (k) { $('#aba-' + k).hidden = k !== a; });
+    ['inicio', 'designs', 'posts', 'campanhas', 'biblioteca'].forEach(function (k) { $('#aba-' + k).hidden = k !== a; });
     window.scrollTo(0, 0);
   }
 
   document.addEventListener('click', function (ev) {
-    var t = ev.target.closest('[data-aba],[data-abrir],[data-post],[data-aprovar],[data-ajuste],[data-fechar],[data-estado],[data-versao],[data-ir]');
+    if (ev.target.closest('a[href]')) return;
+    var t = ev.target.closest('[data-aba],[data-abrir],[data-post],[data-aprovar],[data-ajuste],[data-fechar],[data-estado],[data-versao],[data-ir],[data-anpost],[data-ancamp],[data-an-dec]');
     if (!t) return;
+    if (t.hasAttribute('data-an-dec')) { ev.preventDefault(); if (t.disabled) return; return abrirDialogoAn(t.getAttribute('data-item'), t.getAttribute('data-an-dec'), t.getAttribute('data-leg')); }
+    if (t.hasAttribute('data-anpost')) return abrirAnPost(t.getAttribute('data-anpost'));
+    if (t.hasAttribute('data-ancamp')) return abrirCampanha(t.getAttribute('data-ancamp'));
     if (t.hasAttribute('data-aba')) return trocarAba(t.getAttribute('data-aba'));
     if (t.hasAttribute('data-aprovar')) { ev.preventDefault(); t.disabled = true; return enviarDecisao(t.getAttribute('data-aprovar'), 'aprovar'); }
     if (t.hasAttribute('data-ajuste')) {
@@ -348,6 +631,8 @@
   document.addEventListener('change', function (ev) {
     if (ev.target.id === 'f-empresa') { estado.filtro.empresa = ev.target.value; desenharDesigns(); }
     if (ev.target.id === 'f-tipo') { estado.filtro.tipo = ev.target.value; desenharDesigns(); }
+    if (ev.target.id === 'fa-empresa') { estado.filtroAn.empresa = ev.target.value; desenharPostsAnuncios(); }
+    if (ev.target.id === 'fa-conta') { estado.filtroAn.conta = ev.target.value; desenharPostsAnuncios(); }
   });
   document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') fecharFolhas(); });
   $('#form-ajuste').addEventListener('submit', function (ev) {
@@ -356,6 +641,13 @@
     enviarDecisao(estado.ajuste, 'refazer', c);
   });
   $('#btn-atualizar').addEventListener('click', function () { carregar(true); });
+  $('#form-anuncio').addEventListener('submit', function (ev) { ev.preventDefault(); enviarDecisaoAn(); });
+  /* contador do carrossel */
+  document.addEventListener('scroll', function (ev) {
+    var tr = ev.target; if (!tr.classList || !tr.classList.contains('galeria-trilho')) return;
+    var pos = Math.round(tr.scrollLeft / Math.max(1, tr.clientWidth)) + 1;
+    var el = tr.parentNode.querySelector('[data-galeria-pos]'); if (el) el.textContent = Math.min(pos, tr.children.length);
+  }, true);
 
   /* tema */
   function aplicarTema(t) { document.documentElement.setAttribute('data-tema', t); try { localStorage.setItem('painel-tema', t); } catch (e) {} }
@@ -363,7 +655,7 @@
   aplicarTema(salvo || (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'escuro' : 'claro'));
   $('#btn-tema').addEventListener('click', function () { aplicarTema(document.documentElement.getAttribute('data-tema') === 'escuro' ? 'claro' : 'escuro'); });
 
-  window.Painel = { trocarAba: trocarAba, abrirDesign: abrirDesign, abrirPost: abrirPost, carregar: carregar };
+  window.Painel = { trocarAba: trocarAba, abrirDesign: abrirDesign, abrirPost: abrirPost, abrirAnPost: abrirAnPost, abrirCampanha: abrirCampanha, abrirDialogoAn: abrirDialogoAn, carregar: carregar };
   carregar(false);
 })();
 </script>

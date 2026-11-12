@@ -1,0 +1,5 @@
+rule_id,scope_type,scope_value,effect,origin,evidence,created,expires,status
+R1,topic,campanha nova,never (ativar sem sim),safety,Campanha nova é criada pausada e só ativa com o sim do Bruno (build),2026-11-09,,active
+R2,topic,"verba, lance, público, palavra-chave",never (mudar sem sim),safety,"Nenhuma mudança de verba, lance, público ou palavra-chave sem o sim do Bruno (build)",2026-11-09,,active
+R3,topic,arte e texto,never (publicar sem aprovação),safety,Arte e texto só publicados depois de aprovados (build),2026-11-09,,active
+R4,topic,legendas e anúncios,never (citar impressão 3D como argumento),feedback,"Bruno 12/11: evitar ""feito com impressão 3D"" na legenda; focar no produto, não na forma de produção",2026-11-12,,active

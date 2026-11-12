@@ -5,7 +5,7 @@
  */
 
 var CONFIG_NOME = 'painel-fontes.json';
-var CACHE_PREFIXO = 'painel_v1_';
+var CACHE_PREFIXO = 'painel_v2_';
 
 function doGet() {
   var t = HtmlService.createTemplateFromFile('Index');
@@ -147,6 +147,44 @@ function agoraSp_() {
   return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
 }
 
+/**
+ * Lê as fontes do módulo Posts e anúncios (Gestor de Tráfego), se ativo.
+ * Propostas.csv ausente não é erro: o painel mostra o aviso e segue com os rascunhos .md.
+ */
+function lerAnuncios_(cfg, rascDesign) {
+  var mod = (cfg.modulos || []).filter(function (m) { return m.id === 'anuncios'; })[0];
+  if (!mod || !mod.ativo || !mod.fontes || !mod.fontes.ledger || !mod.fontes.ledger.folderId) return null;
+  var f = mod.fontes, pasta = f.ledger.folderId;
+  var ab = f.ledger.abas || {};
+  var nome = function (k, padrao) { return ab[k] || padrao; };
+  var r = {
+    anuncios: lerAba_('Anúncios (ledger do Tráfego)', pasta, nome('anuncios', 'Anuncios.csv'), ['id', 'estado']),
+    campanhas: lerAba_('Campanhas (ledger do Tráfego)', pasta, nome('campanhas', 'Campanhas.csv'), ['id', 'estado']),
+    resultados: lerAba_('Resultados (ledger do Tráfego)', pasta, nome('resultados', 'Resultados.csv'), ['data', 'campanha_id', 'gasto']),
+    empresas: lerAba_('Empresas (ledger do Tráfego)', pasta, nome('empresas', 'Empresas.csv'), []),
+    checkpoints: lerAba_('Checkpoints (ledger do Tráfego)', pasta, nome('checkpoints', 'Checkpoints.csv'), []),
+    rules: lerAba_('Regras do Tráfego', pasta, nome('rules', 'Rules.csv'), [])
+  };
+  var nomeProp = nome('propostas', 'Propostas.csv');
+  var idProp = null;
+  try { idProp = acharNaPasta_(pasta, nomeProp); } catch (e) { idProp = null; }
+  r.propostas = idProp ? lerCsv_('Propostas (Tráfego)', idProp, PainelLib.CABECALHO_PROPOSTAS)
+    : { rotulo: 'Propostas (Tráfego)', ok: true, ausente: true, linhas: null, erro: '', avisos: [], atualizado: '' };
+  var cri = f.criativos || {};
+  var mesmaPasta = rascDesign && cri.folderId && rascDesign.folderId === cri.folderId;
+  var planos = cri.folderId ? lerRascunhos_('Planos de campanha', cri.folderId, cri.padrao_planos || '^plano-.+\\.md$') : { rotulo: 'Planos de campanha', ok: false, itens: [], erro: 'pasta de criativos não configurada' };
+  var posts = mesmaPasta ? rascDesign.leitura : (cri.folderId ? lerRascunhos_('Rascunhos de post (Tráfego)', cri.folderId, cri.padrao_posts || '^post-.+\\.md$') : { ok: true, itens: [] });
+  var ok = function (x) { return x && x.ok && x.linhas ? x : null; };
+  return {
+    fontes: {
+      anuncios: ok(r.anuncios), campanhas: ok(r.campanhas), resultados: ok(r.resultados), empresas: ok(r.empresas),
+      checkpoints: ok(r.checkpoints), rules: ok(r.rules), propostas: r.propostas.ausente ? null : ok(r.propostas),
+      rascunhos: posts.ok ? posts.itens : [], planos: planos.ok ? planos.itens : []
+    },
+    status: [r.anuncios, r.campanhas, r.resultados, r.empresas, r.checkpoints, r.rules, r.propostas, planos].concat(mesmaPasta ? [] : [posts])
+  };
+}
+
 /** Monta tudo o que a tela precisa. */
 function montarDados_(cfgPronta) {
   var cfg = cfgPronta || lerConfig_();
@@ -163,18 +201,19 @@ function montarDados_(cfgPronta) {
   var rasc = lerRascunhos_(f.criativos.rotulo, f.criativos.folderId, f.criativos.padrao);
   var decisoes = lerDecisoes_(cfg);
   var recibos = lerRecibos_(cfg);
+  var an = lerAnuncios_(cfg, { folderId: f.criativos.folderId, leitura: rasc });
 
   var modelo = PainelLib.montarModelo(
     { pedidos: pedidos.ok ? pedidos : null, artes: artes.ok ? artes : null, posts: posts.ok ? posts : null, midia: midia.ok ? midia : null, produtos: produtos.ok ? produtos : null, rascunhos: rasc.ok ? rasc.itens : [] },
     decisoes.ok ? decisoes.linhas : [],
     agoraSp_(),
-    { dias_refazer_parado: cfg.dias_refazer_parado || 2, recibos: recibos.ok ? recibos.mapa : {} }
+    { dias_refazer_parado: cfg.dias_refazer_parado || 2, recibos: recibos.ok ? recibos.mapa : {}, anuncios: an ? an.fontes : null }
   );
 
   modelo.gerado_em = new Date().toISOString();
   modelo.decisoes_ok = decisoes.ok && recibos.ok;
-  modelo.fontes = [pedidos, artes, posts, midia, produtos, checkpoints, rasc, decisoes, recibos].map(function (s) {
-    return { rotulo: s.rotulo, ok: s.ok, erro: s.erro || '', avisos: (s.avisos || []).slice(0, 3), atualizado: s.atualizado || '' };
+  modelo.fontes = [pedidos, artes, posts, midia, produtos, checkpoints, rasc, decisoes, recibos].concat(an ? an.status : []).map(function (s) {
+    return { rotulo: s.rotulo, ok: s.ok, ausente: !!s.ausente, erro: s.erro || '', avisos: (s.avisos || []).slice(0, 3), atualizado: s.atualizado || '' };
   });
   modelo.checkpoints = checkpoints.ok ? checkpoints.linhas : [];
   modelo.modulos = (cfg.modulos || []).map(function (m) { return { id: m.id, rotulo: m.rotulo, ativo: !!m.ativo, agente: m.agente || '' }; });
