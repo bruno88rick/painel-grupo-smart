@@ -1804,7 +1804,7 @@ var PainelLib = (function () {
   }
 
   /** Versão exibida no topo do painel. Atualize a cada implantação. */
-  var VERSAO_PAINEL = '3.0.0-estudos';
+  var VERSAO_PAINEL = '3.0.0';
   var POSTS_INTEGRADOS = false;
   var ESTADOS_DECIDIVEIS = { design: ['entregue'], post: ['rascunho', 'aguardando_aprovo'] };
 
