@@ -13,6 +13,7 @@ A produção (Web App, implantação **versão 5 = v2.0.0**, de 12/11/2026) est�
 Falta implantar:
 
 - **v2.0.1:** período da campanha vem do ledger quando a proposta não tem datas; campanha cruzada com ou sem `M-`; um cartão por post com as programações (feed, story); cache por arquivo e tela anterior na hora (primeira carga mais rápida).
+- **v3.0.0-suporte:** base comum dos módulos v3 (menu **Mais** no celular e no desktop, cartão por agente no Início com a contagem do que precisa do Bruno, selo no menu, caminho genérico de decisões com chave por módulo) e o módulo **Suporte RN Sports** (fila de respostas para aprovar, rascunhos só no Zendesk, alertas, abertos por evento e tipo, parados há mais de 24 h). Chave `SUPORTE_INTEGRADO` em `false`: botões desligados com o aviso "o agente ainda não lê estas decisões" e o servidor recusa gravar. Corrige também o cabeçalho que prendia a barra de abas do celular no topo. Contrato: [docs/contrato-suporte.md](docs/contrato-suporte.md). Antes de implantar, preencha em `painel-fontes.json` o `ledger.folderId` do Suporte (e, se quiser, os fileIds em `arquivos`).
 
 ## Sumário
 
@@ -102,6 +103,18 @@ O estado **aprovado** é um acréscimo à lista original: separa o que você já
 | Posts (celular) | Programações do post (celular) | Campanhas (desktop) |
 |---|---|---|
 | ![Posts](docs/screenshots/v2.0.1/390-posts.jpg) | ![Programações](docs/screenshots/v2.0.1/390-post-detalhe.jpg) | ![Campanhas](docs/screenshots/v2.0.1/desktop-campanhas.jpg) |
+
+### v3.0.0-suporte: base comum e Suporte RN Sports
+
+Chave `SUPORTE_INTEGRADO` desligada (botões desabilitados). As capturas de diálogo e "depois de decidir" usam o harness com `--integrado-v3`.
+
+| Celular (390 px) | Desktop |
+|---|---|
+| ![Início com cartão do Suporte](docs/screenshots/v3/suporte/390-claro-inicio-cartoes.jpg) | ![Início com cartão do Suporte](docs/screenshots/v3/suporte/desktop-claro-inicio-cartoes.jpg) |
+| ![Menu Mais](docs/screenshots/v3/suporte/390-claro-menu-mais.jpg) | ![Menu Mais](docs/screenshots/v3/suporte/desktop-claro-menu-mais.jpg) |
+| ![Suporte, tema claro](docs/screenshots/v3/suporte/390-claro-modulo.jpg) | ![Suporte, tema claro](docs/screenshots/v3/suporte/desktop-claro-modulo.jpg) |
+| ![Suporte, tema escuro](docs/screenshots/v3/suporte/390-escuro-modulo.jpg) | ![Suporte, tema escuro](docs/screenshots/v3/suporte/desktop-escuro-modulo.jpg) |
+| ![Pedir ajuste (chave ligada)](docs/screenshots/v3/suporte/390-claro-dialogo.jpg) | ![Depois de decidir (chave ligada)](docs/screenshots/v3/suporte/desktop-claro-apos-decisao.jpg) |
 
 ## Decisões e agentes
 
@@ -204,7 +217,7 @@ npm test
 python3 -m unittest discover consumidor
 ```
 
-v2.0.1: 43 testes no Node e 29 no consumidor Python. v2.0.0: 35 e 29. Os vetores de hash do `Propostas.csv` são conferidos nos dois lados.
+v3.0.0-suporte: 52 testes no Node (9 novos em `test/v3-suporte.test.js`, com as fixtures anonimizadas de `test/fixtures/suporte/`). v2.0.1: 43 testes no Node e 29 no consumidor Python. v2.0.0: 35 e 29. Os vetores de hash do `Propostas.csv` são conferidos nos dois lados.
 
 22 testes: CSV com BOM, CRLF, aspas e quebra de linha; CSV quebrado; colunas ausentes; leitura dos CSVs reais; marcas `post:`; rascunho `post-*.md`; o modelo das telas; decisões, hash, versão velha, decisão repetida, estado inválido, recibos, cabeçalho antigo e a regra do relógio; a versão do painel; e o `Code.gs` com os serviços do Google simulados (cache, fonte quebrada, gravação em `decisoes.csv`).
 
@@ -216,6 +229,10 @@ npm run build:dev           # gera dev/out/index.html (v2, 12/11 19:00, com Prop
 node dev/build.js --sem-propostas   # sem Propostas.csv
 node dev/build.js --integrado       # chave ANUNCIOS_INTEGRADOS ligada (só no harness)
 node dev/build.js --v1              # fixtures da v1
+node dev/build.js --integrado-v3    # liga as chaves dos módulos v3 (só no harness)
+node dev/build.js --sem-v3          # sem os módulos v3
+python3 dev/shots_v3.py suporte base        # capturas do módulo (servidor na 8765 no mesmo comando)
+python3 dev/shots_v3.py suporte integrado   # diálogo e depois de decidir (build com --integrado-v3)
 python3 -m http.server 8765 -d dev/out
 ```
 
@@ -240,13 +257,17 @@ Antes, suba `VERSAO_PAINEL` em `src/Lib.gs` e `version` no `package.json` (o tes
 
 ## Como acrescentar um módulo
 
-1. No `painel-fontes.json`, mude o módulo para `"ativo": true` e preencha `fontes` com os fileIds e folderIds dele.
-2. Em `Lib.gs`, crie `montarModulo<Nome>(fontes, decisoes, agora)` que devolve as listas da tela. Teste em `test/` com CSVs reais do agente.
-3. Em `Code.gs`, leia as fontes do módulo em `montarDados_` (use `lerCsv_` e `lerAba_`, que nunca derrubam o painel) e devolva no modelo.
-4. Em `Index.html`, acrescente o botão da aba e a `<section id="aba-<id>">`. Em `App.html`, a função `desenhar<Nome>()`.
-5. Se o módulo tiver decisões, use `salvarDecisao({modulo:'<id>', ...})`: a linha vai para o mesmo `decisoes.csv`, e o agente do módulo filtra por `modulo`.
+Módulos v3 (caminho genérico, desde a v3.0.0):
 
-Planejado: **Finanças** (ledger do Assistente Financeiro), **Investimentos**, **Suporte RN Sports** (ledger do Suporte), **Estudos** e **E-mails** (só contagens e resumo, nunca o conteúdo dos e-mails).
+1. Em `Lib.gs`, chame `registrarModuloV3('<id>', {rotulo, agente, fontes, decisoes, montar})`: `fontes` diz os arquivos do ledger (`opcional: true` para os que podem faltar), `decisoes` define tipos, rótulos, campos (`texto`, `data`, `valor`) e o texto canônico do hash, e `montar(fontes, decisoes, agora)` devolve os itens da tela e `precisa` (o que conta no Início e no selo).
+2. Em `CHAVES`, acrescente `<ID>_INTEGRADO: false`. Enquanto for `false`, os botões ficam desabilitados com o aviso "o agente ainda não lê estas decisões" e o servidor recusa gravar.
+3. No `painel-fontes.json`, `"ativo": true`, `fontes.ledger.folderId` e, se quiser, `fontes.arquivos.<chave>` com o fileId (sem fileId, o painel procura pelo nome na pasta, com o cache da v2.0.1).
+4. Crie `src/Mod<Nome>.html` com `PainelV3.registrar('<id>', {desenhar})` e inclua no fim de `Index.html`. A tela abre pelo menu **Mais**.
+5. Fixtures anonimizadas em `test/fixtures/<id>/`, testes em `test/v3-<id>.test.js`, e o id na lista `V3` de `dev/build.js`.
+
+As decisões vão para o mesmo `decisoes.csv`, com `snapshot_hash` por linha, recibos e recusa de versão velha; o agente do módulo filtra por `modulo`.
+
+Planejado: **E-mails**, **Finanças**, **Investimentos** e **Estudos**.
 
 ## Fuso horário
 

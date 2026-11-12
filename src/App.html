@@ -127,10 +127,13 @@
       avisosLinhas.map(function (f) { return '<div class="aviso leve"><span><b>' + esc(f.rotulo) + ':</b> ' + esc(f.avisos[0]) + '</span></div>'; }).join('');
     var a = d.anuncios;
     var n = d.inicio.artes_entregues.length + (a ? a.inicio.posts_aguardando.length + a.inicio.planos_aguardando.length + a.inicio.alertas.length : d.inicio.posts_pendentes.length) + d.inicio.refazer_parados.length;
+    var V3 = window.PainelV3;
+    n += V3 ? V3.total() : 0;
     var c = $('#nav-cont-inicio'); c.hidden = !n; c.textContent = n;
     $('#tab-campanhas').hidden = !a;
     document.getElementById('abas').classList.toggle('cinco', !!a);
     desenharInicio(); desenharDesigns(); if (a) desenharPostsAnuncios(); else desenharPosts(); desenharCampanhas(); desenharBiblioteca();
+    if (V3) V3.desenhar();
     ligarImagens();
   }
 
@@ -163,13 +166,15 @@
     }
     var planos = a ? a.inicio.planos_aguardando.map(function (id) { return a.campanhas.filter(function (c) { return c.id === id; })[0]; }).filter(Boolean) : [];
     var alertas = a ? a.inicio.alertas : [];
-    var total = entregues.length + posts.length + parados.length + planos.length + alertas.length;
+    var V3 = window.PainelV3, totalV3 = V3 ? V3.total() : 0;
+    var total = entregues.length + posts.length + parados.length + planos.length + alertas.length + totalV3;
     function cont(num, rot, alvo, destaque) { return '<button class="contador-card' + (num ? (destaque ? ' destaque' : '') : ' zero') + '" data-ir="' + alvo + '"><div class="num">' + num + '</div><div class="rot">' + rot + '</div></button>'; }
     var h = '<h1>' + (total ? (total === 1 ? '1 item precisa de você' : total + ' itens precisam de você') : 'Nada precisa de você agora') + '</h1>' +
       '<p class="intro">' + (a ? 'Artes, posts e planos de campanha para aprovar, alertas de gasto e ajustes parados.' : 'Artes para aprovar, posts sem publicação e ajustes parados.') + ' Os dados vêm direto do Drive dos agentes.</p>' +
       '<div class="contadores' + (a ? ' seis' : '') + '">' + cont(entregues.length, 'Artes para aprovar', '#sec-entregues', true) + cont(posts.length, 'Posts aguardando você', '#sec-posts', true) +
       (a ? cont(planos.length, 'Planos aguardando seu sim', '#sec-planos', true) + cont(alertas.length, 'Alertas de gasto', '#sec-alertas', true) : '') +
-      cont(parados.length, 'Ajustes parados há mais de 2 dias', '#sec-parados', true) + cont(pend.length, 'Decisões aguardando o agente', '#sec-enviadas', false) + '</div>';
+      cont(parados.length, 'Ajustes parados há mais de 2 dias', '#sec-parados', true) + cont(pend.length, 'Decisões aguardando o agente', '#sec-enviadas', false) + '</div>' +
+      (V3 ? V3.cartoesInicio() : '');
     if (a && a.inicio.por_empresa.length) h += '<div class="por-empresa" aria-label="Pendências por empresa">' + a.inicio.por_empresa.map(function (e) {
       var t = []; if (e.posts) t.push(e.posts + (e.posts === 1 ? ' post' : ' posts')); if (e.planos) t.push(e.planos + (e.planos === 1 ? ' plano' : ' planos')); if (e.alertas) t.push(e.alertas + (e.alertas === 1 ? ' alerta' : ' alertas'));
       return '<span class="empresa-chip"><b>' + esc(e.empresa) + '</b> ' + esc(t.join(' · ')) + '</span>';
@@ -283,7 +288,7 @@
     $('#folha-conteudo').innerHTML = html; $('#folha').hidden = false; document.body.style.overflow = 'hidden';
     ligarImagens($('#folha')); setTimeout(function () { $('#folha .folha-fechar').focus(); }, 30);
   }
-  function fecharFolhas() { $('#folha').hidden = true; $('#dialogo-ajuste').hidden = true; $('#dialogo-anuncio').hidden = true; document.body.style.overflow = ''; }
+  function fecharFolhas() { ['#folha', '#dialogo-ajuste', '#dialogo-anuncio', '#menu-mais', '#dialogo-v3'].forEach(function (s) { var el = $(s); if (el) el.hidden = true; }); document.body.style.overflow = ''; }
 
   function abrirDesign(id, versaoSel) {
     var x = porId(estado.dados.designs, id); if (!x) return;
@@ -622,8 +627,12 @@
   /* ---------- eventos ---------- */
   function trocarAba(a) {
     estado.aba = a;
-    Array.prototype.forEach.call(document.querySelectorAll('.aba'), function (b) { var at = b.getAttribute('data-aba') === a; b.classList.toggle('ativa', at); if (at) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
+    var mod = a.indexOf('mod:') === 0;
+    fecharFolhas();
+    if (!mod && window.PainelV3) window.PainelV3.sair();
+    Array.prototype.forEach.call(document.querySelectorAll('.aba'), function (b) { var at = b.getAttribute('data-aba') === a || (mod && b.hasAttribute('data-mais')); b.classList.toggle('ativa', at); if (at) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
     ['inicio', 'designs', 'posts', 'campanhas', 'biblioteca'].forEach(function (k) { $('#aba-' + k).hidden = k !== a; });
+    $('#aba-mod').hidden = !mod;
     window.scrollTo(0, 0);
   }
 
@@ -679,7 +688,10 @@
   aplicarTema(salvo || (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'escuro' : 'claro'));
   $('#btn-tema').addEventListener('click', function () { aplicarTema(document.documentElement.getAttribute('data-tema') === 'escuro' ? 'claro' : 'escuro'); });
 
-  window.Painel = { trocarAba: trocarAba, abrirDesign: abrirDesign, abrirPost: abrirPost, abrirAnPost: abrirAnPost, abrirCampanha: abrirCampanha, abrirDialogoAn: abrirDialogoAn, carregar: carregar };
+  window.Painel = {
+    dados: function () { return estado.dados; }, redesenhar: desenhar,
+    util: { esc: esc, selo: selo, dataBr: dataBr, quandoRel: quandoRel, toast: toast, chamar: chamar, urlDrive: urlDrive, urlPasta: urlPasta, abrirFolha: abrirFolha, fecharFolhas: fecharFolhas, textoRecibo: textoRecibo, reais: typeof reais === 'function' ? reais : null, md: md },
+    trocarAba: trocarAba, abrirDesign: abrirDesign, abrirPost: abrirPost, abrirAnPost: abrirAnPost, abrirCampanha: abrirCampanha, abrirDialogoAn: abrirDialogoAn, carregar: carregar };
   carregar(false);
 })();
 </script>

@@ -67,6 +67,27 @@
       }
     },
     {
+      "id": "suporte",
+      "rotulo": "Suporte RN Sports",
+      "ativo": true,
+      "agente": "Agente de Suporte RN Sports",
+      "fontes": {
+        "ledger": {
+          "folderId": "ID_DA_PASTA_ledger_suporte"
+        },
+        "arquivos": {
+          "_comentario": "Opcional: fileId por arquivo (chamados, respostas, alertas, rascunhos). Sem fileId, o painel procura pelo nome na pasta do ledger: Chamados.csv, Respostas.csv, Alerts.csv, Rascunhos-painel.csv."
+        }
+      }
+    },
+    {
+      "id": "emails",
+      "rotulo": "E-mails",
+      "ativo": false,
+      "agente": "Gestor de E-mails",
+      "fontes": {}
+    },
+    {
       "id": "financas",
       "rotulo": "Finanças",
       "ativo": false,
@@ -85,28 +106,10 @@
       "fontes": {}
     },
     {
-      "id": "suporte",
-      "rotulo": "Suporte RN Sports",
-      "ativo": false,
-      "agente": "Agente de Suporte RN Sports",
-      "fontes": {
-        "ledger": {
-          "folderId": "ID_DA_PASTA_ledger_suporte"
-        }
-      }
-    },
-    {
       "id": "estudos",
       "rotulo": "Estudos",
       "ativo": false,
       "agente": "Assistente de Estudos",
-      "fontes": {}
-    },
-    {
-      "id": "emails",
-      "rotulo": "E-mails (só resumo)",
-      "ativo": false,
-      "agente": "Gestor de E-mails",
       "fontes": {}
     }
   ]

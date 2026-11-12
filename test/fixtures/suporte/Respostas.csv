@@ -1,0 +1,45 @@
+id_chamado,tipo,rascunho_em,versao,aprovado,editado_pelo_bruno,mudanca
+631,cancelamento_reembolso,2026-11-08T16:34-03:00,1,não,sim,"rascunho substituído: Bruno enviou o próprio modelo (pede CPF, e-mail e evento; até 15 dias corridos; link da política)"
+629,cancelamento_reembolso,2026-11-08T16:34-03:00,1,não,sim,"rascunho substituído: Bruno enviou o próprio modelo (pede CPF, e-mail e evento; até 15 dias corridos; link da política)"
+628,cancelamento_reembolso,2026-11-08T16:34-03:00,1,não,sim,"rascunho substituído: Bruno enviou o próprio modelo (pede CPF, e-mail e evento; até 15 dias corridos; link da política)"
+625,cancelamento_reembolso,2026-11-08T16:34-03:00,1,não,sim,"rascunho substituído: Bruno enviou o próprio modelo (pede CPF, e-mail e evento; até 15 dias corridos; link da política)"
+597,cancelamento_reembolso,2026-11-08T16:34-03:00,1,pendente,,
+618,parceria,2026-11-08T16:34-03:00,1,pendente,,
+659,troca_percurso,2026-11-08T16:34-03:00,1,pendente,,
+658,correcao_dados,2026-11-08T16:34-03:00,1,pendente,,
+657,correcao_dados,2026-11-08T16:34-03:00,1,pendente,,
+656,correcao_dados,2026-11-08T16:34-03:00,1,pendente,,
+654,troca_percurso,2026-11-08T16:34-03:00,1,pendente,,
+653,troca_percurso,2026-11-08T16:34-03:00,1,pendente,,
+652,correcao_dados,2026-11-08T16:34-03:00,1,pendente,,
+650,correcao_dados,2026-11-08T16:34-03:00,1,pendente,,
+649,correcao_dados,2026-11-08T16:34-03:00,1,pendente,,
+648,troca_percurso,2026-11-08T16:34-03:00,1,pendente,,
+647,elegibilidade,2026-11-08T16:34-03:00,1,pendente,,
+646,troca_percurso,2026-11-08T16:34-03:00,1,pendente,,
+645,correcao_dados,2026-11-08T16:34-03:00,1,pendente,,
+644,correcao_dados,2026-11-08T16:34-03:00,1,pendente,,
+643,troca_percurso,2026-11-08T16:34-03:00,1,pendente,,
+642,correcao_dados,2026-11-08T16:34-03:00,1,pendente,,
+641,troca_percurso,2026-11-08T16:34-03:00,1,pendente,,
+640,correcao_dados,2026-11-08T16:34-03:00,1,pendente,,
+638,parceria,2026-11-08T16:34-03:00,1,pendente,,
+637,correcao_dados,2026-11-08T16:34-03:00,1,pendente,,
+635,correcao_dados,2026-11-08T16:34-03:00,1,pendente,,
+634,outros,2026-11-08T16:34-03:00,1,pendente,,
+633,correcao_dados,2026-11-08T16:34-03:00,1,pendente,,
+630,troca_percurso,2026-11-08T16:34-03:00,1,pendente,,
+627,troca_percurso,2026-11-08T16:34-03:00,1,pendente,,
+626,informacao_evento,2026-11-08T16:34-03:00,1,pendente,,
+597,cancelamento_reembolso,2026-11-08T21:20-03:00,2,pendente,,v2: cobrança no texto do Bruno (M10)
+647,elegibilidade,2026-11-08T21:20-03:00,2,pendente,,"v2: Vale Verde gratuito, sem reembolso (base do site)"
+659,troca_percurso,2026-11-08T21:20-03:00,2,pendente,,"v2: diferença de valor do Lote 3 (base do site, M7)"
+664,outros,2026-11-12T07:09-03:00,1,pendente,,
+663,cancelamento_reembolso,2026-11-12T07:09-03:00,1,pendente,,
+662,informacao_evento,2026-11-12T07:09-03:00,1,pendente,,
+625,cancelamento_reembolso,2026-11-12T07:09-03:00,2,pendente,,cobrança M10
+628,cancelamento_reembolso,2026-11-12T07:09-03:00,2,pendente,,cobrança M10
+629,cancelamento_reembolso,2026-11-12T07:09-03:00,2,pendente,,cobrança M10
+631,cancelamento_reembolso,2026-11-12T07:09-03:00,2,pendente,,cobrança M10
+666,informacao_evento,2026-11-12T14:09-03:00,1,pendente,,
+628,cancelamento_reembolso,2026-11-12T14:09-03:00,3,pendente,,M14 desistência

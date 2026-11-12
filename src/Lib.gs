@@ -427,7 +427,7 @@ var PainelLib = (function () {
    * Chave da integração com o Gestor de Tráfego. Enquanto false, os botões de decisão de
    * Posts e anúncios ficam desabilitados e o servidor não grava nada. Só o Builder liga.
    */
-  var CHAVES = { ANUNCIOS_INTEGRADOS: false };
+  var CHAVES = { ANUNCIOS_INTEGRADOS: false, SUPORTE_INTEGRADO: false };
   var DECISOES_ANUNCIOS = {
     post: { aprovar: ['rascunho', 'aguardando_aprovo'], refazer: ['rascunho', 'aguardando_aprovo'], recusar: ['rascunho', 'aguardando_aprovo'] },
     campanha: { aprovar: ['plano', 'ajuste'], refazer: ['plano', 'ajuste'], recusar: ['plano', 'ajuste'], pausar: ['ativo'] }
@@ -809,14 +809,300 @@ var PainelLib = (function () {
     return { tipo_item: tipo, versao: item.versao || '', arte_fileId: tipo === 'post' ? (item.midia_fileIds || '') : '', snapshot_hash: item.snapshot_hash };
   }
 
+  /* ================= v3: base comum dos módulos novos ================= */
+  /*
+   * Cada módulo v3 se registra em MODULOS_V3 com:
+   *   id, rotulo, agente, chave (nome em CHAVES; null = só leitura),
+   *   fontes: { chave: { arquivo, rotulo, obrigatorias, opcional } }  (lidas pelo Code.gs, ids no painel-fontes.json)
+   *   decisoes: { tipo_item: { decisao: { rotulo, estados, campos:[{k, obrigatorio, rotulo}], primario } } }
+   *   montar(fontes, decisoesDoModulo, agora) -> modelo da tela, com:
+   *     itens: [{ item_id, tipo_item, versao, estado, snapshot_hash, ... }] (o que aceita decisão)
+   *     precisa: { total, partes:[{rotulo, n}] }  (cartão do Início e selo do menu)
+   * Decisões vão para o mesmo decisoes.csv; item_id sempre "<tipo_item>:<id>".
+   */
+  var AVISO_CHAVE_V3 = 'o agente ainda não lê estas decisões';
+  var MODULOS_V3 = {};
+  var ORDEM_V3 = [];
+  function registrarModuloV3(def) { if (!MODULOS_V3[def.id]) ORDEM_V3.push(def.id); MODULOS_V3[def.id] = def; }
+
+  /** Texto canônico v3: tipo␟campos..., cada campo com CRLF/CR -> LF e trim (igual ao v2). */
+  function canonicoV3(tipo, campos) { return [tipo].concat(campos).map(normCampo).join(SEP); }
+
+  /** Decisões com o recibo do agente (se houver). */
+  function decisoesComRecibos(decisoes, recibos) {
+    recibos = recibos || {};
+    return (decisoes || []).map(function (d) {
+      return { id: d.id, quando: d.quando, modulo: d.modulo, item_id: d.item_id, tipo_item: d.tipo_item, versao: d.versao, arte_fileId: d.arte_fileId, snapshot_hash: d.snapshot_hash, decisao: d.decisao, comentario: d.comentario, origem: d.origem, recibo: recibos[d.id] || null };
+    });
+  }
+
+  /** Pendente (sem recibo) e último recibo por item, só do módulo. */
+  function decisoesDoModulo(todas, modulo) {
+    var pend = {}, ultimo = {};
+    (todas || []).forEach(function (d) {
+      if (d.modulo !== modulo) return;
+      if (!d.recibo) pend[d.item_id] = d;
+      else ultimo[d.item_id] = { decision_id: d.id, decisao: d.decisao, resultado: d.recibo.resultado, motivo: d.recibo.motivo, link: d.recibo.link || '', processado_em: d.recibo.processado_em };
+    });
+    return { pend: pend, ultimo: ultimo };
+  }
+
+  /** Liga pendência, recibo e decisões possíveis a um item que já tem snapshot_hash. */
+  function prepararItemV3(item, def, dm) {
+    var regras = (def.decisoes || {})[item.tipo_item] || {};
+    item.decisoes_possiveis = Object.keys(regras).filter(function (k) { return regras[k].estados.indexOf(item.estado) >= 0; });
+    var p = dm.pend[item.item_id] || null;
+    if (p) p = Object.assign({}, p, { obsoleta: p.snapshot_hash !== item.snapshot_hash });
+    item.decisao_pendente = p;
+    item.ultimo_recibo = dm.ultimo[item.item_id] || null;
+    return item;
+  }
+
+  function validarCampoV3(k, v) {
+    if (k === 'data' && !/^\d{4}-\d{2}-\d{2}$/.test(v)) throw new Error('data deve ser aaaa-mm-dd');
+    if (k === 'valor' && !(/^\d+(\.\d{1,2})?$/.test(v) && +v > 0)) throw new Error('valor deve ser um número maior que zero (ponto decimal)');
+    if (k === 'texto' && v.length > 1500) throw new Error('texto muito longo');
+  }
+  /**
+   * Comentário estruturado v3, igual ao de anúncios: pares chave=valor separados por ";",
+   * na ordem dos campos da decisão; "texto" é sempre o último e pode ter ";" e "=".
+   */
+  function parseComentarioV3(txt, campos) {
+    var s = String(txt || '').replace(/[\r\n]+/g, ' ').trim();
+    var ordem = (campos || []).map(function (c) { return c.k; });
+    var r = {}, pos = 0;
+    while (s) {
+      if (/^texto=/.test(s)) {
+        if (ordem.indexOf('texto') < 0) throw new Error('esta decisão não aceita texto');
+        r.texto = s.slice(6).trim(); break;
+      }
+      var i = s.indexOf(';');
+      var par = i < 0 ? s : s.slice(0, i);
+      s = i < 0 ? '' : s.slice(i + 1).replace(/^\s+/, '');
+      var m = par.match(/^(\w+)=(.*)$/);
+      if (!m) throw new Error('comentário fora do formato (esperado chave=valor): "' + par + '"');
+      var k = m[1], v = m[2].trim(), idx = ordem.indexOf(k);
+      if (idx < 0) throw new Error('"' + k + '" não vale para esta decisão');
+      if (idx < pos) throw new Error('chaves fora de ordem no comentário (' + ordem.join(', ') + ')');
+      pos = idx + 1;
+      validarCampoV3(k, v);
+      r[k] = v;
+    }
+    if (r.texto !== undefined) validarCampoV3('texto', r.texto);
+    (campos || []).forEach(function (c) { if (c.obrigatorio && !r[c.k]) throw new Error(c.k === 'texto' ? 'escreva o comentário (obrigatório nesta decisão)' : 'falta ' + c.k); });
+    return r;
+  }
+  function montarComentarioV3(o, campos) {
+    var p = [];
+    (campos || []).forEach(function (c) {
+      var v = String(o[c.k] === undefined || o[c.k] === null ? '' : o[c.k]).replace(/[\r\n]+/g, ' ').trim();
+      if (v) p.push(c.k + '=' + v);
+    });
+    return p.join(';');
+  }
+
+  /** Confere decisão de módulo v3 contra o modelo recém-lido do Drive. */
+  function conferirDecisaoV3(modelo, d) {
+    var def = MODULOS_V3[d.modulo];
+    var mod = modelo.v3 && modelo.v3[d.modulo];
+    if (!def || !mod) throw new Error('o módulo ' + d.modulo + ' não está ativo no painel-fontes.json');
+    if (!def.chave || !def.decisoes) throw new Error('o módulo ' + def.rotulo + ' é só leitura');
+    if (!CHAVES[def.chave]) throw new Error(AVISO_CHAVE_V3 + ' (' + def.agente + '); nada foi gravado');
+    var item = null;
+    for (var i = 0; i < mod.itens.length; i++) if (mod.itens[i].item_id === d.item_id) { item = mod.itens[i]; break; }
+    if (!item) throw new Error('item ' + d.item_id + ' não existe mais nos arquivos do ' + def.agente);
+    var regra = (def.decisoes[item.tipo_item] || {})[d.decisao];
+    if (!regra) throw new Error('decisão "' + d.decisao + '" não vale para ' + item.tipo_item);
+    if (regra.estados.indexOf(item.estado) < 0) throw new Error('item ' + d.item_id + ' está "' + (item.estado_texto || item.estado) + '" e não aceita esta decisão agora; atualize o painel');
+    if (item.snapshot_hash !== d.snapshot_hash) throw new Error('o item ' + d.item_id + ' mudou desde que a tela foi carregada; atualize o painel e confira de novo');
+    var pend = item.decisao_pendente;
+    if (pend && pend.snapshot_hash === d.snapshot_hash && (!def.repetivel || def.repetivel.indexOf(d.decisao) < 0)) throw new Error('já existe uma decisão enviada para esta versão (' + pend.id + ')');
+    parseComentarioV3(d.comentario, regra.campos);
+    return { tipo_item: item.tipo_item, versao: String(item.versao || ''), arte_fileId: '', snapshot_hash: item.snapshot_hash };
+  }
+
+  /** Monta todos os módulos v3 presentes em fontesV3 ({ id: fontes }). */
+  function montarModulosV3(fontesV3, todas, agora) {
+    var r = {};
+    ORDEM_V3.forEach(function (id) {
+      if (!fontesV3 || !fontesV3[id]) return;
+      var def = MODULOS_V3[id];
+      var dm = decisoesDoModulo(todas, id);
+      var m = def.montar(fontesV3[id], dm, agora);
+      m.id = id; m.rotulo = m.rotulo || def.rotulo; m.agente = def.agente;
+      m.integrado = def.chave ? !!CHAVES[def.chave] : null;
+      m.aviso_chave = AVISO_CHAVE_V3;
+      m.decisoes_def = def.decisoes || null;
+      (m.itens || []).forEach(function (x) { prepararItemV3(x, def, dm); });
+      r[id] = m;
+    });
+    return r;
+  }
+
+  /** Começo do texto, sem acento e em minúsculas, para classificar estado livre. */
+  function semAcento(s) { return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim(); }
+  /** Classifica um texto livre pelo começo: regras = [[regex, estado], ...]. */
+  function classificarComeco(txt, regras, padrao) {
+    var s = semAcento(txt);
+    for (var i = 0; i < regras.length; i++) if (regras[i][0].test(s)) return regras[i][1];
+    return padrao === undefined ? 'outro' : padrao;
+  }
+  function horasEntre(a, b) { return (b.getTime() - a.getTime()) / 3600000; }
+  function contarPor(lista, campo) {
+    var c = {};
+    lista.forEach(function (x) { var k = String(x[campo] || '').trim() || '(sem ' + campo + ')'; c[k] = (c[k] || 0) + 1; });
+    return Object.keys(c).map(function (k) { return { nome: k, n: c[k] }; }).sort(function (a, b) { return b.n - a.n || a.nome.localeCompare(b.nome); });
+  }
+  function mediana(nums) {
+    if (!nums.length) return null;
+    var s = nums.slice().sort(function (a, b) { return a - b; }), m = Math.floor(s.length / 2);
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  }
+
+  /* ================= v3: Suporte RN Sports ================= */
+
+  /** Texto canônico de Rascunhos-painel.csv (docs/contrato-suporte.md). */
+  function canonicoResposta(r) {
+    return canonicoV3('resposta', [r.id_chamado, r.versao, r.evento, r.tipo, r.cliente_primeiro_nome, r.pedido_resumo, r.rascunho_texto, r.estado, r.zendesk_link, r.prazo_evento]);
+  }
+  var CABECALHO_RASCUNHOS_SUPORTE = ['id_chamado', 'versao', 'evento', 'tipo', 'cliente_primeiro_nome', 'pedido_resumo', 'rascunho_texto', 'estado', 'zendesk_link', 'prazo_evento', 'atualizado_em'];
+  var ESTADOS_RASCUNHO = [[/^aguardando/, 'aguardando_aprovo'], [/^aprovad/, 'aprovado'], [/^ajuste/, 'ajuste'], [/^recusad/, 'recusado'], [/^enviad/, 'enviado']];
+
+  /** Dias até o evento: prazo_evento (aaaa-mm-dd) ou a data entre parênteses no nome do evento, ex. "(14/11)". */
+  function prazoDoEvento(prazo, evento, agora) {
+    var txt = String(prazo || '').trim(), origem = 'prazo_evento';
+    var d = /^\d{4}-\d{2}-\d{2}/.test(txt) ? parseData(txt) : null;
+    if (!d) {
+      var m = String(evento || '').match(/\((\d{1,2}\/\d{1,2}(?:\/\d{4})?)\)/);
+      if (m) { d = parseData(m[1], agora.getFullYear()); origem = 'evento'; }
+    }
+    if (!d) return null;
+    return { data: diaIso(d), dias: Math.round((soDia(d) - soDia(agora)) / DIA_MS), origem: origem };
+  }
+
+  function montarSuporte(f, dm, agora) {
+    var L = function (k) { return (f[k] && f[k].linhas) || []; };
+    var chamados = L('chamados').filter(function (c) { return String(c.id || '').trim(); });
+    var porChamado = {};
+    chamados.forEach(function (c) { porChamado[String(c.id).trim()] = c; });
+    var abertoSt = function (c) { return /^(open|pending|new|hold)/i.test(String(c.status || '').trim()); };
+
+    // Rascunhos-painel.csv: última versão por chamado
+    var ult = {};
+    L('rascunhos').forEach(function (r) {
+      var id = String(r.id_chamado || '').trim(); if (!id) return;
+      if (!ult[id] || (+r.versao || 0) >= (+ult[id].versao || 0)) ult[id] = r;
+    });
+    var itens = Object.keys(ult).map(function (id) {
+      var r = ult[id], ch = porChamado[id] || {};
+      var criado = parseData(ch.criado_em);
+      var resp = ch.primeira_resposta_em || ch.respondido_em || '';
+      return {
+        item_id: 'resposta:' + id, tipo_item: 'resposta', id_chamado: id, versao: String(r.versao || '').trim(),
+        estado: classificarComeco(r.estado, ESTADOS_RASCUNHO), estado_texto: r.estado,
+        evento: r.evento || ch.evento || '', tipo: r.tipo || ch.tipo || '', cliente: r.cliente_primeiro_nome || '',
+        pedido_resumo: String(r.pedido_resumo || '').slice(0, 280), rascunho_texto: r.rascunho_texto || '',
+        zendesk_link: ehLink(r.zendesk_link) ? String(r.zendesk_link).trim() : '', prazo_evento: r.prazo_evento || '',
+        atualizado_em: r.atualizado_em || '', canal: ch.canal || '', status_chamado: ch.status || '',
+        criado_em: ch.criado_em || '', espera_horas: criado ? Math.max(0, Math.round(horasEntre(criado, agora))) : null, sem_resposta: !resp,
+        prazo: prazoDoEvento(r.prazo_evento, r.evento || ch.evento, agora),
+        snapshot_hash: sha256(canonicoResposta(r))
+      };
+    });
+    itens.sort(function (a, b) {
+      var pa = a.prazo ? a.prazo.dias : 9999, pb = b.prazo ? b.prazo.dias : 9999;
+      return pa - pb || (b.espera_horas || 0) - (a.espera_horas || 0) || a.id_chamado.localeCompare(b.id_chamado);
+    });
+    var fila = itens.filter(function (x) { return x.estado === 'aguardando_aprovo'; });
+    var naFila = {}; itens.forEach(function (x) { naFila[x.id_chamado] = x.estado; });
+
+    // Respostas.csv: rascunhos que existem só no Zendesk (sem texto no painel)
+    var ultResp = {};
+    L('respostas').forEach(function (r) {
+      var id = String(r.id_chamado || '').trim(); if (!id) return;
+      var chave = (+r.versao || 0) * 1e13 + ((parseData(r.rascunho_em) || new Date(0)).getTime());
+      if (!ultResp[id] || chave >= ultResp[id]._k) ultResp[id] = Object.assign({ _k: chave }, r);
+    });
+    var semTexto = chamados.filter(function (c) {
+      var id = String(c.id).trim(), r = ultResp[id];
+      if (!abertoSt(c) || naFila[id]) return false;
+      return r ? classificarComeco(r.aprovado, [[/^pendente/, 'p']], '') === 'p' : !!c.rascunho_em && !c.aprovado_em;
+    }).map(function (c) {
+      var r = ultResp[String(c.id).trim()] || {};
+      return { id: String(c.id).trim(), evento: c.evento, tipo: c.tipo, status: c.status, versao: r.versao || '', ultima_acao: c.ultima_acao, proxima_acao: c.proxima_acao, prazo: prazoDoEvento('', c.evento, agora) };
+    });
+
+    // Chamados abertos, parados, alertas e primeira resposta
+    var abertos = chamados.filter(abertoSt);
+    var parados = abertos.map(function (c) {
+      var datas = ['criado_em', 'primeira_resposta_em', 'rascunho_em', 'aprovado_em', 'respondido_em'].map(function (k) { return parseData(c[k]); }).filter(Boolean);
+      var ultima = datas.length ? new Date(Math.max.apply(null, datas.map(function (d) { return d.getTime(); }))) : null;
+      return { id: String(c.id).trim(), evento: c.evento, tipo: c.tipo, status: c.status, ultima_acao: c.ultima_acao, proxima_acao: c.proxima_acao, horas: ultima ? Math.round(horasEntre(ultima, agora)) : null };
+    }).filter(function (x) { return x.horas !== null && x.horas > 24; }).sort(function (a, b) { return b.horas - a.horas; });
+
+    var alertas = L('alertas').filter(function (a) { return /^(now|today)$/i.test(String(a.tier || '').trim()); }).map(function (a) {
+      return { id: a.alert_id, quando: a.created_at, tier: String(a.tier).trim(), sinais: a.signals, objeto: a.object_id, link: ehLink(a.item_link) ? String(a.item_link).trim() : '', entrega: a.delivery_state, resultado: a.outcome, substituido: /superseded/i.test(a.delivery_state || '') };
+    }).sort(function (a, b) { return String(b.quando).localeCompare(String(a.quando)); }).slice(0, 10);
+
+    var semanaIni = new Date(soDia(agora).getTime() - 6 * DIA_MS);
+    var daSemana = chamados.filter(function (c) { var d = parseData(c.criado_em); return d && d >= semanaIni && d <= agora; });
+    var horas = [], soData = 0, resolvidosSem = 0, aguardando = 0;
+    daSemana.forEach(function (c) {
+      var t = c.primeira_resposta_em || c.respondido_em;
+      var d0 = parseData(c.criado_em), d1 = parseData(t);
+      if (d1) {
+        if (!/\d{1,2}:\d{2}/.test(t)) { soData++; return; }
+        horas.push(Math.max(0, horasEntre(d0, d1)));
+      } else if (abertoSt(c)) aguardando++;
+      else resolvidosSem++;
+    });
+
+    var precisa = [{ rotulo: 'respostas para aprovar', n: fila.length }];
+    if (semTexto.length) precisa.push({ rotulo: 'rascunhos só no Zendesk', n: semTexto.length });
+    return {
+      rascunhos_ativo: !!(f.rascunhos && f.rascunhos.linhas),
+      itens: itens, fila: fila.map(function (x) { return x.item_id; }),
+      sem_texto: semTexto,
+      abertos: { total: abertos.length, por_evento: contarPor(abertos, 'evento'), por_tipo: contarPor(abertos, 'tipo') },
+      parados: parados, alertas: alertas,
+      primeira_resposta: { de: diaIso(semanaIni), ate: diaIso(agora), criados: daSemana.length, com_hora: horas.length, mediana_horas: horas.length ? arred(mediana(horas)) : null, media_horas: horas.length ? arred(horas.reduce(function (s, x) { return s + x; }, 0) / horas.length) : null, so_data: soData, resolvidos_sem_resposta: resolvidosSem, aguardando: aguardando },
+      precisa: { total: precisa.reduce(function (s, p) { return s + p.n; }, 0), partes: precisa }
+    };
+  }
+
+  registrarModuloV3({
+    id: 'suporte', rotulo: 'Suporte RN Sports', agente: 'Agente de Suporte RN Sports', chave: 'SUPORTE_INTEGRADO',
+    fontes: {
+      chamados: { arquivo: 'Chamados.csv', rotulo: 'Chamados (Suporte)', obrigatorias: ['id', 'status'] },
+      respostas: { arquivo: 'Respostas.csv', rotulo: 'Respostas (Suporte)', obrigatorias: ['id_chamado', 'versao'] },
+      alertas: { arquivo: 'Alerts.csv', rotulo: 'Alertas (Suporte)', obrigatorias: ['tier'] },
+      rascunhos: { arquivo: 'Rascunhos-painel.csv', rotulo: 'Rascunhos para o painel (Suporte)', obrigatorias: CABECALHO_RASCUNHOS_SUPORTE, opcional: true }
+    },
+    decisoes: {
+      resposta: {
+        aprovar: { rotulo: 'Aprovar e enviar como está', estados: ['aguardando_aprovo'], campos: [], primario: true },
+        refazer: { rotulo: 'Pedir ajuste', estados: ['aguardando_aprovo'], campos: [{ k: 'texto', obrigatorio: true, rotulo: 'O que precisa mudar no rascunho?' }] },
+        recusar: { rotulo: 'Recusar', estados: ['aguardando_aprovo'], campos: [{ k: 'texto', obrigatorio: false, rotulo: 'Motivo (opcional)' }] }
+      }
+    },
+    montar: montarSuporte
+  });
+
+  /** Todas as decisões que os módulos v3 aceitam. */
+  function decisoesV3() {
+    var r = [];
+    ORDEM_V3.forEach(function (id) { var d = MODULOS_V3[id].decisoes || {}; Object.keys(d).forEach(function (t) { Object.keys(d[t]).forEach(function (k) { if (r.indexOf(k) < 0) r.push(k); }); }); });
+    return r;
+  }
+
   /** Valida uma decisão vinda da tela. */
   function validarDecisao(d) {
     if (!d || typeof d !== 'object') throw new Error('decisão vazia');
-    if (['aprovar', 'refazer', 'recusar', 'pausar'].indexOf(d.decisao) < 0) throw new Error('decisão inválida');
+    if (['aprovar', 'refazer', 'recusar', 'pausar'].indexOf(d.decisao) < 0 && decisoesV3().indexOf(d.decisao) < 0) throw new Error('decisão inválida');
     if (!d.item_id || !/^[\w:.\-]{1,80}$/.test(d.item_id)) throw new Error('item inválido');
     if (!d.modulo || !/^[a-z_]{1,30}$/.test(d.modulo)) throw new Error('módulo inválido');
     var c = String(d.comentario || '').trim();
-    if (d.modulo === 'anuncios') c = c.replace(/[\r\n]+/g, ' ');
+    if (d.modulo === 'anuncios' || MODULOS_V3[d.modulo]) c = c.replace(/[\r\n]+/g, ' ');
     if (d.decisao === 'refazer' && !c) throw new Error('o pedido de ajuste precisa de um comentário');
     if (c.length > 2000) throw new Error('comentário muito longo');
     if (!/^[0-9a-f]{64}$/.test(String(d.snapshot_hash || ''))) throw new Error('decisão sem a versão exibida; atualize o painel');
@@ -824,7 +1110,7 @@ var PainelLib = (function () {
   }
 
   /** Versão exibida no topo do painel. Atualize a cada implantação. */
-  var VERSAO_PAINEL = '2.0.1';
+  var VERSAO_PAINEL = '3.0.0-suporte';
   var POSTS_INTEGRADOS = false;
   var ESTADOS_DECIDIVEIS = { design: ['entregue'], post: ['rascunho', 'aguardando_aprovo'] };
 
@@ -835,6 +1121,7 @@ var PainelLib = (function () {
    */
   function conferirDecisao(modelo, d) {
     if (d.modulo === 'anuncios') return conferirDecisaoAnuncio(modelo, d);
+    if (MODULOS_V3[d.modulo]) return conferirDecisaoV3(modelo, d);
     if (d.decisao && ['aprovar', 'refazer'].indexOf(d.decisao) < 0) throw new Error('decisão "' + d.decisao + '" não vale para designs');
     var ehPost = d.item_id.indexOf('post:') === 0;
     // Posts ainda sem consumidor (fluxo do Tráfego pendente): o painel não grava decisão de post.
@@ -894,7 +1181,20 @@ var PainelLib = (function () {
     midias: midias,
     CABECALHO_PROPOSTAS: CABECALHO_PROPOSTAS,
     CHAVES: CHAVES,
-    DECISOES_ANUNCIOS: DECISOES_ANUNCIOS
+    DECISOES_ANUNCIOS: DECISOES_ANUNCIOS,
+    MODULOS_V3: MODULOS_V3,
+    ORDEM_V3: ORDEM_V3,
+    AVISO_CHAVE_V3: AVISO_CHAVE_V3,
+    canonicoV3: canonicoV3,
+    decisoesComRecibos: decisoesComRecibos,
+    montarModulosV3: montarModulosV3,
+    conferirDecisaoV3: conferirDecisaoV3,
+    parseComentarioV3: parseComentarioV3,
+    montarComentarioV3: montarComentarioV3,
+    classificarComeco: classificarComeco,
+    canonicoResposta: canonicoResposta,
+    CABECALHO_RASCUNHOS_SUPORTE: CABECALHO_RASCUNHOS_SUPORTE,
+    prazoDoEvento: prazoDoEvento
   };
 })();
 

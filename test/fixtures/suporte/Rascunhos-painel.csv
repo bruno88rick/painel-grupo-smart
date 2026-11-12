@@ -1,0 +1,43 @@
+id_chamado,versao,evento,tipo,cliente_primeiro_nome,pedido_resumo,rascunho_texto,estado,zendesk_link,prazo_evento,atualizado_em
+663,1,Circuito Serra Azul Vila Nova 2025 (adiado),cancelamento_reembolso,Marina,Pede reembolso das inscrições de 3 atletas do evento adiado; quer saber o prazo e se precisa mandar comprovante.,"Olá, Marina, tudo bem?
+
+Sentimos muito pelo adiamento do Circuito Serra Azul. Para seguir com o reembolso das 3 inscrições, precisamos que você responda este e-mail com:
+- o número de cada pedido;
+- a chave Pix da conta que fez o pagamento.
+
+O prazo é de até 15 dias corridos depois da conferência, conforme a política ""Cancelamento e reembolso"" do site.
+
+Abraço,
+Equipe RN Sports",aguardando_aprovo,https://exemplo.zendesk.com/agent/tickets/663,,2026-11-12T07:09-03:00
+645,1,2ª Trilha Runners (13/12),correcao_dados,Carlos,Pede para corrigir a data de nascimento na inscrição; mandou só dia e mês.,"Olá, Carlos!
+
+Conseguimos corrigir, sim. Só falta o ano de nascimento: pode responder com a data completa (dia, mês e ano)?
+
+Obrigado,
+Equipe RN Sports",aguardando_aprovo,https://exemplo.zendesk.com/agent/tickets/645,2026-12-13,2026-11-08T16:34-03:00
+643,1,2ª Trilha Runners (13/12),troca_percurso,Ana,Quer trocar do percurso de 10 km para o de 5 km; fez duas inscrições por engano.,"Olá, Ana!
+
+Trocamos o seu percurso para 5 km.",ajuste,https://exemplo.zendesk.com/agent/tickets/643,2026-12-13,2026-11-08T16:34-03:00
+643,2,2ª Trilha Runners (13/12),troca_percurso,Ana,Quer trocar do percurso de 10 km para o de 5 km; fez duas inscrições por engano.,"Olá, Ana, tudo certo?
+
+Trocamos o seu percurso para 5 km e cancelamos a inscrição duplicada. O valor da segunda inscrição volta pelo mesmo meio de pagamento em até 15 dias.
+
+Boa prova!
+Equipe RN Sports",aguardando_aprovo,https://exemplo.zendesk.com/agent/tickets/643,2026-12-13,2026-11-12T07:09-03:00
+638,1,TrilhaJá (divulgação e cupom),parceria,Rafael,Propõe divulgar os eventos no app em troca de um cupom de 10% para os usuários.,"Olá, Rafael!
+
+Obrigado pelo contato e pela proposta. Vamos avaliar a parceria com calma e voltamos até sexta-feira com uma resposta, combinado?
+
+Abraço,
+Equipe RN Sports",aguardando_aprovo,,,2026-11-08T16:34-03:00
+626,1,Circuito Serra Azul Campo Alto (troféu),informacao_evento,Júlia,Pergunta onde retirar o troféu de 3º lugar; não pôde ficar até a premiação.,"Olá, Júlia, parabéns pelo 3º lugar!
+
+O troféu pode ser retirado [LACUNA: local e horário de retirada] ou enviado pelos Correios, com frete por conta do atleta.
+
+Abraço,
+Equipe RN Sports",aguardando_aprovo,https://exemplo.zendesk.com/agent/tickets/626,,2026-11-08T16:34-03:00
+666,1,Corrida Vale Verde (14/11),informacao_evento,Pedro,Pergunta o horário da largada e onde retirar o kit.,"Olá, Pedro!
+
+A largada é às 7h e o kit sai na sexta, das 14h às 20h, na sede da empresa.
+
+Boa prova!",enviado,https://exemplo.zendesk.com/agent/tickets/666,2026-11-14,2026-11-12T14:20-03:00

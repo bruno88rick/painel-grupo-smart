@@ -1,0 +1,100 @@
+<script>
+/* Tela do módulo Suporte RN Sports (v3). Lê Rascunhos-painel.csv, Chamados.csv, Respostas.csv e Alerts.csv. */
+(function () {
+  'use strict';
+  var TIPOS = {
+    cancelamento_reembolso: 'Cancelamento ou reembolso', troca_percurso: 'Troca de percurso', correcao_dados: 'Correção de dados',
+    informacao_evento: 'Informação do evento', parceria: 'Parceria', duvida_inscricao: 'Dúvida de inscrição', pagamento: 'Pagamento',
+    kit_camiseta: 'Kit e camiseta', resultado_classificacao: 'Resultado', outros: 'Outros'
+  };
+  var ESTADOS = { aguardando_aprovo: 'Aguardando seu aprovo', aprovado: 'Aprovado', ajuste: 'Em ajuste', recusado: 'Recusado', enviado: 'Enviado' };
+  var STATUS = { open: 'aberto', pending: 'aguardando cliente', new: 'novo', hold: 'em espera', solved: 'resolvido', closed: 'fechado' };
+  function rotStatus(s) { var k = String(s || '').trim().toLowerCase(); return STATUS[k] || s; }
+  function rotTipo(t) { return TIPOS[t] || String(t || 'sem tipo').replace(/_/g, ' '); }
+  function espera(h) {
+    if (h === null || h === undefined) return 'abertura sem data';
+    if (h < 1) return 'aberto há menos de 1 h';
+    if (h < 48) return 'aberto há ' + h + ' h';
+    return 'aberto há ' + Math.round(h / 24) + ' dias';
+  }
+  function prazo(p) {
+    if (!p) return '';
+    if (p.dias < 0) return 'evento já passou (' + p.data.slice(8, 10) + '/' + p.data.slice(5, 7) + ')';
+    if (p.dias === 0) return 'evento hoje';
+    return 'evento em ' + p.dias + (p.dias === 1 ? ' dia' : ' dias') + ' (' + p.data.slice(8, 10) + '/' + p.data.slice(5, 7) + ')';
+  }
+  function horas(h) { if (h === null || h === undefined) return '-'; return h < 48 ? String(h).replace('.', ',') + ' h' : Math.round(h / 24) + ' dias'; }
+
+  function cartao(x, m, U, V3) {
+    var e = U.esc;
+    x.titulo_curto = 'Chamado #' + x.id_chamado + ' · ' + (x.cliente || rotTipo(x.tipo));
+    var urg = x.prazo && x.prazo.dias >= 0 && x.prazo.dias <= 3;
+    return '<article class="cartao-v3' + (urg ? ' urgente' : '') + '">' +
+      '<div class="v3-topo"><span class="cartao-empresa">#' + e(x.id_chamado) + ' · ' + e(rotTipo(x.tipo)) + (x.versao ? ' · v' + e(x.versao) : '') + '</span>' + U.selo(x.estado === 'aguardando_aprovo' ? 'aguardando_aprovo' : 'rascunho', ESTADOS[x.estado] || x.estado_texto) + '</div>' +
+      '<div class="cartao-titulo">' + e(x.evento || 'Evento não informado') + '</div>' +
+      '<div class="v3-meta"><span>' + e(espera(x.espera_horas)) + (x.sem_resposta ? ', sem resposta pública' : '') + '</span>' + (x.prazo ? '<span class="' + (urg ? 'prazo-urgente' : '') + '">' + e(prazo(x.prazo)) + '</span>' : '') + '</div>' +
+      (x.pedido_resumo ? '<p class="v3-resumo"><b>' + e(x.cliente || 'Cliente') + ':</b> ' + e(x.pedido_resumo) + '</p>' : '') +
+      '<p class="mudo legenda-rot">Rascunho do agente</p><div class="bloco-texto rascunho-v3">' + e(x.rascunho_texto || '(sem texto)') + '</div>' +
+      (/\[LACUNA/i.test(x.rascunho_texto) ? '<p class="intro aviso-integracao" style="margin:10px 0 0">O rascunho tem lacuna para você completar: peça ajuste com a informação.</p>' : '') +
+      V3.botoes('suporte', x, { aprovar: 'Aprovar e enviar', refazer: 'Pedir ajuste', recusar: 'Recusar' }) +
+      (x.zendesk_link ? '<div class="links"><a class="botao" href="' + e(x.zendesk_link) + '" target="_blank" rel="noopener">Abrir no Zendesk</a></div>' : '') +
+      '</article>';
+  }
+
+  function tabelaContagem(l) {
+    if (!l.length) return '<div class="vazio">Nenhum.</div>';
+    var max = Math.max.apply(null, l.map(function (x) { return x.n; })) || 1;
+    return '<div class="fontes contagem">' + l.map(function (x) {
+      return '<div class="fonte"><span class="contagem-nome">' + window.Painel.util.esc(x.nome) + '</span><span class="contagem-barra" aria-hidden="true"><i style="width:' + Math.round(x.n / max * 100) + '%"></i></span><span class="quando">' + x.n + '</span></div>';
+    }).join('') + '</div>';
+  }
+
+  PainelV3.registrar('suporte', {
+    desenhar: function (m, U, V3) {
+      var e = U.esc;
+      var fila = m.fila.map(function (id) { return V3.item('suporte', id); }).filter(Boolean);
+      var outros = m.itens.filter(function (x) { return x.estado !== 'aguardando_aprovo'; });
+      var pr = m.primeira_resposta;
+      var h = '<h1>Suporte RN Sports</h1><p class="intro">Respostas do Agente de Suporte para você aprovar, chamados abertos e alertas. O painel só lê o Drive; quem responde no Zendesk é o agente.</p>' +
+        V3.avisoChave(m);
+      h += '<div class="contadores">' +
+        '<div class="contador-card' + (fila.length ? ' destaque' : ' zero') + '"><div class="num">' + fila.length + '</div><div class="rot">Respostas para aprovar</div></div>' +
+        '<div class="contador-card' + (m.sem_texto.length ? '' : ' zero') + '"><div class="num">' + m.sem_texto.length + '</div><div class="rot">Rascunhos só no Zendesk</div></div>' +
+        '<div class="contador-card' + (m.abertos.total ? '' : ' zero') + '"><div class="num">' + m.abertos.total + '</div><div class="rot">Chamados abertos</div></div>' +
+        '<div class="contador-card' + (m.parados.length ? '' : ' zero') + '"><div class="num">' + m.parados.length + '</div><div class="rot">Parados há mais de 24 h</div></div></div>';
+
+      h += '<h2 id="sup-fila">Respostas para aprovar <span class="qtd">' + fila.length + '</span></h2>';
+      if (!m.rascunhos_ativo) h += '<div class="vazio">O agente ainda não criou o Rascunhos-painel.csv. Até lá, os rascunhos ficam só no Zendesk (lista abaixo).</div>';
+      else h += fila.length ? '<div class="lista-v3">' + fila.map(function (x) { return cartao(x, m, U, V3); }).join('') + '</div>' : '<div class="vazio">Nenhuma resposta esperando seu aprovo.</div>';
+
+      if (m.sem_texto.length) h += '<h2>Rascunhos só no Zendesk <span class="qtd">' + m.sem_texto.length + '</span></h2><p class="intro">O agente deixou rascunho como nota interna, mas o texto não veio para o painel. Aprove pelo chat ou no Zendesk.</p>' +
+        '<div class="fontes">' + m.sem_texto.map(function (c) {
+          return '<div class="fonte"><span><b>#' + e(c.id) + '</b> ' + e(c.evento || 'sem evento') + ' · ' + e(rotTipo(c.tipo)) + (c.versao ? ' · v' + e(c.versao) : '') + '<br><span class="mudo">' + e(c.proxima_acao || c.ultima_acao || '') + '</span></span><span class="quando">' + e(c.prazo ? prazo(c.prazo) : rotStatus(c.status)) + '</span></div>';
+        }).join('') + '</div>';
+
+      if (m.alertas.length) h += '<h2>Alertas Now e Today <span class="qtd">' + m.alertas.length + '</span></h2><div class="fontes">' + m.alertas.map(function (a) {
+        return '<div class="fonte' + (a.substituido ? ' substituido' : '') + '"><span>' + U.selo(/now/i.test(a.tier) ? 'refazer' : 'entregue', a.tier) + ' ' + e(a.sinais) + (a.substituido ? ' <span class="mudo">(substituído por outro alerta)</span>' : '') + (a.link ? ' · <a href="' + e(a.link) + '" target="_blank" rel="noopener">abrir</a>' : '') + '</span><span class="quando">' + U.dataBr(a.quando) + '</span></div>';
+      }).join('') + '</div>';
+
+      h += '<div class="duas-colunas"><div><h2>Abertos por evento <span class="qtd">' + m.abertos.total + '</span></h2>' + tabelaContagem(m.abertos.por_evento) + '</div>' +
+        '<div><h2>Abertos por tipo</h2>' + tabelaContagem(m.abertos.por_tipo.map(function (x) { return { nome: rotTipo(x.nome), n: x.n }; })) + '</div></div>';
+
+      h += '<h2>Parados há mais de 24 h <span class="qtd">' + m.parados.length + '</span></h2>' + (m.parados.length ? '<div class="fontes">' + m.parados.map(function (c) {
+        return '<div class="fonte"><span><b>#' + e(c.id) + '</b> ' + e(c.evento || 'sem evento') + ' · ' + e(rotTipo(c.tipo)) + '<br><span class="mudo">' + e(c.proxima_acao || c.ultima_acao || '') + '</span></span><span class="quando">' + horas(c.horas) + '</span></div>';
+      }).join('') + '</div>' : '<div class="vazio">Nenhum chamado parado.</div>');
+
+      h += '<h2>Primeira resposta na semana <span class="qtd">' + U.dataBr(pr.de) + ' a ' + U.dataBr(pr.ate) + '</span></h2><div class="numeros">' +
+        '<div><div class="num-v">' + pr.criados + '</div><div class="num-r">Chamados criados</div></div>' +
+        '<div><div class="num-v">' + (pr.mediana_horas === null ? '-' : horas(pr.mediana_horas)) + '</div><div class="num-r">Mediana até a 1ª resposta</div></div>' +
+        '<div><div class="num-v">' + pr.aguardando + '</div><div class="num-r">Ainda sem resposta</div></div>' +
+        '<div><div class="num-v">' + pr.resolvidos_sem_resposta + '</div><div class="num-r">Fechados sem resposta</div></div></div>' +
+        (pr.so_data || !pr.com_hora ? '<p class="mudo ajuda">' + (pr.com_hora ? '' : 'Sem horário de primeira resposta registrado. ') + (pr.so_data ? pr.so_data + ' com resposta só com data (sem hora), fora da conta.' : '') + '</p>' : '');
+
+      if (outros.length) h += '<h2>Outros rascunhos <span class="qtd">' + outros.length + '</span></h2><div class="fontes">' + outros.map(function (x) {
+        return '<div class="fonte"><span><b>#' + e(x.id_chamado) + '</b> ' + e(x.evento) + ' · ' + e(rotTipo(x.tipo)) + '</span><span class="quando">' + e(x.estado_texto) + '</span></div>';
+      }).join('') + '</div>';
+      return h;
+    }
+  });
+})();
+</script>

@@ -1,0 +1,179 @@
+<script>
+/*
+ * Base comum dos módulos v3 (Suporte, E-mails, Finanças, Investimentos, Estudos).
+ * Cada módulo registra só a sua tela: PainelV3.registrar(id, { desenhar: function (m, U) { return html; } }).
+ * O resto é igual para todos: menu "Mais", cartão no Início, selo no menu, botões de decisão e o diálogo.
+ */
+window.PainelV3 = (function () {
+  'use strict';
+  var telas = {};
+  var est = { dec: null, mod: '' };
+  function U() { return window.Painel.util; }
+  function $(s) { return document.querySelector(s); }
+
+  function modelo() { var d = window.Painel && window.Painel.dados(); return d && d.v3 ? d.v3 : {}; }
+  /** Módulos v3 na ordem do painel-fontes.json; os inativos aparecem como "em breve". */
+  function lista() {
+    var d = window.Painel.dados(), v3 = modelo(), r = [];
+    var vistos = {};
+    (d.modulos || []).forEach(function (m) {
+      if (m.id === 'design' || m.id === 'anuncios') return;
+      vistos[m.id] = 1;
+      r.push({ id: m.id, rotulo: (v3[m.id] && v3[m.id].rotulo) || m.rotulo, ativo: !!v3[m.id], m: v3[m.id] || null });
+    });
+    Object.keys(v3).forEach(function (id) { if (!vistos[id]) r.push({ id: id, rotulo: v3[id].rotulo, ativo: true, m: v3[id] }); });
+    return r;
+  }
+  function total() { return lista().reduce(function (s, x) { return s + (x.m && x.m.precisa ? x.m.precisa.total : 0); }, 0); }
+
+  function textoPartes(p) {
+    var t = (p.partes || []).filter(function (x) { return x.n; }).map(function (x) { return x.n + ' ' + x.rotulo; });
+    return t.length ? t.join(' · ') : 'Nada pendente';
+  }
+  /** Cartões do Início: um por módulo ativo. */
+  function cartoesInicio() {
+    var l = lista().filter(function (x) { return x.ativo; });
+    if (!l.length) return '';
+    var e = U().esc;
+    return '<h2 id="sec-modulos">Outros agentes <span class="qtd">' + l.length + '</span></h2><div class="grade modulos-v3">' + l.map(function (x) {
+      var n = x.m.precisa ? x.m.precisa.total : 0;
+      return '<button class="contador-card cartao-mod' + (n ? ' destaque' : ' zero') + '" data-mod="' + e(x.id) + '"><div class="cartao-mod-topo"><span class="rot-mod">' + e(x.rotulo) + '</span><span class="num">' + n + '</span></div>' +
+        '<div class="rot">' + e(n ? textoPartes(x.m.precisa) : (x.m.precisa && x.m.precisa.vazio) || 'Nada precisa de você aqui') + '</div></button>';
+    }).join('') + '</div>';
+  }
+
+  function desenharMais() {
+    var e = U().esc, d = window.Painel.dados();
+    var h = '<h2 id="mais-titulo">Mais</h2><div class="lista-mais">' +
+      '<button class="item-mais so-celular" data-aba="biblioteca"><span>Biblioteca</span><span class="mudo">fotos e produtos</span></button>';
+    lista().forEach(function (x) {
+      if (!x.ativo) { h += '<div class="item-mais inativo" aria-disabled="true"><span>' + e(x.rotulo) + '</span><span class="mudo">em breve</span></div>'; return; }
+      var n = x.m.precisa ? x.m.precisa.total : 0;
+      h += '<button class="item-mais" data-mod="' + e(x.id) + '"><span>' + e(x.rotulo) + '</span>' + (n ? '<b class="contador-mais">' + n + '</b>' : '<span class="mudo">em dia</span>') + '</button>';
+    });
+    $('#mais-lista').innerHTML = h + '</div>';
+  }
+  function abrirMais() { desenharMais(); $('#menu-mais').hidden = false; document.body.style.overflow = 'hidden'; setTimeout(function () { var b = $('#menu-mais .item-mais[data-mod], #menu-mais .item-mais'); if (b) b.focus(); }, 30); }
+
+  function desenhar() {
+    var n = total(), c = $('#nav-cont-mais');
+    if (c) { c.hidden = !n; c.textContent = n; }
+    if (!$('#menu-mais').hidden) desenharMais();
+    if (est.mod) desenharModulo(est.mod);
+  }
+  function desenharModulo(id) {
+    var m = modelo()[id], el = $('#aba-mod');
+    est.mod = id;
+    if (!m) { el.innerHTML = '<h1>Módulo indisponível</h1><div class="vazio">Este módulo não está ativo no painel-fontes.json.</div>'; return; }
+    var t = telas[id];
+    el.innerHTML = t ? t.desenhar(m, U(), api) : '<h1>' + U().esc(m.rotulo) + '</h1><div class="vazio">Tela ainda não construída.</div>';
+    if (t && t.depois) t.depois(el, m);
+  }
+  function abrirModulo(id) { U().fecharFolhas(); window.Painel.trocarAba('mod:' + id); desenharModulo(id); }
+
+  function item(modId, itemId) {
+    var m = modelo()[modId]; if (!m) return null;
+    for (var i = 0; i < (m.itens || []).length; i++) if (m.itens[i].item_id === itemId) return m.itens[i];
+    return null;
+  }
+
+  /** Aviso fixo quando a chave de integração do módulo está desligada. */
+  function avisoChave(m) {
+    if (m.integrado !== false) return '';
+    return '<p class="intro aviso-integracao">' + U().esc('Botões desligados: ' + m.aviso_chave + ' (' + m.agente + '). Nada é gravado pelo painel.') + '</p>';
+  }
+  /** Botões de decisão de um item (genérico). Chave false = desabilitado com o aviso. */
+  function botoes(modId, x, rotulos) {
+    var m = modelo()[modId], e = U().esc;
+    var h = U().textoRecibo(x.ultimo_recibo);
+    if (x.decisao_pendente && !x.decisao_pendente.obsoleta) return h + '<div class="enviado enviado-v3">' + e(textoEnvioV3(m, x.decisao_pendente)) + '</div>';
+    if (x.decisao_pendente) h += '<div class="enviado enviado-v3 obsoleta">' + e(textoEnvioV3(m, x.decisao_pendente)) + '</div>';
+    var ds = x.decisoes_possiveis || [];
+    if (!ds.length) return h;
+    var def = (m.decisoes_def || {})[x.tipo_item] || {};
+    var dis = m.integrado ? '' : ' disabled aria-disabled="true" title="' + e(m.aviso_chave) + '"';
+    h += '<div class="acoes-v3">' + ds.map(function (k) {
+      var r = (rotulos && rotulos[k]) || (def[k] && def[k].rotulo) || k;
+      return '<button class="botao' + (def[k] && def[k].primario ? ' botao-primario' : '') + '" data-v3-dec="' + e(k) + '" data-mod-id="' + e(modId) + '" data-item="' + e(x.item_id) + '"' + dis + '>' + e(r) + '</button>';
+    }).join('') + '</div>';
+    if (!m.integrado) h += '<p class="aviso-botoes">Desligado: ' + e(m.aviso_chave) + '.</p>';
+    return h;
+  }
+  function textoEnvioV3(m, p) {
+    var def = (m.decisoes_def || {})[p.tipo_item] || {};
+    var qual = (def[p.decisao] && def[p.decisao].rotulo) || p.decisao;
+    if (p.obsoleta) return 'Enviado (' + qual + ') para uma versão anterior. O item mudou; o agente vai recusar.';
+    return 'Enviado: ' + qual + (p.versao ? ' (v' + p.versao + ')' : '') + '. Aguardando o ' + m.agente + '.';
+  }
+
+  /* Diálogo genérico: campos data, valor e texto conforme a definição da decisão. */
+  function abrirDialogo(modId, itemId, dec) {
+    var m = modelo()[modId], x = item(modId, itemId); if (!m || !x) return;
+    var def = ((m.decisoes_def || {})[x.tipo_item] || {})[dec]; if (!def) return;
+    est.dec = { mod: modId, item_id: itemId, decisao: dec, campos: def.campos || [] };
+    $('#v3-titulo').textContent = def.rotulo;
+    $('#v3-item').textContent = (x.titulo_curto || x.item_id) + (x.versao ? ' · v' + x.versao : '');
+    var e = U().esc;
+    $('#v3-campos').innerHTML = (def.campos || []).map(function (c) {
+      var id = 'v3-c-' + c.k, rot = e(c.rotulo || c.k) + (c.obrigatorio ? '' : ' <span class="mudo">(opcional)</span>');
+      if (c.k === 'texto') return '<label for="' + id + '">' + rot + '</label><textarea id="' + id + '" rows="4" maxlength="1500"' + (c.obrigatorio ? ' required' : '') + '></textarea>';
+      if (c.k === 'data') return '<label for="' + id + '">' + rot + '</label><input id="' + id + '" class="campo" type="date">';
+      if (c.k === 'valor') return '<label for="' + id + '">' + rot + '</label><input id="' + id + '" class="campo" type="number" step="0.01" min="0.01" inputmode="decimal">';
+      return '';
+    }).join('') + (def.campos && def.campos.length ? '' : '<p class="mudo">Confirma? O pedido vai para o ' + e(m.agente) + ' aplicar na próxima rotina.</p>');
+    $('#v3-erro').textContent = '';
+    var b = $('#v3-enviar'); b.textContent = def.rotulo; b.className = 'botao ' + (def.primario ? 'botao-primario' : 'botao-alerta');
+    $('#dialogo-v3').hidden = false;
+    setTimeout(function () { var f = $('#v3-campos textarea, #v3-campos input'); (f || b).focus(); }, 30);
+  }
+  function enviar() {
+    var s = est.dec; if (!s) return;
+    var m = modelo()[s.mod], x = item(s.mod, s.item_id); if (!x) return;
+    var p = [], erro = '';
+    s.campos.forEach(function (c) {
+      var el = document.getElementById('v3-c-' + c.k); var v = el ? el.value.trim() : '';
+      if (c.k === 'valor') v = v.replace(',', '.');
+      if (c.k === 'texto') v = v.replace(/[\r\n]+/g, ' ');
+      if (!v) { if (c.obrigatorio && !erro) erro = 'Este campo é obrigatório: ' + String(c.rotulo || c.k).replace(/[?.]+$/, '') + '.'; return; }
+      if (c.k === 'data' && !/^\d{4}-\d{2}-\d{2}$/.test(v)) erro = erro || 'Data no formato aaaa-mm-dd.';
+      if (c.k === 'valor' && !(+v > 0)) erro = erro || 'Valor precisa ser maior que zero.';
+      p.push(c.k + '=' + v);
+    });
+    if (erro) { $('#v3-erro').textContent = erro; return; }
+    var comentario = p.join(';');
+    var b = $('#v3-enviar'); b.disabled = true; U().toast('Enviando…');
+    U().chamar('salvarDecisao', { modulo: s.mod, item_id: s.item_id, decisao: s.decisao, comentario: comentario, snapshot_hash: x.snapshot_hash }).then(function (r) {
+      x.decisao_pendente = { id: r.id, quando: r.quando, modulo: s.mod, item_id: s.item_id, tipo_item: x.tipo_item, versao: r.versao, snapshot_hash: r.snapshot_hash, decisao: s.decisao, comentario: comentario, origem: 'painel', obsoleta: false };
+      if (m.precisa && m.precisa.total > 0 && m.precisa.partes[0]) { m.precisa.partes[0].n = Math.max(0, m.precisa.partes[0].n - 1); m.precisa.total--; }
+      U().fecharFolhas(); window.Painel.redesenhar(); U().toast('Decisão enviada ao ' + m.agente + '.');
+    }).catch(function (e) {
+      $('#v3-erro').textContent = 'Não salvou: ' + e.message; U().toast('Não salvou: ' + e.message);
+      if (/mudou|não existe|já existe/.test(e.message)) { U().fecharFolhas(); window.Painel.carregar(true, true); }
+    }).then(function () { b.disabled = false; });
+  }
+
+  document.addEventListener('click', function (ev) {
+    var t = ev.target.closest('[data-mais],[data-mod],[data-v3-dec],[data-v3-copiar],[data-v3-mostrar]');
+    if (!t) return;
+    if (t.hasAttribute('data-mais')) { ev.preventDefault(); return abrirMais(); }
+    if (t.hasAttribute('data-mod')) { ev.preventDefault(); return abrirModulo(t.getAttribute('data-mod')); }
+    if (t.hasAttribute('data-v3-dec')) { ev.preventDefault(); if (t.disabled) return; return abrirDialogo(t.getAttribute('data-mod-id'), t.getAttribute('data-item'), t.getAttribute('data-v3-dec')); }
+    if (t.hasAttribute('data-v3-mostrar')) { var alvo = document.getElementById(t.getAttribute('data-v3-mostrar')); if (alvo) { alvo.hidden = !alvo.hidden; t.setAttribute('aria-expanded', String(!alvo.hidden)); t.textContent = alvo.hidden ? (t.getAttribute('data-rot-mostrar') || 'Mostrar') : (t.getAttribute('data-rot-esconder') || 'Esconder'); } return; }
+    if (t.hasAttribute('data-v3-copiar')) {
+      var txt = t.getAttribute('data-v3-copiar');
+      var ok = function () { U().toast('Copiado'); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(ok, function () { U().toast('Não consegui copiar; selecione o texto.'); });
+      else { var ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); ok(); } catch (e) {} ta.remove(); }
+    }
+  });
+  document.addEventListener('submit', function (ev) { if (ev.target.id === 'form-v3') { ev.preventDefault(); enviar(); } });
+
+  var api = {
+    registrar: function (id, t) { telas[id] = t; },
+    desenhar: desenhar, desenharModulo: desenharModulo, abrirModulo: abrirModulo, abrirDialogo: abrirDialogo,
+    cartoesInicio: cartoesInicio, total: total, lista: lista, botoes: botoes, avisoChave: avisoChave, item: item,
+    sair: function () { est.mod = ''; }
+  };
+  return api;
+})();
+</script>
