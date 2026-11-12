@@ -422,4 +422,18 @@ h2 .qtd { font-size: var(--text-sm); color: var(--texto-3); font-weight: 500; }
 .est-link { color: var(--acento); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
 .est-fora { font-size: var(--text-xs); overflow-wrap: anywhere; }
 .est-de { font-size: var(--text-sm); color: var(--texto-2); font-weight: 500; }
+
+/* v3.0.1: módulos carregando em segundo plano */
+.girador { display: inline-block; width: 1em; height: 1em; border: 2px solid var(--borda); border-top-color: var(--texto-2); border-radius: 50%; vertical-align: -0.15em; animation: gira 0.9s linear infinite; }
+.cartao-mod .num .girador { width: 22px; height: 22px; border-width: 3px; }
+.cartao-mod.carregando-mod { background: var(--superficie); border-style: dashed; }
+.cartao-mod.carregando-mod .rot { color: var(--texto-3); }
+.cartao-mod.erro-mod { background: var(--e-refazer-bg); border-color: transparent; }
+.cartao-mod.erro-mod .num, .cartao-mod.erro-mod .rot { color: var(--e-refazer); }
+.cartao-mod.erro-mod .rot { overflow-wrap: anywhere; }
+.cartao-mod.atualizando-mod { opacity: 0.75; }
+.cartao-mod .nota-mod { color: var(--texto-3); font-style: normal; }
+.cartao-mod .nota-mod.erro { color: var(--e-refazer); }
+.item-mais .erro { color: var(--e-refazer); font-size: var(--text-xs); font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .girador { animation: none; border-top-color: var(--borda); } }
 </style>

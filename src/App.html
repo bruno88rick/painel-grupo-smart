@@ -87,13 +87,20 @@
   }
 
   /* ---------- carregar ---------- */
-  function carregar(forcar, silencioso) {
+  /**
+   * v3.0.1: primeiro o Início (Design e Posts e anúncios), depois cada módulo v3 numa chamada própria,
+   * em segundo plano (PainelV3.carregarModulos). soInicio = releitura da cópia desatualizada do Início,
+   * sem pedir os módulos de novo (cada módulo cuida da sua).
+   */
+  function carregar(forcar, silencioso, soInicio) {
     var b = $('#btn-atualizar'); b.disabled = true; b.classList.add('girando');
     $('#status-atualizacao').textContent = forcar ? 'Atualizando…' : 'Carregando…';
     if (!estado.dados) mostrarEsqueleto();
     var releer = false;
-    return chamar('obterDados', !!forcar).then(function (d) {
+    return chamar('obterInicio', !!forcar).then(function (d) {
+      d.v3 = (estado.dados && estado.dados.v3) || {};
       estado.dados = d;
+      if (!soInicio && window.PainelV3) window.PainelV3.carregarModulos(d.v3_ids || [], !!forcar);
       $('#status-atualizacao').textContent = 'Atualizado ' + quandoRel(d.gerado_em) + (d.desatualizado ? ' · lendo o Drive…' : (d.do_cache ? ' (cache de 5 min)' : ''));
       desenhar();
       releer = !!d.desatualizado;
@@ -105,9 +112,11 @@
     }).then(function () {
       b.disabled = false; b.classList.remove('girando');
       // Tela anterior mostrada na hora: busca a nova em segundo plano.
-      if (releer) return carregar(true, true);
+      if (releer) return carregar(true, true, true);
     });
   }
+  /** Fontes do Início mais as dos módulos v3 que já chegaram. */
+  function todasFontes(d) { return d.fontes.concat(window.PainelV3 ? window.PainelV3.fontes() : []); }
   function mostrarEsqueleto() {
     var h = '<div class="esqueleto" style="height:34px;width:60%;margin-bottom:16px"></div><div class="contadores">';
     for (var i = 0; i < 4; i++) h += '<div class="esqueleto" style="height:84px"></div>';
@@ -121,8 +130,25 @@
   /* ---------- desenhar ---------- */
   function desenhar() {
     var d = estado.dados; if (!d) return;
-    var falhas = d.fontes.filter(function (f) { return !f.ok && !f.ausente; });
-    var avisosLinhas = d.fontes.filter(function (f) { return f.ok && f.avisos && f.avisos.length; });
+    cabecalho();
+    var a = d.anuncios;
+    $('#tab-campanhas').hidden = !a;
+    document.getElementById('abas').classList.toggle('cinco', !!a);
+    desenharInicio(); desenharDesigns(); if (a) desenharPostsAnuncios(); else desenharPosts(); desenharCampanhas(); desenharBiblioteca();
+    if (window.PainelV3) window.PainelV3.desenhar();
+    ligarImagens();
+  }
+  /** Só o que muda quando um módulo v3 chega: avisos, contagem do Início, Início e Mais. */
+  function redesenharInicio() {
+    if (!estado.dados) return;
+    cabecalho(); desenharInicio();
+    if (window.PainelV3) window.PainelV3.desenhar();
+    ligarImagens($('#aba-inicio'));
+  }
+  function cabecalho() {
+    var d = estado.dados, fontes = todasFontes(d);
+    var falhas = fontes.filter(function (f) { return !f.ok && !f.ausente; });
+    var avisosLinhas = fontes.filter(function (f) { return f.ok && f.avisos && f.avisos.length; });
     $('#avisos').innerHTML = falhas.map(function (f) { return '<div class="aviso"><span><b>' + esc(f.rotulo) + ':</b> ' + esc(f.erro) + '. O resto do painel segue.</span></div>'; }).join('') +
       avisosLinhas.map(function (f) { return '<div class="aviso leve"><span><b>' + esc(f.rotulo) + ':</b> ' + esc(f.avisos[0]) + '</span></div>'; }).join('');
     var a = d.anuncios;
@@ -130,11 +156,6 @@
     var V3 = window.PainelV3;
     n += V3 ? V3.total() : 0;
     var c = $('#nav-cont-inicio'); c.hidden = !n; c.textContent = n;
-    $('#tab-campanhas').hidden = !a;
-    document.getElementById('abas').classList.toggle('cinco', !!a);
-    desenharInicio(); desenharDesigns(); if (a) desenharPostsAnuncios(); else desenharPosts(); desenharCampanhas(); desenharBiblioteca();
-    if (V3) V3.desenhar();
-    ligarImagens();
   }
 
   function cartaoDesign(x, compacto) {
@@ -197,7 +218,7 @@
     if (recusadas.length) h += '<h2>Recusadas pelo agente <span class="qtd">' + recusadas.length + '</span></h2><div class="fontes">' + recusadas.map(function (p) {
       return '<div class="fonte"><span>' + selo('refazer', 'Recusada') + ' &nbsp;<b>' + esc(p.item_id) + '</b>' + (p.versao ? ' v' + esc(p.versao) : '') + '<br><span class="mudo">' + esc(p.recibo.motivo || 'sem motivo') + '</span></span><span class="quando">' + dataBr(p.recibo.processado_em) + '</span></div>';
     }).join('') + '</div>';
-    h += '<h2>Última atualização de cada fonte</h2><div class="fontes">' + d.fontes.map(function (f) {
+    h += '<h2>Última atualização de cada fonte</h2><div class="fontes">' + todasFontes(d).map(function (f) {
       return '<div class="fonte"><span>' + esc(f.rotulo) + (f.ok ? '' : '<br><span class="erro">' + esc(f.erro) + '</span>') + '</span><span class="quando">' + (f.ausente ? 'ainda não criado' : f.ok ? quandoRel(f.atualizado) : 'com erro') + '</span></div>';
     }).join('') + '</div>';
     var proximos = (d.modulos || []).filter(function (m) { return !m.ativo; });
@@ -689,7 +710,7 @@
   $('#btn-tema').addEventListener('click', function () { aplicarTema(document.documentElement.getAttribute('data-tema') === 'escuro' ? 'claro' : 'escuro'); });
 
   window.Painel = {
-    dados: function () { return estado.dados; }, redesenhar: desenhar,
+    dados: function () { return estado.dados; }, redesenhar: desenhar, redesenharInicio: redesenharInicio,
     util: { esc: esc, selo: selo, dataBr: dataBr, quandoRel: quandoRel, toast: toast, chamar: chamar, urlDrive: urlDrive, urlPasta: urlPasta, abrirFolha: abrirFolha, fecharFolhas: fecharFolhas, textoRecibo: textoRecibo, reais: typeof reais === 'function' ? reais : null, md: md },
     trocarAba: trocarAba, abrirDesign: abrirDesign, abrirPost: abrirPost, abrirAnPost: abrirAnPost, abrirCampanha: abrirCampanha, abrirDialogoAn: abrirDialogoAn, carregar: carregar };
   carregar(false);

@@ -44,12 +44,17 @@ if (modelo.anuncios) modelo.fontes.push(
   { rotulo: 'Planos de campanha', ok: true, atualizado: new Date(Date.now() - 20 * 3600000).toISOString() });
 const v3 = modelo.v3 || {};
 const defsV3 = require('./modelo')().L.MODULOS_V3;
-Object.keys(v3).forEach((id) => Object.values(defsV3[id].fontes).forEach((f) => modelo.fontes.push({ rotulo: f.rotulo, ok: true, atualizado: new Date(Date.now() - 2 * 3600000).toISOString() })));
+// v3.0.1: as fontes de cada módulo v3 chegam com o módulo (obterModulo), não com o Início.
+const fontesV3 = {};
+Object.keys(v3).forEach((id) => { fontesV3[id] = Object.values(defsV3[id].fontes).map((f) => ({ rotulo: f.rotulo, ok: true, atualizado: new Date(Date.now() - 2 * 3600000).toISOString() })); });
 modelo.modulos = [['design', 'Designs e posts', true, 'Agente de Design'], ['anuncios', 'Posts e anúncios', !!modelo.anuncios, 'Gestor de Tráfego'], ['suporte', 'Suporte RN Sports', !!v3.suporte, 'Agente de Suporte RN Sports'], ['emails', 'E-mails', !!v3.emails, 'Gestor de E-mails'], ['financas', 'Finanças', !!v3.financas, 'Assistente Financeiro'], ['investimentos', 'Investimentos', !!v3.investimentos, 'Analista de Investimentos'], ['estudos', 'Estudos', !!v3.estudos, 'Assistente de Estudos']].map(([id, rotulo, ativo, agente]) => ({ id, rotulo, ativo, agente }));
 modelo.gerado_em = new Date().toISOString();
 const mock = `<script>
 window.PAINEL_THUMB = function (id) { return 'img/' + id + '.jpg'; };
 window.__MODELO = ${JSON.stringify(modelo)};
+window.__FONTES_V3 = ${JSON.stringify(fontesV3)};
+// Harness v3.0.1: ?carregando=financas (o módulo nunca chega), ?erro=emails (falha só nele), ?lento=1 (módulos em 1,5 a 3 s).
+window.__Q = new URLSearchParams(location.search);
 window.__DECISOES = [];
 window.google = { script: { get run() {
   var ok = function () {}, fal = function () {};
@@ -57,6 +62,17 @@ window.google = { script: { get run() {
     withSuccessHandler: function (f) { ok = f; return api; },
     withFailureHandler: function (f) { fal = f; return api; },
     obterDados: function () { setTimeout(function () { ok(JSON.parse(JSON.stringify(window.__MODELO))); }, 250); },
+    obterInicio: function () { setTimeout(function () {
+      var d = JSON.parse(JSON.stringify(window.__MODELO));
+      d.v3_ids = Object.keys(d.v3 || {}); d.v3 = {};
+      ok(d); }, 250); },
+    obterModulo: function (id) {
+      var q = window.__Q, i = Object.keys(window.__MODELO.v3 || {}).indexOf(id);
+      if ((q.get('carregando') || '').split(',').indexOf(id) >= 0) return;
+      setTimeout(function () {
+        if ((q.get('erro') || '').split(',').indexOf(id) >= 0) return fal(new Error('Tempo esgotado ao ler o Drive (Contas.csv)'));
+        ok({ id: id, modulo: JSON.parse(JSON.stringify(window.__MODELO.v3[id])), fontes: window.__FONTES_V3[id] || [], gerado_em: new Date().toISOString() });
+      }, q.get('lento') ? 1500 + i * 400 : 120 + i * 40); },
     obterMiniatura: function () { setTimeout(function () { ok(''); }, 50); },
     salvarDecisao: function (d) { setTimeout(function () {
       if (d.decisao === 'refazer' && !String(d.comentario || '').trim()) return fal(new Error('o pedido de ajuste precisa de um comentário'));

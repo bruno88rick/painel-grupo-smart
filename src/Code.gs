@@ -37,7 +37,7 @@ function lerConfig_() {
     if (!arquivo) throw new Error('Não achei o ' + CONFIG_NOME + ' no seu Drive.');
     props.setProperty('CONFIG_FILE_ID', arquivo.getId());
   }
-  var cfg = JSON.parse(arquivo.getBlob().getDataAsString('UTF-8'));
+  var cfg = JSON.parse(textoDoArquivo_(arquivo));
   cfg._fileId = arquivo.getId();
   return cfg;
 }
@@ -49,9 +49,9 @@ function lerConfig_() {
  * Arquivo alterado no Drive = chave nova, então o cache nunca devolve conteúdo velho.
  * Arquivos acima de 90 KB não entram no cache.
  */
-function textoDoArquivo_(f, semCache) {
+function textoDoArquivo_(f, semCache, quando) {
   if (semCache) return f.getBlob().getDataAsString('UTF-8');
-  var chave = CACHE_PREFIXO + 'txt_' + f.getId() + '_' + f.getLastUpdated().getTime();
+  var chave = chaveTexto_(f.getId(), quando || f.getLastUpdated());
   var c = null;
   try { c = CacheService.getScriptCache(); var hit = c.get(chave); if (hit !== null && hit !== undefined) return hit; } catch (e) { c = null; }
   var texto = f.getBlob().getDataAsString('UTF-8');
@@ -59,16 +59,41 @@ function textoDoArquivo_(f, semCache) {
   return texto;
 }
 
-function lerArquivoTexto_(fileId, semCache) {
-  var f = DriveApp.getFileById(fileId);
-  return { texto: textoDoArquivo_(f, semCache), atualizado: f.getLastUpdated().toISOString(), nome: f.getName(), fileId: fileId };
+function chaveTexto_(id, quando) { return CACHE_PREFIXO + 'txt_' + id + '_' + quando.getTime(); }
+
+/** Texto, data e nome com uma leitura de metadados só (getLastUpdated uma vez). Aceita fileId ou o File já achado. */
+function lerArquivoTexto_(fileOuId, semCache) {
+  var f = typeof fileOuId === 'string' ? DriveApp.getFileById(fileOuId) : fileOuId;
+  var quando = f.getLastUpdated();
+  return { texto: textoDoArquivo_(f, semCache, quando), atualizado: quando.toISOString(), nome: f.getName(), fileId: f.getId() };
 }
 
-/** Lê um CSV por fileId. Nunca lança: devolve {ok, linhas, erro}. */
+/**
+ * Vários arquivos de uma vez: um getAll no cache para todos, e o Drive só para os que faltam.
+ * itens: [{ f, quando }]. Devolve os textos na mesma ordem.
+ */
+function textosDosArquivos_(itens) {
+  var c = null, hits = {};
+  var chaves = itens.map(function (x) { return chaveTexto_(x.id || x.f.getId(), x.quando); });
+  try { c = CacheService.getScriptCache(); hits = chaves.length ? (c.getAll(chaves) || {}) : {}; } catch (e) { c = null; hits = {}; }
+  var novos = {};
+  var r = itens.map(function (x, i) {
+    var h = hits[chaves[i]];
+    if (h !== null && h !== undefined) return h;
+    var t = x.f.getBlob().getDataAsString('UTF-8');
+    if (t.length < 90000) novos[chaves[i]] = t;
+    return t;
+  });
+  if (c && Object.keys(novos).length) { try { c.putAll(novos, CACHE_ARQUIVO_SEG); } catch (e) {} }
+  return r;
+}
+
+/** Lê um CSV por fileId (ou File já achado). Nunca lança: devolve {ok, linhas, erro}. */
 function lerCsv_(rotulo, fileId, obrigatorias, semCache) {
-  var r = { rotulo: rotulo, fileId: fileId, ok: false, linhas: [], erro: '', avisos: [], atualizado: '' };
+  var r = { rotulo: rotulo, fileId: typeof fileId === 'string' ? fileId : '', ok: false, linhas: [], erro: '', avisos: [], atualizado: '' };
   try {
     var a = lerArquivoTexto_(fileId, semCache);
+    r.fileId = a.fileId;
     r.atualizado = a.atualizado; r.nome = a.nome;
     var o = PainelLib.csvParaObjetos(a.texto, obrigatorias);
     r.linhas = o.linhas; r.avisos = o.avisos; r.ok = true;
@@ -78,8 +103,12 @@ function lerCsv_(rotulo, fileId, obrigatorias, semCache) {
   return r;
 }
 
-/** Acha um arquivo pelo nome dentro de uma pasta. */
-function acharNaPasta_(folderId, nome) {
+/**
+ * Acha um arquivo pelo nome dentro de uma pasta e devolve o File (ou null).
+ * O id fica no cache; o File conferido (nome e lixeira) é reaproveitado na leitura,
+ * sem um segundo getFileById.
+ */
+function acharArquivoNaPasta_(folderId, nome) {
   var chave = CACHE_PREFIXO + 'id_' + folderId + '_' + nome;
   var c = null;
   try {
@@ -87,23 +116,29 @@ function acharNaPasta_(folderId, nome) {
     var id = c.get(chave);
     if (id) {
       var f0 = DriveApp.getFileById(id);
-      if (!f0.isTrashed() && f0.getName() === nome) return id;
+      if (!f0.isTrashed() && f0.getName() === nome) return f0;
     }
   } catch (e) { /* cache velho ou arquivo sumiu: procura de novo */ }
   var it = DriveApp.getFolderById(folderId).getFilesByName(nome);
   while (it.hasNext()) {
     var f = it.next();
-    if (!f.isTrashed()) { if (c) { try { c.put(chave, f.getId(), CACHE_ARQUIVO_SEG); } catch (e) {} } return f.getId(); }
+    if (!f.isTrashed()) { if (c) { try { c.put(chave, f.getId(), CACHE_ARQUIVO_SEG); } catch (e) {} } return f; }
   }
   return null;
+}
+
+/** Acha um arquivo pelo nome dentro de uma pasta: devolve o id (ou null). */
+function acharNaPasta_(folderId, nome) {
+  var f = acharArquivoNaPasta_(folderId, nome);
+  return f ? f.getId() : null;
 }
 
 /** Lê uma aba do ledger (CSV pelo nome dentro da pasta). */
 function lerAba_(rotulo, folderId, nome, obrigatorias) {
   try {
-    var id = acharNaPasta_(folderId, nome);
-    if (!id) return { rotulo: rotulo, ok: false, linhas: [], erro: nome + ' não está na pasta do ledger', avisos: [], atualizado: '' };
-    return lerCsv_(rotulo, id, obrigatorias);
+    var f = acharArquivoNaPasta_(folderId, nome);
+    if (!f) return { rotulo: rotulo, ok: false, linhas: [], erro: nome + ' não está na pasta do ledger', avisos: [], atualizado: '' };
+    return lerCsv_(rotulo, f, obrigatorias);
   } catch (e) {
     return { rotulo: rotulo, ok: false, linhas: [], erro: String(e && e.message || e), avisos: [], atualizado: '' };
   }
@@ -111,24 +146,38 @@ function lerAba_(rotulo, folderId, nome, obrigatorias) {
 
 /** Lê os rascunhos post-*.md de uma pasta. */
 function lerRascunhos_(rotulo, folderId, padrao) {
-  var r = { rotulo: rotulo, ok: false, itens: [], erro: '', atualizado: '' };
+  return lerRascunhosVarios_(folderId, [{ rotulo: rotulo, padrao: padrao }])[0];
+}
+
+/**
+ * Uma listagem da pasta para vários padrões (posts do Design, planos e posts do Tráfego na mesma pasta).
+ * Metadados lidos uma vez por arquivo; textos pelo cache por versão num getAll só.
+ */
+function lerRascunhosVarios_(folderId, pedidos) {
+  var rs = pedidos.map(function (p) { return { rotulo: p.rotulo, ok: false, itens: [], erro: '', atualizado: '', re: new RegExp(p.padrao || '^post-.+\\.md$'), max: 0 }; });
   try {
-    var re = new RegExp(padrao || '^post-.+\\.md$');
     var it = DriveApp.getFolderById(folderId).getFiles();
-    var maisRecente = 0;
+    var achados = [];
     while (it.hasNext()) {
       var f = it.next();
-      if (f.isTrashed() || !re.test(f.getName())) continue;
-      var t = f.getLastUpdated().getTime();
-      if (t > maisRecente) maisRecente = t;
-      r.itens.push({ nome: f.getName(), fileId: f.getId(), texto: textoDoArquivo_(f), atualizado: f.getLastUpdated().toISOString() });
+      var nome = f.getName();
+      var quem = rs.filter(function (r) { return r.re.test(nome); });
+      if (!quem.length || f.isTrashed()) continue;
+      achados.push({ f: f, id: f.getId(), nome: nome, quando: f.getLastUpdated(), quem: quem });
     }
-    r.ok = true;
-    r.atualizado = maisRecente ? new Date(maisRecente).toISOString() : '';
+    var textos = textosDosArquivos_(achados);
+    achados.forEach(function (a, i) {
+      var t = a.quando.getTime();
+      a.quem.forEach(function (r) {
+        if (t > r.max) r.max = t;
+        r.itens.push({ nome: a.nome, fileId: a.id, texto: textos[i], atualizado: a.quando.toISOString() });
+      });
+    });
+    rs.forEach(function (r) { r.ok = true; r.atualizado = r.max ? new Date(r.max).toISOString() : ''; });
   } catch (e) {
-    r.erro = String(e && e.message || e);
+    rs.forEach(function (r) { r.erro = String(e && e.message || e); });
   }
-  return r;
+  return rs.map(function (r) { return { rotulo: r.rotulo, ok: r.ok, itens: r.itens, erro: r.erro, atualizado: r.atualizado }; });
 }
 
 function lerDecisoes_(cfg) {
@@ -146,20 +195,25 @@ function lerRecibos_(cfg) {
   try {
     if (!cfg.decisoes || !cfg.decisoes.recibos_folderId) throw new Error('pasta recibos não configurada');
     var it = DriveApp.getFolderById(cfg.decisoes.recibos_folderId).getFiles();
-    var maisRecente = 0;
+    var maisRecente = 0, achados = [];
     while (it.hasNext()) {
       var f = it.next();
-      if (f.isTrashed() || !/^D-[\w-]+\.json$/.test(f.getName())) continue;
+      var nome = f.getName();
+      if (!/^D-[\w-]+\.json$/.test(nome) || f.isTrashed()) continue;
+      achados.push({ f: f, id: f.getId(), nome: nome, quando: f.getLastUpdated() });
+    }
+    var textos = textosDosArquivos_(achados);
+    achados.forEach(function (a, i) {
       try {
-        var rec = PainelLib.parseRecibo(textoDoArquivo_(f), f.getName());
-        if (r.mapa[rec.decision_id]) { r.avisos.push('recibo duplicado: ' + f.getName()); continue; }
+        var rec = PainelLib.parseRecibo(textos[i], a.nome);
+        if (r.mapa[rec.decision_id]) { r.avisos.push('recibo duplicado: ' + a.nome); return; }
         r.mapa[rec.decision_id] = rec;
       } catch (e) {
-        r.avisos.push(f.getName() + ': ' + (e && e.message || e));
+        r.avisos.push(a.nome + ': ' + (e && e.message || e));
       }
-      var t = f.getLastUpdated().getTime();
+      var t = a.quando.getTime();
       if (t > maisRecente) maisRecente = t;
-    }
+    });
     r.ok = true;
     r.atualizado = maisRecente ? new Date(maisRecente).toISOString() : '';
   } catch (e) {
@@ -182,7 +236,7 @@ function agoraSp_() {
  * Lê as fontes do módulo Posts e anúncios (Gestor de Tráfego), se ativo.
  * Propostas.csv ausente não é erro: o painel mostra o aviso e segue com os rascunhos .md.
  */
-function lerAnuncios_(cfg, rascDesign) {
+function lerAnuncios_(cfg, rascDesign, planosLidos) {
   var mod = (cfg.modulos || []).filter(function (m) { return m.id === 'anuncios'; })[0];
   if (!mod || !mod.ativo || !mod.fontes || !mod.fontes.ledger || !mod.fontes.ledger.folderId) return null;
   var f = mod.fontes, pasta = f.ledger.folderId;
@@ -203,7 +257,7 @@ function lerAnuncios_(cfg, rascDesign) {
     : { rotulo: 'Propostas (Tráfego)', ok: true, ausente: true, linhas: null, erro: '', avisos: [], atualizado: '' };
   var cri = f.criativos || {};
   var mesmaPasta = rascDesign && cri.folderId && rascDesign.folderId === cri.folderId;
-  var planos = cri.folderId ? lerRascunhos_('Planos de campanha', cri.folderId, cri.padrao_planos || '^plano-.+\\.md$') : { rotulo: 'Planos de campanha', ok: false, itens: [], erro: 'pasta de criativos não configurada' };
+  var planos = planosLidos && cri.folderId === planosLidos.folderId ? planosLidos.leitura : cri.folderId ? lerRascunhos_('Planos de campanha', cri.folderId, cri.padrao_planos || '^plano-.+\\.md$') : { rotulo: 'Planos de campanha', ok: false, itens: [], erro: 'pasta de criativos não configurada' };
   var posts = mesmaPasta ? rascDesign.leitura : (cri.folderId ? lerRascunhos_('Rascunhos de post (Tráfego)', cri.folderId, cri.padrao_posts || '^post-.+\\.md$') : { ok: true, itens: [] });
   var ok = function (x) { return x && x.ok && x.linhas ? x : null; };
   return {
@@ -241,7 +295,7 @@ function lerModuloV3_(mod) {
     } else {
       var dir = c.folderId || pasta;
       var id = null;
-      try { id = dir ? acharNaPasta_(dir, nome) : null; } catch (e) { id = null; }
+      try { id = dir ? acharArquivoNaPasta_(dir, nome) : null; } catch (e) { id = null; }
       if (!id) r = fd.opcional ? { rotulo: fd.rotulo, ok: true, ausente: true, linhas: null, erro: '', avisos: [], atualizado: '' }
         : { rotulo: fd.rotulo, ok: false, linhas: [], erro: dir ? nome + ' não está na pasta do ledger' : 'pasta do ledger não configurada', avisos: [], atualizado: '' };
       else r = lerCsv_(fd.rotulo, id, fd.obrigatorias || []);
@@ -302,10 +356,26 @@ function lerModulosV3_(cfg) {
   return { fontes: fontes, status: status };
 }
 
-/** Monta tudo o que a tela precisa. */
-function montarDados_(cfgPronta) {
+/** Módulo do painel-fontes.json pelo id (ou undefined). */
+function moduloCfg_(cfg, id) { return (cfg.modulos || []).filter(function (m) { return m.id === id; })[0]; }
+
+/** Ids dos módulos v3 ativos, na ordem do painel-fontes.json. */
+function idsV3Ativos_(cfg) {
+  return (cfg.modulos || []).filter(function (m) { return m.ativo && PainelLib.MODULOS_V3[m.id]; }).map(function (m) { return m.id; });
+}
+
+function statusFonte_(s) {
+  return { rotulo: s.rotulo, ok: s.ok, ausente: !!s.ausente, erro: s.erro || '', avisos: (s.avisos || []).slice(0, 3), atualizado: s.atualizado || '' };
+}
+
+/**
+ * Início (v3.0.1): só Design e Posts e anúncios, mais decisões e recibos.
+ * Os módulos v3 não são lidos aqui; a tela pede cada um com obterModulo(id).
+ * A pasta de criativos é listada uma vez para os posts do Design e os planos do Tráfego.
+ */
+function montarInicio_(cfgPronta, lidos_) {
   var cfg = cfgPronta || lerConfig_();
-  var mod = (cfg.modulos || []).filter(function (m) { return m.id === 'design'; })[0];
+  var mod = moduloCfg_(cfg, 'design');
   if (!mod) throw new Error('O módulo "design" não está no ' + CONFIG_NOME + '.');
   var f = mod.fontes;
   var pedidos = lerCsv_(f.pedidos.rotulo, f.pedidos.fileId, ['id', 'estado']);
@@ -315,12 +385,17 @@ function montarDados_(cfgPronta) {
   var posts = lerAba_('Posts (ledger do Design)', f.ledger.folderId, ab.posts, []);
   var midia = lerAba_('Mídia (ledger do Design)', f.ledger.folderId, ab.midia, ['fileId']);
   var checkpoints = lerAba_('Checkpoints (ledger do Design)', f.ledger.folderId, ab.checkpoints, []);
-  var rasc = lerRascunhos_(f.criativos.rotulo, f.criativos.folderId, f.criativos.padrao);
+  var an0 = moduloCfg_(cfg, 'anuncios');
+  var cri = an0 && an0.ativo && an0.fontes && an0.fontes.criativos;
+  var juntos = cri && cri.folderId === f.criativos.folderId;
+  var lidos = lerRascunhosVarios_(f.criativos.folderId, [{ rotulo: f.criativos.rotulo, padrao: f.criativos.padrao }]
+    .concat(juntos ? [{ rotulo: 'Planos de campanha', padrao: cri.padrao_planos || '^plano-.+\\.md$' }] : []));
+  var rasc = lidos[0];
   var decisoes = lerDecisoes_(cfg);
   var recibos = lerRecibos_(cfg);
-  var an = lerAnuncios_(cfg, { folderId: f.criativos.folderId, leitura: rasc });
-  var v3 = lerModulosV3_(cfg);
+  var an = lerAnuncios_(cfg, { folderId: f.criativos.folderId, leitura: rasc }, juntos ? { folderId: cri.folderId, leitura: lidos[1] } : null);
 
+  if (lidos_) { lidos_.decisoes = decisoes; lidos_.recibos = recibos; }
   var agora = agoraSp_();
   var modelo = PainelLib.montarModelo(
     { pedidos: pedidos.ok ? pedidos : null, artes: artes.ok ? artes : null, posts: posts.ok ? posts : null, midia: midia.ok ? midia : null, produtos: produtos.ok ? produtos : null, rascunhos: rasc.ok ? rasc.itens : [] },
@@ -328,8 +403,54 @@ function montarDados_(cfgPronta) {
     agora,
     { dias_refazer_parado: cfg.dias_refazer_parado || 2, recibos: recibos.ok ? recibos.mapa : {}, anuncios: an ? an.fontes : null }
   );
+  modelo.v3 = {};
+  modelo.v3_ids = idsV3Ativos_(cfg);
+  modelo.gerado_em = new Date().toISOString();
+  modelo.decisoes_ok = decisoes.ok && recibos.ok;
+  modelo.fontes = [pedidos, artes, posts, midia, produtos, checkpoints, rasc, decisoes, recibos].concat(an ? an.status : []).map(statusFonte_);
+  modelo.checkpoints = checkpoints.ok ? checkpoints.linhas : [];
+  modelo.modulos = (cfg.modulos || []).map(function (m) { return { id: m.id, rotulo: m.rotulo, ativo: !!m.ativo, agente: m.agente || '' }; });
+  modelo.links = { artes_pasta: f.artes_pasta ? f.artes_pasta.folderId : '', criativos: f.criativos.folderId, ledger: f.ledger.folderId };
+  return modelo;
+}
 
-  modelo.v3 = PainelLib.montarModulosV3(v3.fontes, PainelLib.decisoesComRecibos(decisoes.ok ? decisoes.linhas : [], recibos.ok ? recibos.mapa : {}), agora);
+/**
+ * Um módulo v3 sozinho: as fontes dele, e decisões e recibos só se o módulo tiver decisões
+ * e houver linha dele em decisoes.csv. decisoes.csv aqui vem pelo cache por versão
+ * (a chave muda quando o arquivo muda); a conferência antes de gravar continua lendo direto do Drive.
+ * Devolve { id, modulo, fontes, gerado_em }.
+ */
+function montarModuloV3Unico_(cfg, id) {
+  var m = moduloCfg_(cfg, id), def = PainelLib.MODULOS_V3[id];
+  if (!m || !m.ativo || !def) throw new Error('O módulo "' + id + '" não está ativo no ' + CONFIG_NOME + '.');
+  var lido = lerModuloV3_(m);
+  var status = lido.status.slice();
+  var linhas = [], mapa = {};
+  if (def.decisoes && cfg.decisoes && cfg.decisoes.fileId) {
+    var dec = lerCsv_('Decisões do painel', cfg.decisoes.fileId, PainelLib.CABECALHO_DECISOES);
+    if (dec.ok) {
+      linhas = dec.linhas.filter(function (x) { return x.modulo === id; });
+      if (linhas.length) { var rec = lerRecibos_(cfg); if (rec.ok) mapa = rec.mapa; else status.push(rec); }
+    } else status.push(dec);
+  }
+  var fontes = {}; fontes[id] = lido.fontes;
+  var x = PainelLib.montarModulosV3(fontes, PainelLib.decisoesComRecibos(linhas, mapa), agoraSp_())[id];
+  x.pastas = { ledger: (m.fontes && m.fontes.ledger && m.fontes.ledger.folderId) || '', materiais: (m.fontes && m.fontes.materiais && m.fontes.materiais.folderId) || '' };
+  if (id === 'estudos' && x.pastas.materiais) x.links = resolverCaminhos_(x.pastas.materiais, x.caminhos || []);
+  return { id: id, modulo: x, fontes: status.map(statusFonte_), gerado_em: new Date().toISOString() };
+}
+
+/**
+ * Tudo junto (Início e todos os módulos v3), como na v3.0.0. Usado pela conferência
+ * antes de gravar uma decisão (salvarDecisao) e por obterDados, mantido por compatibilidade.
+ */
+function montarDados_(cfgPronta) {
+  var cfg = cfgPronta || lerConfig_();
+  var lidos = {};
+  var modelo = montarInicio_(cfg, lidos);
+  var v3 = lerModulosV3_(cfg);
+  var dec = lidos.decisoes, rec = lidos.recibos;
+  modelo.v3 = PainelLib.montarModulosV3(v3.fontes, PainelLib.decisoesComRecibos(dec.ok ? dec.linhas : [], rec.ok ? rec.mapa : {}), agoraSp_());
   (cfg.modulos || []).forEach(function (m) {
     var x = modelo.v3[m.id];
     if (x) x.pastas = { ledger: (m.fontes && m.fontes.ledger && m.fontes.ledger.folderId) || '', materiais: (m.fontes && m.fontes.materiais && m.fontes.materiais.folderId) || '' };
@@ -337,14 +458,7 @@ function montarDados_(cfgPronta) {
   if (modelo.v3.estudos && modelo.v3.estudos.pastas.materiais) {
     modelo.v3.estudos.links = resolverCaminhos_(modelo.v3.estudos.pastas.materiais, modelo.v3.estudos.caminhos || []);
   }
-  modelo.gerado_em = new Date().toISOString();
-  modelo.decisoes_ok = decisoes.ok && recibos.ok;
-  modelo.fontes = [pedidos, artes, posts, midia, produtos, checkpoints, rasc, decisoes, recibos].concat(an ? an.status : []).concat(v3.status).map(function (s) {
-    return { rotulo: s.rotulo, ok: s.ok, ausente: !!s.ausente, erro: s.erro || '', avisos: (s.avisos || []).slice(0, 3), atualizado: s.atualizado || '' };
-  });
-  modelo.checkpoints = checkpoints.ok ? checkpoints.linhas : [];
-  modelo.modulos = (cfg.modulos || []).map(function (m) { return { id: m.id, rotulo: m.rotulo, ativo: !!m.ativo, agente: m.agente || '' }; });
-  modelo.links = { artes_pasta: f.artes_pasta ? f.artes_pasta.folderId : '', criativos: f.criativos.folderId, ledger: f.ledger.folderId };
+  modelo.fontes = modelo.fontes.concat(v3.status.map(statusFonte_));
   return modelo;
 }
 
@@ -377,14 +491,12 @@ function cacheLimpar_(chave) {
 }
 
 /**
- * Chamado pela tela. forcar = botão "Atualizar agora" (ou a releitura automática).
- * 1. Tela montada há menos de 5 min: devolve do cache.
- * 2. Senão, se há uma tela anterior (até 6 h): devolve na hora com desatualizado=true;
- *    a tela mostra e pede a leitura nova em segundo plano.
- * 3. Sem nada no cache: lê o Drive.
+ * Cache em duas camadas, igual para o Início e para cada módulo:
+ * 1. montado há menos de cache_minutos (5): devolve do cache;
+ * 2. senão, a cópia "_ult" (até 6 h): devolve na hora com desatualizado=true, e a tela pede a nova em segundo plano;
+ * 3. sem nada: monta lendo o Drive (os textos continuam no cache por versão de cada arquivo).
  */
-function obterDados(forcar) {
-  var chave = CACHE_PREFIXO + 'dados';
+function doCache_(chave, forcar, montar) {
   if (!forcar) {
     var s = cacheGet_(chave);
     if (s) { var o = JSON.parse(s); o.do_cache = true; o.desatualizado = false; return o; }
@@ -392,13 +504,38 @@ function obterDados(forcar) {
     if (u) { var v = JSON.parse(u); v.do_cache = true; v.desatualizado = true; return v; }
   }
   var cfg = lerConfig_();
-  var dados = montarDados_(cfg);
+  var dados = montar(cfg);
   var txt = JSON.stringify(dados);
   cachePut_(chave, txt, (cfg.cache_minutos || 5) * 60);
   cachePut_(chave + '_ult', txt, CACHE_ULTIMO_SEG);
   dados.do_cache = false;
   dados.desatualizado = false;
   return dados;
+}
+
+/** Chamado pela tela primeiro: só o Início (Design e Posts e anúncios). forcar = "Atualizar agora". */
+function obterInicio(forcar) {
+  return doCache_(CACHE_PREFIXO + 'inicio', forcar, function (cfg) { return montarInicio_(cfg); });
+}
+
+/** Chamado pela tela, um por módulo v3 e em paralelo, depois do Início. Cache próprio por módulo. */
+function obterModulo(id, forcar) {
+  id = String(id || '');
+  if (!PainelLib.MODULOS_V3[id]) throw new Error('módulo desconhecido: ' + id);
+  return doCache_(CACHE_PREFIXO + 'mod_' + id, forcar, function (cfg) { return montarModuloV3Unico_(cfg, id); });
+}
+
+/** v3.0.0: tudo numa chamada só. Mantido por compatibilidade; a tela da v3.0.1 usa obterInicio e obterModulo. */
+function obterDados(forcar) {
+  return doCache_(CACHE_PREFIXO + 'dados', forcar, function (cfg) { return montarDados_(cfg); });
+}
+
+/** Depois de gravar: a próxima carga do Início e do módulo lê o Drive de novo. */
+function limparCachesTela_(modulo) {
+  ['dados', 'inicio'].concat(PainelLib.MODULOS_V3[modulo] ? ['mod_' + modulo] : []).forEach(function (k) {
+    cacheLimpar_(CACHE_PREFIXO + k);
+    cacheLimpar_(CACHE_PREFIXO + k + '_ult');
+  });
 }
 
 /* ---------- Miniaturas (plano B quando a URL do Drive não carrega) ---------- */
@@ -448,8 +585,7 @@ function salvarDecisao(entrada) {
     texto += PainelLib.csvLinha([id, quando, d.modulo, d.item_id, vinculo.tipo_item, vinculo.versao, vinculo.arte_fileId, vinculo.snapshot_hash, d.decisao, d.comentario, 'painel']) + '\n';
     if (PainelLib.csvParaObjetos(texto, PainelLib.CABECALHO_DECISOES).linhas.length !== antes + 1) throw new Error('falha ao montar a nova linha; nada foi gravado');
     arq.setContent(texto);
-    cacheLimpar_(CACHE_PREFIXO + 'dados');
-    cacheLimpar_(CACHE_PREFIXO + 'dados_ult');
+    limparCachesTela_(d.modulo);
     return { ok: true, id: id, quando: quando, versao: vinculo.versao, snapshot_hash: vinculo.snapshot_hash };
   } finally {
     lock.releaseLock();
