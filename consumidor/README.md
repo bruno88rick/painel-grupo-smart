@@ -68,3 +68,19 @@ python3 -m unittest discover consumidor
 ```
 
 Os testes usam um `gws` simulado (Drive em memória) e o fixture real `test/fixtures/anuncios/Propostas.csv`. O teste de vetores regrava `consumidor/vetores_hash.json`, que o painel em JS confere.
+
+## Suporte
+
+`consumidor_suporte.py` faz o mesmo para as decisões `modulo=suporte` (Agente de Suporte RN Sports), contra `Rascunhos-painel.csv`. Contrato: [docs/contrato-suporte.md](../docs/contrato-suporte.md). Guia curto do agente: [README_suporte.md](README_suporte.md).
+
+```bash
+cp consumidor/config.suporte.example.json consumidor/config.suporte.json
+python3 consumidor/consumidor_suporte.py --plano                          # JSON com as ações
+python3 consumidor/consumidor_suporte.py --confirmar <decision_id> <link>  # depois de agir no Zendesk
+python3 consumidor/consumidor_suporte.py --teste                          # plano sem gravar nada
+```
+
+- `--plano` devolve `enviar_resposta` (com o texto exato do rascunho), `refazer` e `recusar`, e grava recibo `rejeitado` para versão desatualizada, estado diferente de `aguardando_aprovo` ou comentário inválido.
+- `--confirmar` atualiza o estado da linha (`enviado ...`, `ajuste ...` ou `recusado ...`; com `--novo-texto` no refazer acrescenta a versão seguinte) e grava o recibo `aplicado` com o link.
+- Não chama o Zendesk. Mesmo padrão do consumidor de anúncios: gws com cwd e caminhos relativos, ledger de fases antes do recibo, recibo duplicado e create ambíguo tratados, código 2 em erro de autenticação.
+- Testes: `python3 -m unittest discover consumidor` (o hash usa o vetor do contrato e os 7 hashes do fixture calculados com `canonicoResposta` de `src/Lib.gs`).
