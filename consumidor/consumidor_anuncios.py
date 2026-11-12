@@ -12,7 +12,7 @@ Fluxo por execução:
   4. Grava a lista de ações para o agente (JSON local). Nunca publica, nunca
      chama a Meta, nunca aumenta verba.
 
-Contrato: docs/briefing-consumidor-anuncios.md e docs/contrato-propostas.md.
+Contrato: docs/contrato-propostas.md.
 
 Códigos de saída: 0 ok; 1 alguma pendência/erro recuperável; 2 erro de
 autenticação no Drive (parou tudo); 3 configuração ou arquivo fora do contrato.
