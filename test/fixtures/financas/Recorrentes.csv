@@ -1,0 +1,40 @@
+emissor,caixa,dia_tipico,valor_medio,forma,categoria
+TV Estrela,Outlook,"chega 19-29, vence 5; rateio dia 8","616,09",boleto,"TV, internet e telefone"
+Banco Roxo PF cartão (pessoal),Outlook,"fecha 11, vence 18","3.015,73 (nov)",débito automático,Cartão (itens por categoria)
+Banco Laranja cartão,Outlook,"fecha ~9, vence 15","1068,41 (set-out)",boleto/app,Cartão (itens por categoria)
+Energia Minas,Gmail,"chega ~7, vence 18 (valor varia)","309,07 (nov); 283,45 (out)",boleto,Contas da casa
+Águas do Vale água casa,Gmail,"chega 1-2, vence 11 (valor varia)","117,75 (out-nov)",Pix/boleto,Contas da casa
+App Render,Gmail,1,"14,86",cartão,Assinaturas e software
+Loja Maker,Gmail,~4-5,não disponível,cartão,Hobbies e impressão 3D
+Carro Conectado,Gmail,13/11 (renovação),não disponível,cartão,Transporte (carro)
+Seguradora Alfa seguro Hatch,Outlook,"22 (renovado por 2 anos, 1ª em 22/11/2026)","171,27 (fixo)",cartão Banco Laranja Mastercard,Transporte (carro)
+Assistente IA,Outlook,,"408,52",cartão,Assinaturas e software
+Maquininha Pay Pix parcelado,Outlook,vence 3 a 8,"5.474,46 a 3.622,02 (parcela única)",débito conta Maquininha Pay,Dívidas e parcelamentos
+Portfólio Web (site),Outlook,10,"47,39",cartão/boleto,Assinaturas e software
+Cambly,ambos,,,,Educação
+Domestika,ambos,,,,Educação
+Loja de Apps One Premium,Gmail,23,"107,84",cartão (Loja de Apps),Assinaturas e software
+iCloud+ 2 TB,Gmail,24,"59,34",cartão (Loja de Apps),Assinaturas e software
+ChatGPT Plus,Gmail,8,"105,99",cartão (Loja de Apps),Assinaturas e software
+Canva Pro,Gmail,17,"28,58",cartão (Loja de Apps),Assinaturas e software
+CapCut Pro,Gmail,20,"36,86",cartão (Loja de Apps),Assinaturas e software
+YouTube Premium Lite (Loja de Apps),Gmail,19,"16,42",cartão (Loja de Apps),Assinaturas e software
+YouTube Premium (Google Play),Gmail,20,"32,17",cartão; cancela em 20/11,Assinaturas e software
+Google AI (Google One),Gmail,1,"14,73 a 60,79",cartão (Google Play),Assinaturas e software
+1Password,Gmail,1,"21,02",cartão (Loja de Apps),Assinaturas e software
+UAV Forecast,Gmail,15,"13,87",cartão (Loja de Apps),Hobbies e impressão 3D
+Mi Home vídeo (2 câmeras),Gmail,9,"16,26",cartão (Loja de Apps),Assinaturas e software
+Setapp,Gmail,22,"US$ 12,70",cartão (Paddle),Assinaturas e software
+GitHub,Banco Roxo,18,"US$ 8,92",cartão (PayPal),Assinaturas e software
+Nabu Casa,Banco Roxo,27,"US$ 7,76",cartão (PayPal),Assinaturas e software
+Academia Club,Banco Roxo,20-23,"951,13 (4 cobranças em set)",cartão,A revisar
+Carteira Azul cartão (empresa),iCloud,"fecha 02, vence 09","573,33 (nov)",app/Pix/boleto,Cartão (itens por categoria)
+Banco Roxo PJ cartão (empresa),Outlook/iCloud,"fecha 11, vence 18","3.370,89 (nov)",app/Pix/boleto,Cartão (itens por categoria)
+Financiamento Hatch,chat,"10 (fixo; 22/60 em nov/2026, última jan/2030)","1.559,65 (fixo)",boleto,Dívidas e parcelamentos
+Internet Fibra Net,chat,10 (fixo),"121,93 (fixo)",Pix Banco Roxo PF,"TV, internet e telefone"
+Escola Horizonte período estendido (Filho),chat,"15 (fixo; até 12/2026, termina em 2027)","571,30 (fixo)",boleto,Educação essencial
+Escola Horizonte período normal (Filho),chat,15 (fixo),"154,73 (valor 2026; 2027 a informar)",boleto,Educação essencial
+Financiamento casa Banco Habitação,chat,"10 (valor varia; 139/420 em nov/2026, última abr/2050)","415,05 (nov/2026)",boleto,Moradia
+Faculdade Pós Dados,chat,15 (fixo; última 08/2027),"571,30 (fixo)",boleto,Educação essencial
+Energia Minas Sítio Boa Vista,Gmail,"vence 17 (valor varia)","131,50 (venc 17/12); 296,90 (out)",boleto,Contas da casa
+Empréstimo pessoal Banco Roxo PF,chat,"16 (fixo; 7/12 em nov/2026, última abr/2027)","864,14 (fixo)",débito automático Banco Roxo PF,Dívidas e parcelamentos

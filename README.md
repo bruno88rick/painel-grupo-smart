@@ -15,6 +15,7 @@ Falta implantar:
 - **v2.0.1:** período da campanha vem do ledger quando a proposta não tem datas; campanha cruzada com ou sem `M-`; um cartão por post com as programações (feed, story); cache por arquivo e tela anterior na hora (primeira carga mais rápida).
 - **v3.0.0-suporte:** base comum dos módulos v3 (menu **Mais** no celular e no desktop, cartão por agente no Início com a contagem do que precisa do Bruno, selo no menu, caminho genérico de decisões com chave por módulo) e o módulo **Suporte RN Sports** (fila de respostas para aprovar, rascunhos só no Zendesk, alertas, abertos por evento e tipo, parados há mais de 24 h). Chave `SUPORTE_INTEGRADO` em `false`: botões desligados com o aviso "o agente ainda não lê estas decisões" e o servidor recusa gravar. Corrige também o cabeçalho que prendia a barra de abas do celular no topo. Contrato: [docs/contrato-suporte.md](docs/contrato-suporte.md). Antes de implantar, preencha em `painel-fontes.json` o `ledger.folderId` do Suporte (e, se quiser, os fileIds em `arquivos`).
 - **v3.0.0-emails:** módulo **E-mails** (Gestor de E-mails): movimentações propostas agrupadas por conta e pasta (aprovar o grupo ou recusar), pendências abertas (marcar como resolvida ou pedir rascunho), alertas recentes e rascunhos. Só conta, pasta, motivo, remetente, assunto, data e estado; nunca corpo nem anexos. Chave `EMAILS_INTEGRADO` em `false`. Contrato: [docs/contrato-emails.md](docs/contrato-emails.md). Antes de implantar, preencha em `painel-fontes.json` o `ledger.folderId` dos E-mails.
+- **v3.0.0-financas:** módulo **Finanças** (Assistente Financeiro): contas atrasadas e sem confirmação, próximos 30 dias em linha do tempo, recebidas no e-mail com código Pix ou de barras escondido (Copiar/Mostrar) e PDF, pagas, mês por categoria (entradas, saídas, essenciais, pessoal e empresa), rateio SKY, fechamentos, orçamento, alertas e recorrentes. Decisões `paguei` (data, valor e comentário opcionais) e `recebi_mais_um` no rateio. Conserta a linha de `Contas.csv` partida por `R$ 321,45` sem aspas. Chave `FINANCAS_INTEGRADO` em `false`. Contrato: [docs/contrato-financas.md](docs/contrato-financas.md). Antes de implantar, preencha em `painel-fontes.json` o `ledger.folderId` das Finanças e o `arquivos.recebidas.folderId` da subpasta `contas-recebidas`.
 
 ## Sumário
 
@@ -125,6 +126,15 @@ Chave `SUPORTE_INTEGRADO` desligada (botões desabilitados). As capturas de diá
 | ![E-mails, tema escuro](docs/screenshots/v3/emails/390-escuro-modulo.jpg) | ![E-mails, tema escuro](docs/screenshots/v3/emails/desktop-escuro-modulo.jpg) |
 | ![Recusar grupo (chave ligada)](docs/screenshots/v3/emails/390-claro-dialogo.jpg) | ![Depois de decidir (chave ligada)](docs/screenshots/v3/emails/desktop-claro-apos-decisao.jpg) |
 
+### v3.0.0-financas: Finanças
+
+| Celular (390 px) | Desktop |
+|---|---|
+| ![Finanças, tema claro](docs/screenshots/v3/financas/390-claro-modulo.jpg) | ![Finanças, tema claro](docs/screenshots/v3/financas/desktop-claro-modulo.jpg) |
+| ![Finanças, tema escuro](docs/screenshots/v3/financas/390-escuro-modulo.jpg) | ![Finanças, tema escuro](docs/screenshots/v3/financas/desktop-escuro-modulo.jpg) |
+| ![Código de barras mostrado](docs/screenshots/v3/financas/390-escuro-codigo.jpg) | ![Módulo inteiro](docs/screenshots/v3/financas/desktop-claro-modulo-inteiro.jpg) |
+| ![Paguei com data e valor (chave ligada)](docs/screenshots/v3/financas/390-claro-dialogo-preenchido.jpg) | ![Depois de decidir (chave ligada)](docs/screenshots/v3/financas/desktop-claro-apos-decisao.jpg) |
+
 ## Decisões e agentes
 
 1. Você toca em **Aprovar v<N>** ou **Pedir ajuste** (com comentário) num cartão `entregue` (designs) ou `rascunho`/`aguardando_aprovo` (posts). O detalhe só oferece Aprovar na versão mais recente.
@@ -226,7 +236,7 @@ npm test
 python3 -m unittest discover consumidor
 ```
 
-v3.0.0-emails: 59 testes no Node (7 novos em `test/v3-emails.test.js`). v3.0.0-suporte: 52 testes no Node (9 novos em `test/v3-suporte.test.js`, com as fixtures anonimizadas de `test/fixtures/suporte/`). v2.0.1: 43 testes no Node e 29 no consumidor Python. v2.0.0: 35 e 29. Os vetores de hash do `Propostas.csv` são conferidos nos dois lados.
+v3.0.0-financas: 70 testes no Node (11 novos em `test/v3-financas.test.js`: formato atual e o formato novo do Assistente Financeiro em `test/fixtures/financas-novo/`, e a compilação dos scripts das telas). v3.0.0-emails: 59 testes no Node (7 novos em `test/v3-emails.test.js`). v3.0.0-suporte: 52 testes no Node (9 novos em `test/v3-suporte.test.js`, com as fixtures anonimizadas de `test/fixtures/suporte/`). v2.0.1: 43 testes no Node e 29 no consumidor Python. v2.0.0: 35 e 29. Os vetores de hash do `Propostas.csv` são conferidos nos dois lados.
 
 22 testes: CSV com BOM, CRLF, aspas e quebra de linha; CSV quebrado; colunas ausentes; leitura dos CSVs reais; marcas `post:`; rascunho `post-*.md`; o modelo das telas; decisões, hash, versão velha, decisão repetida, estado inválido, recibos, cabeçalho antigo e a regra do relógio; a versão do painel; e o `Code.gs` com os serviços do Google simulados (cache, fonte quebrada, gravação em `decisoes.csv`).
 
@@ -243,6 +253,7 @@ node dev/build.js --sem-v3          # sem os módulos v3
 python3 dev/shots_v3.py suporte base        # capturas do módulo (servidor na 8765 no mesmo comando)
 python3 dev/shots_v3.py suporte integrado   # diálogo e depois de decidir (build com --integrado-v3)
 python3 dev/shots_v3.py emails integrado recusar "texto"   # decisão e texto do diálogo
+python3 dev/shots_v3.py financas integrado paguei "texto" 2026-11-12 210.54   # e data e valor
 python3 -m http.server 8765 -d dev/out
 ```
 
@@ -277,7 +288,7 @@ Módulos v3 (caminho genérico, desde a v3.0.0):
 
 As decisões vão para o mesmo `decisoes.csv`, com `snapshot_hash` por linha, recibos e recusa de versão velha; o agente do módulo filtra por `modulo`.
 
-Planejado: **Finanças**, **Investimentos** e **Estudos**.
+Planejado: **Investimentos** e **Estudos**.
 
 ## Fuso horário
 

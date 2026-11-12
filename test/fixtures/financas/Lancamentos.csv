@@ -1,0 +1,87 @@
+data,descricao,categoria,essencial,tipo,valor,conta,parcela,origem,estado,dono
+2026-11-05,TV Estrela (minha parte do rateio),"TV, internet e telefone",s,saída,"136,34",boleto,,Fatura-tv-10-2026.pdf (chat 09/11),lançado,pessoal
+2026-11-09,"Saldo não pago da fatura de outubro (672,31 - 334,64 pagos)",Dívidas e parcelamentos,s,saída,"182,51",Carteira Azul (cartão PJ),,fatura-cartao-carteira-azul-2026-11.pdf (chat 10/11),lançado,
+2026-11-09,"Parcelamento da fatura de setembro/2026 (juros R$ 105,89 no total)",Dívidas e parcelamentos,s,saída,"210,00",Carteira Azul (cartão PJ),2/8,fatura-cartao-carteira-azul-2026-11.pdf (chat 10/11),lançado,
+2026-11-09,Juros do rotativo,Juros e tarifas bancárias,n,saída,"68,10",Carteira Azul (cartão PJ),,fatura-cartao-carteira-azul-2026-11.pdf (chat 10/11),lançado,
+2026-11-09,Tarifa de crédito emergencial,Juros e tarifas bancárias,n,saída,"15,73",Carteira Azul (cartão PJ),,fatura-cartao-carteira-azul-2026-11.pdf (chat 10/11),lançado,
+2026-11-09,Multa por atraso,Juros e tarifas bancárias,n,saída,"9,32",Carteira Azul (cartão PJ),,fatura-cartao-carteira-azul-2026-11.pdf (chat 10/11),lançado,
+2026-11-09,IOF do rotativo,Juros e tarifas bancárias,n,saída,"2,74",Carteira Azul (cartão PJ),,fatura-cartao-carteira-azul-2026-11.pdf (chat 10/11),lançado,
+2026-11-09,Juros de mora,Juros e tarifas bancárias,n,saída,"0,96",Carteira Azul (cartão PJ),,fatura-cartao-carteira-azul-2026-11.pdf (chat 10/11),lançado,
+2026-11-09,"CA*CLUBE (Clube+, 04/10)",Assinaturas e software,n,saída,"6,96",Carteira Azul (cartão PJ),,fatura-cartao-carteira-azul-2026-11.pdf (chat 10/11),lançado,
+2026-11-09,Marketplace (compra 26/01),Matéria-prima BD 3D,s,saída,"78,49",Carteira Azul (cartão PJ),10/10,fatura-cartao-carteira-azul-2026-11.pdf (chat 10/11),lançado,empresa
+2026-11-09,Marketplace Outlet (compra 26/05),Matéria-prima BD 3D,s,saída,"86,55",Carteira Azul (cartão PJ),6/12,fatura-cartao-carteira-azul-2026-11.pdf (chat 10/11),lançado,empresa
+2026-11-09,Marketplace (compra 25/08),Matéria-prima BD 3D,s,saída,"11,95",Carteira Azul (cartão PJ),3/5,fatura-cartao-carteira-azul-2026-11.pdf (chat 10/11),lançado,empresa
+2026-11-09,Marketplace (compra 25/08),Matéria-prima BD 3D,s,saída,"19,13",Carteira Azul (cartão PJ),3/5,fatura-cartao-carteira-azul-2026-11.pdf (chat 10/11),lançado,empresa
+2026-11-18,Rotativo pendente da fatura anterior (19/10),Dívidas e parcelamentos,s,saída,"813,85",Banco Roxo PJ (cartão),,Banco Roxo_2026-11-18.ofx (chat 10/11),lançado,pessoal
+2026-11-18,"Juros rotativo (pagamento parcial, 09/11)",Juros e tarifas bancárias,n,saída,"315,63",Banco Roxo PJ (cartão),,Banco Roxo_2026-11-18.ofx (chat 10/11),lançado,pessoal
+2026-11-18,IOF rotativo (09/11),Juros e tarifas bancárias,n,saída,"9,23",Banco Roxo PJ (cartão),,Banco Roxo_2026-11-18.ofx (chat 10/11),lançado,pessoal
+2026-11-18,IOF compras internacionais (4x),Juros e tarifas bancárias,n,saída,"8,13",Banco Roxo PJ (cartão),,Banco Roxo_2026-11-18.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Câmera Nuvem nuvem câmeras (14/10),Assinaturas e software,n,saída,"21,10",Banco Roxo PJ (cartão),,Banco Roxo_2026-11-18.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Câmera Nuvem nuvem câmeras (08/11),Assinaturas e software,n,saída,"20,12",Banco Roxo PJ (cartão),,Banco Roxo_2026-11-18.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Créditos Assistente IA (Loja de Apps),Assinaturas e software,n,saída,"121,72",Banco Roxo PJ (cartão),,Banco Roxo_2026-11-18.ofx (chat 10/11),lançado,pessoal
+2026-11-18,"Loja de Apps 21,02 (03/11, prov. 1Password)",Assinaturas e software,n,saída,"21,02",Banco Roxo PJ (cartão),,Banco Roxo_2026-11-18.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Loja de Apps One Premium (27/10),Assinaturas e software,n,saída,"107,84",Banco Roxo PJ (cartão),,Banco Roxo_2026-11-18.ofx (chat 10/11),lançado,pessoal
+2026-11-18,"Loja de Apps 16,42 YouTube Lite (21/10)",Assinaturas e software,n,saída,"16,42",Banco Roxo PJ (cartão),,Banco Roxo_2026-11-18.ofx (chat 10/11),lançado,pessoal
+2026-11-18,"Loja de Apps 36,86 CapCut (21/10)",Assinaturas e software,n,saída,"36,86",Banco Roxo PJ (cartão),,Banco Roxo_2026-11-18.ofx (chat 10/11),lançado,pessoal
+2026-11-18,"Loja de Apps 28,58 Canva (18/10)",Assinaturas e software,n,saída,"28,58",Banco Roxo PJ (cartão),,Banco Roxo_2026-11-18.ofx (chat 10/11),lançado,pessoal
+2026-11-18,"Loja de Apps 13,87 UAV Forecast (16/10)",Hobbies e impressão 3D,n,saída,"13,87",Banco Roxo PJ (cartão),,Banco Roxo_2026-11-18.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Google One (02/11),Assinaturas e software,n,saída,"14,73",Banco Roxo PJ (cartão),,Banco Roxo_2026-11-18.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Google One (02/11),Assinaturas e software,n,saída,"60,79",Banco Roxo PJ (cartão),,Banco Roxo_2026-11-18.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Crédito Google One (02/11),Assinaturas e software,n,saída,"-38,12",Banco Roxo PJ (cartão),,Banco Roxo_2026-11-18.ofx (chat 10/11),lançado,pessoal
+2026-11-18,PayPal Adobe (01/11),Assinaturas e software,n,saída,"50,11",Banco Roxo PJ (cartão),,Banco Roxo_2026-11-18.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Setapp (23/10),Assinaturas e software,n,saída,"42,40",Banco Roxo PJ (cartão),,Banco Roxo_2026-11-18.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Microsoft Ppro (21/10),Assinaturas e software,n,saída,"85,98",Banco Roxo PJ (cartão),,Banco Roxo_2026-11-18.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Microsoft Subscription (18/10),Assinaturas e software,n,saída,"57,06",Banco Roxo PJ (cartão),,Banco Roxo_2026-11-18.ofx (chat 10/11),lançado,pessoal
+2026-11-18,GitHub via PayPal (18/10),Assinaturas e software,n,saída,"39,57",Banco Roxo PJ (cartão),,Banco Roxo_2026-11-18.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Clube Milhas (26/10),Lazer e viagens,n,saída,"100,94",Banco Roxo PJ (cartão),,Banco Roxo_2026-11-18.ofx (chat 10/11),lançado,pessoal
+2026-11-18,iFood Lanchonete Exemplo Centro (30/10),Alimentação fora e delivery,n,saída,"35,97",Banco Roxo PJ (cartão),,Banco Roxo_2026-11-18.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Vale refeição (28/10),Alimentação fora e delivery,n,saída,"21,33",Banco Roxo PJ (cartão),,Banco Roxo_2026-11-18.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Bar da Esquina (23/10),Alimentação fora e delivery,n,saída,"58,91",Banco Roxo PJ (cartão),,Banco Roxo_2026-11-18.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Padaria Central (24/10),Mercado,s,saída,"18,43",Banco Roxo PJ (cartão),,Banco Roxo_2026-11-18.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Celular pré (11/10),"TV, internet e telefone",s,saída,"32,80",Banco Roxo PJ (cartão),,Banco Roxo_2026-11-18.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Carro Conectado (15/10),Transporte (carro),n,saída,"66,30",Banco Roxo PJ (cartão),,Banco Roxo_2026-11-18.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Empresa Exemplo Gestão (não identificado),Outros,n,saída,"105,01",Banco Roxo PJ (cartão),,Banco Roxo_2026-11-18.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Combustível Posto Rota (19/10),Combustível,s,saída,"284,88",Banco Roxo PJ (cartão),,Banco Roxo_2026-11-18.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Combustível Posto Rota (19/10),Combustível,s,saída,"167,27",Banco Roxo PJ (cartão),,Banco Roxo_2026-11-18.ofx (chat 10/11),lançado,pessoal
+2026-11-18,4 pneus Hatch (Marketplace),Transporte (carro),s,saída,"317,38",Banco Roxo PJ (cartão),5/12,Banco Roxo_2026-11-18.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Insulfilm Picape (manutenção),Transporte (carro),n,saída,"209,36",Banco Roxo PJ (cartão),10/12,Banco Roxo_2026-11-18.ofx (chat 10/11),lançado,pessoal
+2026-11-18,"Rotativo da fatura anterior (3.660,43 - 922,81 pagos)",Dívidas e parcelamentos,s,saída,"2625,55",Banco Roxo PF (cartão),,Banco Roxo_2026-11-18-1.ofx (chat 10/11),lançado,pessoal
+2026-11-18,"Juros rotativo (pagamento parcial, 09/11)",Juros e tarifas bancárias,n,saída,"315,89",Banco Roxo PF (cartão),,Banco Roxo_2026-11-18-1.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Multas por fatura atrasada (20/10),Juros e tarifas bancárias,n,saída,"92,57",Banco Roxo PF (cartão),,Banco Roxo_2026-11-18-1.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Juros por fatura atrasada (20/10),Juros e tarifas bancárias,n,saída,"17,73",Banco Roxo PF (cartão),,Banco Roxo_2026-11-18-1.ofx (chat 10/11),lançado,pessoal
+2026-11-18,"IOF atraso, renegociação e rotativo",Juros e tarifas bancárias,n,saída,"22,11",Banco Roxo PF (cartão),,Banco Roxo_2026-11-18-1.ofx (chat 10/11),lançado,pessoal
+2026-11-18,IOF compra internacional (27/10),Juros e tarifas bancárias,n,saída,"1,58",Banco Roxo PF (cartão),,Banco Roxo_2026-11-18-1.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Drone (11/10),Hobbies e impressão 3D,n,saída,"519,68",Banco Roxo PF (cartão),7/12,Banco Roxo_2026-11-18-1.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Autopeças (11/10),Transporte (carro),n,saída,"76,33",Banco Roxo PF (cartão),10/10,Banco Roxo_2026-11-18-1.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Academia titular (23/10),Saúde,n,saída,"128,39",Banco Roxo PF (cartão),,Banco Roxo_2026-11-18-1.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Academia cônjuge (23/10),Saúde,n,saída,"117,98",Banco Roxo PF (cartão),,Banco Roxo_2026-11-18-1.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Supermercado Bom Preço (29/10),Mercado,s,saída,"85,36",Banco Roxo PF (cartão),,Banco Roxo_2026-11-18-1.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Padaria Central (22/10),Mercado,s,saída,"57,75",Banco Roxo PF (cartão),,Banco Roxo_2026-11-18-1.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Loja de Apps iCloud+ 2 TB (27/10),Assinaturas e software,n,saída,"59,34",Banco Roxo PF (cartão),,Banco Roxo_2026-11-18-1.ofx (chat 10/11),lançado,pessoal
+2026-12-18,Portfólio Web site (10/11),Assinaturas e software,n,saída,"47,39",Banco Roxo PF (cartão),,Banco Roxo_2026-11-18-1.ofx (chat 10/11); fora do fechamento de 11/11 (provável fatura de dez),lançado,pessoal
+2026-11-18,App Render Pro (01/11),Assinaturas e software,n,saída,"14,86",Banco Roxo PF (cartão),,Banco Roxo_2026-11-18-1.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Nabu Casa via PayPal (27/10),Assinaturas e software,n,saída,"25,65",Banco Roxo PF (cartão),,Banco Roxo_2026-11-18-1.ofx (chat 10/11),lançado,pessoal
+2026-11-18,YouTube Premium Google (22/10),Assinaturas e software,n,saída,"32,17",Banco Roxo PF (cartão),,Banco Roxo_2026-11-18-1.ofx (chat 10/11),lançado,pessoal
+2026-11-18,"Anúncio TikTok BD 3D (Loja de Apps, 10/11)",Investimento pessoal na empresa,n,saída,"52,26",Banco Roxo PF (cartão),,Banco Roxo_2026-11-18-1.ofx (chat 10/11),lançado,empresa
+2026-12-18,"Loja de Apps App Treino 13,87 + Mi Home 10,01 (10/11)",Assinaturas e software,n,saída,"20,42",Banco Roxo PF (cartão),,Banco Roxo_2026-11-18-1.ofx (chat 10/11); fora do fechamento de 11/11 (provável fatura de dez),lançado,pessoal
+2026-11-18,Loja Exemplo (26/10),Gastos diversos,n,saída,"15,60",Banco Roxo PF (cartão),,Banco Roxo_2026-11-18-1.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Supermercado Mix (26/10),Mercado,s,saída,"259,23",Banco Roxo PF (cartão),,Banco Roxo_2026-11-18-1.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Marketplace (23/10),Gastos diversos,n,saída,"81,94",Banco Roxo PF (cartão),,Banco Roxo_2026-11-18-1.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Marketplace (11/10),Gastos diversos,n,saída,"60,26",Banco Roxo PF (cartão),2/4,Banco Roxo_2026-11-18-1.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Loja online Exemplo (11/10),Gastos diversos,n,saída,"45,75",Banco Roxo PF (cartão),7/10,Banco Roxo_2026-11-18-1.ofx (chat 10/11),lançado,pessoal
+2026-11-18,Farmácia Central (11/10),Saúde,s,saída,"365,14",Banco Roxo PF (cartão),3/3,Banco Roxo_2026-11-18-1.ofx (chat 10/11),lançado,pessoal
+2026-11-10,Financiamento Hatch,Dívidas e parcelamentos,s,saída,"1559,65",boleto,22/60,chat 10/11 (despesa fixa),lançado,pessoal
+2026-11-10,"Seguro Seguradora Alfa Hatch (última, venc 22/10)",Transporte (carro),s,saída,"153,22",Banco Roxo PF (Pix),última,chat 10/11,lançado,pessoal
+2026-11-10,Encargos atraso seguro Seguradora Alfa,Juros e tarifas bancárias,n,saída,"1,25",Banco Roxo PF (Pix),,chat 10/11,lançado,pessoal
+2026-11-10,Internet Fibra Net,"TV, internet e telefone",s,saída,"121,93",Banco Roxo PF (Pix),,chat 10/11 (despesa fixa),lançado,pessoal
+2026-11-15,Escola Horizonte período estendido (Filho),Educação essencial,s,saída,"571,30",boleto,,chat 10/11 (despesa fixa),a pagar,pessoal
+2026-11-15,Escola Horizonte período normal (Filho),Educação essencial,s,saída,"154,73",boleto,,chat 10/11 (despesa fixa),a pagar,pessoal
+2026-11-10,Financiamento casa Banco Habitação,Moradia,s,saída,"415,05",boleto,139/420,chat 10/11 (despesa fixa variável),lançado,pessoal
+2026-11-15,Faculdade Pós Dados,Educação essencial,s,saída,"571,30",boleto,,chat 10/11 (despesa fixa),a pagar,pessoal
+2026-11-18,Energia Minas,Contas da casa,s,saída,"309,07",boleto,,chat 10/11 (despesa fixa variável),a pagar,pessoal
+2026-12-17,Energia Minas Sítio Boa Vista,Contas da casa,s,saída,"131,50",boleto,,chat 10/11 (despesa fixa variável),a pagar,pessoal
+2026-11-11,Águas do Vale água casa,Contas da casa,s,saída,"210,54",Pix/boleto,,chat 10/11 (despesa fixa variável),a pagar,pessoal
+2026-11-10,Águas do Vale água casa (conta de 11/09),Contas da casa,s,saída,"167,87",Banco Roxo PF (Pix),,chat 10/11,lançado,pessoal
+2026-11-10,Padaria Central (10/11),Mercado,s,saída,"27,22",Banco Roxo PJ (cartão),,recado do usuário via sessão 0a1b2c3d (10/11),lançado,pessoal
+2026-11-16,Empréstimo pessoal Banco Roxo PF,Dívidas e parcelamentos,s,saída,"864,14",débito automático Banco Roxo PF,7/12,chat 11/11 (despesa fixa),a pagar,pessoal
+2026-11-11,Estacionamento,Transporte (carro),n,saída,"2,48",Banco Roxo PJ (Pix),,chat 11/11,lançado,pessoal

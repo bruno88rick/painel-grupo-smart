@@ -97,11 +97,17 @@
     {
       "id": "financas",
       "rotulo": "Finanças",
-      "ativo": false,
+      "ativo": true,
       "agente": "Assistente Financeiro",
       "fontes": {
         "ledger": {
           "folderId": "ID_DA_PASTA_ledger_financas"
+        },
+        "arquivos": {
+          "_comentario": "Opcional: fileId por arquivo (contas, recebidas, lancamentos, recorrentes, rateios, fechamentos, orcamento, alertas). Sem fileId, o painel procura pelo nome na pasta do ledger: Contas.csv, Lancamentos.csv, Recorrentes.csv, Rateios.csv, Fechamentos.csv, Orcamento.csv, Alerts.csv. contas-recebidas.csv fica na subpasta contas-recebidas: informe o folderId dela (ou o fileId do arquivo).",
+          "recebidas": {
+            "folderId": "ID_DA_SUBPASTA_contas-recebidas"
+          }
         }
       }
     },

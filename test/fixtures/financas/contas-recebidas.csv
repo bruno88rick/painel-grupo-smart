@@ -1,0 +1,17 @@
+recebido_em,caixa,emissor,tipo,valor,vencimento,codigo_ou_pix,pdf_fileId,message_id,anotado_em
+2026-11-02,gmail,Águas do Vale,conta,"210,54",2026-11-11,92249277311-4 85573719897-6 38511621538-7 63500093351-4,1U6UFLTW3PAY0iI6gduX5isr9hqa3j3Nm,gmail:f480ac4dae299313,2026-11-09T09:47-03:00
+2026-10-11,hotmail,Banco Roxo (cartão),conta,"3.660,43",2026-10-19,débito automático ativado,1kaAA_oOp5eMXyEtEsB9r-tBMcWo3_74R,outlook:1e2zhqT9kHs6CREBfZksiK9=,2026-11-09T09:47-03:00
+2026-09-29,hotmail,TV Estrela,sky,"616,09",2026-10-05,86454.82980 58121.463591 60563.410005 6 03831894892670,1WAh1QJnVixVBHnWNcDQNI04OcyfjNUYc,outlook:7LWpsOZH2iNODvnt5yBWXP4=,2026-11-09T09:47-03:00
+2026-10-20,hotmail,"Faculdade (boleto no CPF, aviso Banco Roxo)",conta,,,,,outlook:UYuls5O6X3JiekkffOLlTA4=,2026-11-09T09:47-03:00
+2026-10-20,hotmail,"Banco Habitação (boleto no CPF, aviso Banco Roxo)",conta,,,,,outlook:WDIe9isQyE6chbRG6ci6lVN=,2026-11-09T09:47-03:00
+2026-10-15,hotmail,"Site Fácil (boleto no CPF, aviso Banco Roxo)",conta,,,,,outlook:NYXUkDpWD4IBSI3kpYcinHn=,2026-11-09T09:47-03:00
+2026-11-05,icloud,Banco Verde (cartão),conta,,,,,icloud:4db799e5-239b-6dff-d0cd-3ff8caae5c82@mta0.exemplo.local,2026-11-09T09:52-03:00
+2026-11-06,icloud,Carteira Azul (boleto),conta,,,,,icloud:KR8dhHofyEiWX9Q8ihLNY2@mta-exemplo-89,2026-11-09T09:52-03:00
+2026-10-11,icloud,Banco Roxo (cartão Roxo Empresas),conta,"2.289,04",2026-10-19,,1YLs06sY5c7n4e55oD9-yc8kM8X97r0hl,icloud:JduOmnpr4LuVDAc2ZzuKdi@mta-exemplo-10,2026-11-09T09:52-03:00
+2026-11-06,icloud,Boleto no CNPJ (aviso Banco Roxo),conta,,,,,icloud:hxeYQGVpkYvCoCngObFHXv@mta-exemplo-41,2026-11-09T09:52-03:00
+2026-10-16,icloud,Boleto no CNPJ (aviso Banco Roxo),conta,,,,,icloud:F7Z73UQyBYIipWIXgPO0yQ@mta-exemplo-47,2026-11-09T09:52-03:00
+2026-10-11,icloud,Boleto no CNPJ (aviso Banco Roxo),conta,,,,,icloud:viVSv7lGIfn7kqIR-1eiCR@mta-exemplo-58,2026-11-09T09:52-03:00
+2026-10-10,icloud,Boleto no CNPJ (aviso Banco Roxo),conta,,,,,icloud:UZziL3qTEthaGP6j_bwMkY@mta-exemplo-42,2026-11-09T09:52-03:00
+2026-11-10,icloud,Carteira Azul (cartão),conta,"573,33",2026-11-09,,,icloud:xYymAnMsupmIW6VSlyGcSf@mta-exemplo-62,2026-11-10
+2026-11-11,hotmail,Banco Roxo (cartão),conta,"3.015,73",2026-11-18,débito automático,1pPtid0cruj0m7Ocs4dL6RT5UAMTI5vev,outlook:rlOPezsdzD2XIQfG5xT9wS==,2026-11-11
+2026-11-12,hotmail,Energia Minas (débitos em aberto),conta,"111,33",,00020126580014br.gov.bcb.pix0136123e4567-e89b-12d3-a456-4266141740000225CobrancaExemplo5204000053039865406081.355802BR5913ENERGIA MINAS6009SAO PAULO62070503***6304ABCD,,outlook:XOPeTbkeqfG7igwoN9ga9z==,2026-11-12

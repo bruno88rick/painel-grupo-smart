@@ -1,0 +1,180 @@
+<script>
+/* Tela do módulo Finanças (v3). Lê Contas.csv, contas-recebidas.csv, Lancamentos.csv, Recorrentes.csv,
+   Rateios.csv, Fechamentos.csv, Orcamento.csv e Alerts.csv do Assistente Financeiro. Só leitura no Drive. */
+(function () {
+  'use strict';
+  var est = { mes: '' };
+  var SIT = { atraso: ['refazer', 'Em atraso'], sem_confirmacao: ['entregue', 'Sem confirmação'], a_pagar: ['novo', 'A pagar'], outro: ['cancelado', 'Outro'], pago: ['aprovado', 'Pago'] };
+  var MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
+  function brl(n) {
+    if (n === null || n === undefined || isNaN(n)) return '-';
+    var neg = n < 0, p = Math.abs(n).toFixed(2).split('.');
+    return (neg ? '-' : '') + 'R$ ' + p[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + p[1];
+  }
+  function valorConta(x) { return x.valor !== null && x.valor !== undefined ? brl(x.valor) : (x.valor_texto || 'sem valor'); }
+  function nomeMes(m) { var p = String(m || '').split('-'); return p.length === 2 ? MESES[+p[1] - 1] + '/' + p[0] : m; }
+  function prazo(d) {
+    if (d === null || d === undefined) return 'sem vencimento';
+    if (d === 0) return 'vence hoje';
+    if (d === 1) return 'vence amanhã';
+    if (d > 1) return 'vence em ' + d + ' dias';
+    return d === -1 ? 'venceu ontem' : 'venceu há ' + (-d) + ' dias';
+  }
+
+  function blocoCodigo(id, codigo, tipo, U) {
+    var e = U.esc, rot = tipo === 'pix' ? 'Pix copia e cola' : 'Código de barras';
+    return '<div class="fin-codigo"><span class="mudo">' + rot + ' (escondido)</span><div class="fin-codigo-botoes">' +
+      '<button type="button" class="botao fin-bt" data-v3-copiar="' + e(codigo) + '">Copiar</button>' +
+      '<button type="button" class="botao fin-bt" data-v3-mostrar="' + e(id) + '" aria-expanded="false" data-rot-mostrar="Mostrar" data-rot-esconder="Esconder">Mostrar</button></div>' +
+      '<code id="' + e(id) + '" class="v3-codigo" hidden>' + e(codigo) + '</code></div>';
+  }
+
+  function cartaoConta(x, U, V3, n) {
+    var e = U.esc, s = SIT[x.situacao] || SIT.outro;
+    x.titulo_curto = x.emissor + ' · ' + nomeMes(x.mes_ref) + ' · ' + valorConta(x);
+    var estadoDif = x.situacao === 'atraso' && x.estado === 'a_pagar' ? 'No arquivo ainda está "a pagar", mas o vencimento passou.' : '';
+    return '<article class="cartao-v3' + (x.situacao === 'atraso' ? ' urgente' : '') + '">' +
+      '<div class="v3-topo"><span class="cartao-empresa">' + e(nomeMes(x.mes_ref)) + ' · ' + e(x.forma || 'forma não informada') + '</span>' + U.selo(s[0], s[1]) + '</div>' +
+      '<div class="fin-linha-titulo"><span class="cartao-titulo">' + e(x.emissor) + '</span><span class="fin-valor">' + e(valorConta(x)) + '</span></div>' +
+      '<div class="v3-meta"><span class="' + (x.dias !== null && x.dias <= 2 ? 'prazo-urgente' : '') + '">' + e(prazo(x.dias)) + '</span><span>Vencimento ' + U.dataBr(x.vencimento) + '</span></div>' +
+      '<p class="v3-resumo"><b>Estado:</b> ' + e(x.estado_mostrado || x.estado_texto || '(vazio)') + '</p>' +
+      (estadoDif ? '<p class="mudo ajuda">' + e(estadoDif) + '</p>' : '') +
+      (x.link_mostrado ? '<p class="mudo ajuda">Origem: ' + e(x.link_mostrado) + '</p>' : '') +
+      (x.pdf_fileId ? '<p class="ajuda"><a href="' + e(U.urlDrive(x.pdf_fileId)) + '" target="_blank" rel="noopener">Abrir o PDF no Drive</a></p>' : '') +
+      (x.codigo ? blocoCodigo('fin-cod-' + n, x.codigo, x.tipo_codigo, U) : '') +
+      (x.codigo_obs ? '<p class="mudo ajuda">Pagamento: ' + e(x.codigo_obs) + '</p>' : '') +
+      V3.botoes('financas', x, { paguei: 'Paguei' }) +
+      '</article>';
+  }
+
+  /** Linha do tempo: agrupa as contas pelo dia do vencimento. */
+  function linhaDoTempo(itens, U, V3, base) {
+    var e = U.esc, grupos = [], atual = null;
+    itens.forEach(function (x) {
+      if (!atual || atual.dia !== x.vencimento) { atual = { dia: x.vencimento, dias: x.dias, l: [] }; grupos.push(atual); }
+      atual.l.push(x);
+    });
+    return '<ol class="fin-tempo">' + grupos.map(function (g, gi) {
+      var tot = g.l.reduce(function (s, x) { return s + (x.valor || 0); }, 0);
+      return '<li class="fin-dia"><div class="fin-dia-cab"><span class="fin-dia-data">' + U.dataBr(g.dia) + '</span><span class="mudo">' + e(prazo(g.dias)) + ' · ' + g.l.length + (g.l.length === 1 ? ' conta' : ' contas') + ' · ' + e(brl(tot)) + '</span></div>' +
+        '<div class="lista-v3">' + g.l.map(function (x, i) { return cartaoConta(x, U, V3, base + '-' + gi + '-' + i); }).join('') + '</div></li>';
+    }).join('') + '</ol>';
+  }
+
+  function barraDupla(a, b, rotA, rotB, U) {
+    var t = (a || 0) + (b || 0), pa = t > 0 ? Math.round(a / t * 100) : 0;
+    return '<div class="fin-dupla" role="img" aria-label="' + U.esc(rotA + ' ' + pa + '%, ' + rotB + ' ' + (100 - pa) + '%') + '"><i class="fin-a" style="width:' + pa + '%"></i><i class="fin-b" style="width:' + (100 - pa) + '%"></i></div>' +
+      '<div class="fin-legenda"><span><i class="fin-pt fin-a"></i>' + U.esc(rotA) + ' ' + brl(a) + ' (' + pa + '%)</span><span><i class="fin-pt fin-b"></i>' + U.esc(rotB) + ' ' + brl(b) + ' (' + (t > 0 ? 100 - pa : 0) + '%)</span></div>';
+  }
+
+  function blocoMes(m, mesSel, U) {
+    var e = U.esc, r = null;
+    m.meses.forEach(function (x) { if (x.mes === mesSel) r = x; });
+    var abas = m.meses.length > 1 ? '<div class="chips fin-meses" role="group" aria-label="Mês">' + m.meses.map(function (x) {
+      return '<button type="button" class="chip" aria-pressed="' + (x.mes === mesSel) + '" data-fin-mes="' + e(x.mes) + '">' + e(nomeMes(x.mes)) + '</button>';
+    }).join('') + '</div>' : '';
+    if (!r) return abas + '<div class="vazio">Sem lançamentos.</div>';
+    var max = r.categorias.length ? r.categorias[0].valor || 1 : 1;
+    var h = abas + '<div class="contadores fin-num">' +
+      '<div class="contador-card zero"><div class="num">' + brl(r.entradas) + '</div><div class="rot">Entradas</div></div>' +
+      '<div class="contador-card"><div class="num">' + brl(r.saidas) + '</div><div class="rot">Saídas</div></div>' +
+      '<div class="contador-card' + (r.saldo < 0 ? ' destaque' : ' zero') + '"><div class="num">' + brl(r.saldo) + '</div><div class="rot">Saldo do mês</div></div>' +
+      '<div class="contador-card zero"><div class="num">' + r.lancamentos + '</div><div class="rot">Lançamentos' + (r.a_pagar ? ' (' + r.a_pagar + ' a pagar)' : '') + '</div></div></div>';
+    if (!r.entradas) h += '<p class="mudo ajuda">Nenhuma entrada lançada em ' + e(nomeMes(r.mes)) + '; o saldo considera só as saídas.</p>';
+    h += '<div class="duas-colunas fin-graficos"><div><h3>Essenciais e não essenciais</h3>' + barraDupla(r.essenciais, r.nao_essenciais, 'Essenciais', 'Não essenciais', U) + '</div>' +
+      '<div><h3>Pessoal e empresa</h3>' + barraDupla(r.pessoal, r.empresa, 'Pessoal', 'Empresa', U) +
+      (r.sem_dono ? '<p class="mudo ajuda">' + brl(r.sem_dono) + ' sem dono informado na coluna dono.</p>' : '') + '</div></div>';
+    h += '<h3>Saídas por categoria</h3><div class="fin-cats">' + r.categorias.map(function (c) {
+      var pe = c.valor > 0 ? Math.round(c.essencial / c.valor * 100) : 0, w = Math.max(2, Math.round(Math.max(0, c.valor) / max * 100));
+      return '<div class="fin-cat"><div class="fin-cat-cab"><span class="contagem-nome">' + e(c.nome) + ' <span class="mudo">· ' + c.n + '</span></span><span class="fin-cat-valor">' + brl(c.valor) + '</span></div>' +
+        '<div class="fin-cat-barra" aria-hidden="true"><i style="width:' + w + '%"><b class="fin-a" style="width:' + pe + '%"></b></i></div></div>';
+    }).join('') + '</div><p class="mudo ajuda">Barra escura: parte essencial da categoria. Valores negativos (créditos e estornos) entram descontando.</p>';
+    if (r.sem_valor) h += '<p class="mudo ajuda">' + r.sem_valor + ' lançamento(s) sem valor numérico ficaram fora da conta.</p>';
+    return h;
+  }
+
+  function blocoRateio(x, U, V3) {
+    if (!x) return '<div class="vazio">Nenhum rateio no Rateios.csv.</div>';
+    var e = U.esc, de = x.de || 0, pontos = '';
+    for (var i = 0; i < de; i++) pontos += '<i class="fin-ponto' + (i < x.recebidos ? ' ok' : '') + '"></i>';
+    x.titulo_curto = 'Rateio ' + x.emissor + ' ' + nomeMes(x.mes_ref) + ' · ' + x.recebidos + '/' + (x.de === null ? '?' : x.de);
+    var sel = x.estado === 'completo' ? U.selo('aprovado', 'Todos pagaram') : x.estado === 'nao_enviado' ? U.selo('cancelado', 'Ainda não enviado') : U.selo('entregue', 'Esperando');
+    return '<article class="cartao-v3 fin-rateio"><div class="v3-topo"><span class="cartao-empresa">Fatura de ' + e(nomeMes(x.mes_ref)) + '</span>' + sel + '</div>' +
+      '<div class="fin-linha-titulo"><span class="cartao-titulo">Recebidos ' + x.recebidos + ' de ' + (x.de === null ? '?' : x.de) + '</span><span class="fin-pontos" aria-hidden="true">' + pontos + '</span></div>' +
+      '<div class="v3-meta"><span>Total ' + e(x.total !== null ? brl(x.total) : x.total_texto) + '</span><span>Por pessoa ' + e(x.por_pessoa !== null ? brl(x.por_pessoa) : x.por_pessoa_texto) + '</span>' +
+      (x.de ? '<span>Falta receber ' + brl((x.por_pessoa || 0) * Math.max(0, x.de - x.recebidos)) + '</span>' : '') + '</div>' +
+      '<p class="v3-resumo"><b>Enviado:</b> ' + e(x.enviado ? 'sim' + (x.enviado_texto.replace(/^s(im)?\s*/i, '') ? ', ' + x.enviado_texto.replace(/^s(im)?\s*/i, '').replace(/^\((.*)\)$/, '$1') : '') : (x.enviado_texto || 'não')) + '</p>' +
+      (x.pagaram && x.pagaram.length ? '<p class="v3-resumo"><b>Já pagaram:</b> ' + e(x.pagaram.join(', ')) + '</p>' : '') +
+      V3.botoes('financas', x, { recebi_mais_um: 'Recebi de mais um' }) + '</article>';
+  }
+
+  function tabela(t, vazio, U) {
+    if (!t || !t.linhas.length) return '<div class="vazio">' + U.esc(vazio) + '</div>';
+    var e = U.esc;
+    return '<div class="fin-tabela-rolagem"><table class="fin-tabela"><thead><tr>' + t.colunas.map(function (c) { return '<th>' + e(c.replace(/_/g, ' ')) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      t.linhas.map(function (l) { return '<tr>' + t.colunas.map(function (c) { return '<td>' + e(l[c]) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>';
+  }
+
+  PainelV3.registrar('financas', {
+    desenhar: function (m, U, V3) {
+      var e = U.esc, it = function (id) { return V3.item('financas', id); };
+      var urg = m.contas.urgentes.map(it).filter(Boolean), prox = m.contas.proximas.map(it).filter(Boolean), dep = m.contas.depois.map(it).filter(Boolean);
+      var mesSel = est.mes && m.meses.some(function (x) { return x.mes === est.mes; }) ? est.mes : m.mes_atual;
+      var mesAtual = null; m.meses.forEach(function (x) { if (x.mes === m.mes_atual) mesAtual = x; });
+      var semana = prox.filter(function (x) { return x.dias <= 7; }).length;
+      var h = '<h1>Finanças</h1><p class="intro">Contas, mês por categoria e rateio do Assistente Financeiro. O painel só lê os arquivos do agente no Drive; não acessa banco nem cartão.</p>' + V3.avisoChave(m);
+      h += '<div class="contadores">' +
+        '<div class="contador-card' + (urg.length ? ' destaque' : ' zero') + '"><div class="num">' + urg.length + '</div><div class="rot">Atrasadas ou sem confirmação<br><span class="fin-soma">' + brl(m.contas.valor_urgente) + '</span></div></div>' +
+        '<div class="contador-card' + (semana ? ' destaque' : ' zero') + '"><div class="num">' + semana + '</div><div class="rot">Vencem em 7 dias<br><span class="fin-soma">' + brl(m.contas.valor_semana) + '</span></div></div>' +
+        '<div class="contador-card zero"><div class="num">' + prox.length + '</div><div class="rot">Próximos 30 dias<br><span class="fin-soma">' + brl(m.contas.valor_30d) + '</span></div></div>' +
+        '<div class="contador-card zero"><div class="num">' + (mesAtual ? brl(mesAtual.saidas) : '-') + '</div><div class="rot">Saídas em ' + e(nomeMes(m.mes_atual)) + '</div></div></div>';
+
+      h += '<h2 id="fin-contas">Atrasadas e sem confirmação <span class="qtd">' + urg.length + '</span></h2>' +
+        (urg.length ? '<div class="lista-v3">' + urg.map(function (x, i) { return cartaoConta(x, U, V3, 'u' + i); }).join('') + '</div>' : '<div class="vazio">Nenhuma conta atrasada.</div>');
+      h += '<h2 id="fin-prox">Próximos 30 dias <span class="qtd">' + prox.length + '</span></h2>' +
+        (prox.length ? linhaDoTempo(prox, U, V3, 'p') : '<div class="vazio">Nada vence nos próximos 30 dias.</div>');
+      if (dep.length) h += '<details class="mais-motivos fin-depois"><summary>Mais adiante ou sem data (' + dep.length + ')</summary>' + linhaDoTempo(dep, U, V3, 'd') + '</details>';
+      if (m.contas.sem_valor) h += '<p class="mudo ajuda">' + m.contas.sem_valor + (m.contas.sem_valor === 1 ? ' conta ainda sem valor' : ' contas ainda sem valor') + ' (texto do arquivo mostrado no lugar do valor).</p>';
+
+      if (m.recebidas_soltas.length) {
+        h += '<h3>Recebidas no e-mail, ainda fora da lista de contas</h3><div class="lista-v3">' + m.recebidas_soltas.map(function (r, i) {
+          return '<article class="cartao-v3"><div class="v3-topo"><span class="cartao-empresa">' + e(r.caixa) + ' · chegou ' + U.dataBr(r.recebido_em) + '</span>' + U.selo('cancelado', 'Sem conta') + '</div>' +
+            '<div class="fin-linha-titulo"><span class="cartao-titulo">' + e(r.emissor) + '</span><span class="fin-valor">' + e(r.valor !== null ? brl(r.valor) : r.valor_texto || 'sem valor') + '</span></div>' +
+            '<div class="v3-meta"><span>' + (r.vencimento ? 'Vencimento ' + U.dataBr(r.vencimento) : 'Sem vencimento no arquivo') + '</span></div>' +
+            (r.pdf_fileId ? '<p class="ajuda"><a href="' + e(U.urlDrive(r.pdf_fileId)) + '" target="_blank" rel="noopener">Abrir o PDF no Drive</a></p>' : '') +
+            blocoCodigo('fin-rec-' + i, r.codigo, r.tipo_codigo, U) + '</article>';
+        }).join('') + '</div>';
+      }
+      if (m.contas.pagas.length) {
+        h += '<details class="mais-motivos"><summary>Pagas (' + m.contas.pagas_total + ')</summary><div class="fontes">' + m.contas.pagas.map(function (p) {
+          return '<div class="fonte"><span><b>' + e(p.emissor) + '</b> · ' + e(nomeMes(p.mes_ref)) + '<br><span class="mudo">' + e(p.estado_texto) + '</span></span><span class="quando">' + e(p.valor !== null ? brl(p.valor) : p.valor_texto) + (p.pago_em ? '<br>' + U.dataBr(p.pago_em) : '') + '</span></div>';
+        }).join('') + '</div></details>';
+      }
+
+      h += '<h2 id="fin-mes">Mês por categoria</h2><div id="fin-bloco-mes">' + blocoMes(m, mesSel, U) + '</div>';
+      h += '<h2 id="fin-rateio">Rateio ' + U.esc((m.rateio && it(m.rateio) || {}).emissor || 'SKY') + '</h2>' + blocoRateio(m.rateio ? it(m.rateio) : null, U, V3);
+      h += '<div class="duas-colunas"><div><h2>Fechamentos</h2>' + tabela(m.fechamentos, 'Ainda sem fechamento.', U) + '</div>' +
+        '<div><h2>Orçamento</h2>' + tabela(m.orcamento, 'Ainda sem orçamento.', U) + '</div></div>';
+
+      h += '<h2>Alertas recentes <span class="qtd">' + m.alertas.length + '</span></h2>' + (m.alertas.length ? '<div class="fontes">' + m.alertas.map(function (a) {
+        var cls = /now/i.test(a.tier) ? 'refazer' : /today/i.test(a.tier) ? 'aguardando_aprovo' : 'entregue';
+        var res = /^resolved/i.test(a.resultado) ? 'resolvido' : /^pending/i.test(a.resultado) ? 'pendente' : a.resultado;
+        return '<div class="fonte"><span>' + U.selo(cls, a.tier || 'sem tier') + ' <b>' + e(a.assunto) + '</b><br><span class="mudo">' + e(a.sinais) + (res ? ' · ' + e(res) : '') + (a.base ? ' · ' + e(a.base) : '') + '</span></span><span class="quando">' + U.dataBr(a.quando) + '</span></div>';
+      }).join('') + '</div>' : '<div class="vazio">Nenhum alerta.</div>');
+
+      if (m.recorrentes.length) {
+        h += '<details class="mais-motivos"><summary>Recorrentes conhecidas (' + m.recorrentes.length + ')</summary><div class="fontes">' + m.recorrentes.map(function (r) {
+          return '<div class="fonte"><span><b>' + e(r.emissor) + '</b><br><span class="mudo">' + e([r.categoria, r.forma, r.dia].filter(Boolean).join(' · ')) + '</span></span><span class="quando">' + e(r.valor || '-') + '</span></div>';
+        }).join('') + '</div></details>';
+      }
+      return h;
+    },
+    depois: function (el, m) {
+      el.querySelectorAll('[data-fin-mes]').forEach(function (b) {
+        b.addEventListener('click', function () { est.mes = b.getAttribute('data-fin-mes'); PainelV3.desenharModulo('financas'); var a = document.getElementById('fin-mes'); if (a) a.scrollIntoView({ block: 'start' }); });
+      });
+    }
+  });
+})();
+</script>
