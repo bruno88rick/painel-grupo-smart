@@ -6,3 +6,12 @@ __pycache__/
 config.suporte.json
 trabalho-suporte/
 ledger-suporte.json
+config.emails.json
+config.financas.json
+config.investimentos.json
+trabalho-emails/
+trabalho-financas/
+trabalho-investimentos/
+ledger-emails.json
+ledger-financas.json
+ledger-investimentos.json

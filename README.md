@@ -25,6 +25,7 @@ Falta implantar: nada.
 - [Arquitetura](#arquitetura)
 - [Decisões e agentes](#decisões-e-agentes)
 - [Módulo Posts e anúncios](#módulo-posts-e-anúncios)
+- [Consumidores v3](#consumidores-v3-e-mails-finanças-investimentos)
 - [Testes](#testes)
 - [Como publicar](#como-publicar-primeira-vez)
 - [Como reimplantar](#como-reimplantar-depois-de-uma-mudança)
@@ -266,12 +267,26 @@ Mesmo `decisoes.csv`, com `modulo=anuncios`, `item_id` `post:<id>` ou `campanha:
 
 Contrato completo, exemplos reais e o script de hash: [docs/contrato-propostas.md](docs/contrato-propostas.md). O consumidor do Tráfego (ainda não ligado) fica em [consumidor/](consumidor/README.md).
 
+## Consumidores v3: E-mails, Finanças, Investimentos
+
+Scripts do lado dos agentes, no mesmo desenho do `consumidor_suporte.py` (Python 3, só biblioteca padrão, `--plano`, `--confirmar <decision_id>`, `--teste`, ledger antes do recibo, idempotentes, saídas 0/1/2/3):
+
+| Script | Agente | Ações | No `--confirmar` |
+| --- | --- | --- | --- |
+| [consumidor_emails.py](consumidor/README_emails.md) | Gestor de E-mails | `mover_grupo`, `recusar_grupo`, `marcar_resolvida`, `pedir_rascunho` | estado em `Movimentos.csv` ou `Pendencias.csv` |
+| [consumidor_financas.py](consumidor/README_financas.md) | Assistente Financeiro | `registrar_pagamento`, `registrar_rateio_recebido` | `pago_em` e estado em `Contas.csv`; `recebidos`/`pagaram` em `Rateios.csv` (formato atual e novo) |
+| [consumidor_investimentos.py](consumidor/README_investimentos.md) | Analista de Investimentos | `confirmar_aporte`, `marcar_nao_feito` | estado (e `valor_brl`) em `Aportes.csv` |
+
+Nenhum deles mexe nos e-mails, no banco ou na corretora: quem age é o agente; o script só confere a decisão (hash igual ao do painel), atualiza o CSV e grava o recibo. As chaves `*_INTEGRADO` continuam `false` até cada agente passar a rodar o seu. Os testes (`consumidor/test_consumidores_v3.py`) geram as decisões com o próprio painel (`consumidor/gerar_decisoes_painel.js`, sobre `dev/ambiente-gas.js`) e conferem o hash de todos os itens das fixtures nos dois lados.
+
 ## Testes
 
 ```
 npm test
-python3 -m unittest discover consumidor
+python3 -m unittest discover -s consumidor
 ```
+
+Consumidores v3: 36 testes Python novos em `consumidor/test_consumidores_v3.py` (precisam do Node para gerar as decisões como o painel; sem Node são pulados).
 
 v3.0.1: 92 testes no Node (10 novos em `test/v301-carga.test.js`: `obterInicio` sem v3, `obterModulo` por módulo, cache e cópia `_ult`, erro só no módulo, cache limpo depois de decidir, e o cartão carregando, com erro e pronto no navegador). v3.0.0-estudos: 82 testes no Node (5 novos em `test/v3-estudos.test.js`, com as fixtures fictícias de `test/fixtures/estudos/`). v3.0.0-investimentos: 77 testes no Node (7 novos em `test/v3-investimentos.test.js`, com as fixtures anonimizadas de `test/fixtures/investimentos/`). v3.0.0-financas: 70 testes no Node (11 novos em `test/v3-financas.test.js`: formato atual e o formato novo do Assistente Financeiro em `test/fixtures/financas-novo/`, e a compilação dos scripts das telas). v3.0.0-emails: 59 testes no Node (7 novos em `test/v3-emails.test.js`). v3.0.0-suporte: 52 testes no Node (9 novos em `test/v3-suporte.test.js`, com as fixtures anonimizadas de `test/fixtures/suporte/`). v2.0.1: 43 testes no Node e 29 no consumidor Python. v2.0.0: 35 e 29. Os vetores de hash do `Propostas.csv` são conferidos nos dois lados.
 

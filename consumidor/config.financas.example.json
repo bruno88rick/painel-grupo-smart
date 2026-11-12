@@ -1,0 +1,11 @@
+{
+  "decisoes_fileId": "1h6ihVp8KT-wLLufyDfDoRNPih94t6aN4",
+  "recibos_folderId": "1siTwdBoG4cb0S1KEETChERzfhh_c6cgQ",
+  "contas_fileId": "PREENCHER",
+  "recebidas_fileId": "PREENCHER",
+  "rateios_fileId": "PREENCHER",
+  "pasta_trabalho": "trabalho-financas",
+  "ledger_path": "ledger-financas.json",
+  "gws_bin": "gws",
+  "agente": "Assistente Financeiro"
+}
