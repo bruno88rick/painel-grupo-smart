@@ -8,13 +8,13 @@ Painel visual, privado e mobile-first, para o Bruno ver e aprovar as artes e os 
 
 ## Produção e main
 
-A produção (Web App, implantação **versão 6 = v3.0.0**, de 12/11/2026, mesma URL `/exec`) está igual à `main`. A implantação única da v3.0.0 foi autorizada pelo Bruno em 12/11 e levou de uma vez a v2.0.1 e os cinco módulos v3: **Suporte RN Sports**, **E-mails**, **Finanças**, **Investimentos** e **Estudos**.
+A produção (Web App, implantação **versão 7 = v3.0.1**, de 12/11/2026, mesma URL `/exec`) está igual à `main`. A v3.0.1 carrega o Início primeiro e os módulos v3 em segundo plano, cada um com cache próprio: na primeira carga após a implantação, o Início apareceu em ~9 s e os módulos em ~13 s; no segundo acesso, em 4,4 s e 5,5 s. A implantação única da v3.0.0 foi autorizada pelo Bruno em 12/11 e levou de uma vez a v2.0.1 e os cinco módulos v3: **Suporte RN Sports**, **E-mails**, **Finanças**, **Investimentos** e **Estudos**.
 
 - O `painel-fontes.json` do Drive tem os sete módulos ativos, com os ids reais. A cópia anterior (v2.0.0) ficou na mesma pasta como `painel-fontes.backup-v2.0.0-2026-11-12.json`.
 - Todas as chaves continuam em `false`: `ANUNCIOS_INTEGRADOS`, `POSTS_INTEGRADOS`, `SUPORTE_INTEGRADO`, `EMAILS_INTEGRADO`, `FINANCAS_INTEGRADO` e `INVESTIMENTOS_INTEGRADO`. Os botões dos módulos v3 aparecem desligados, com o aviso "o agente ainda não lê estas decisões". Estudos é só leitura.
-- Para desfazer: em **Implantar > Gerenciar implantações > Editar**, escolha a versão 5 e devolva o `painel-fontes.json` da cópia.
+- Para desfazer: em **Implantar > Gerenciar implantações > Editar**, escolha a versão 6 (v3.0.0); para voltar à v2.0.0, a versão 5, e devolva o `painel-fontes.json` da cópia.
 
-Falta implantar: v3.0.1.
+Falta implantar: nada.
 
 - **v3.0.1:** carga mais rápida. O Início (design e anúncios) chega primeiro por `obterInicio`; os cinco módulos v3 chegam depois, em segundo plano, cada um pela sua chamada `obterModulo(id)`, com o seu cache e a cópia `_ult` desatualizada devolvida na hora. Enquanto um módulo carrega, o cartão dele mostra "Carregando…"; se der erro, o erro fica só naquele cartão (e na tela do módulo, com **Tentar de novo**). **Atualizar agora** recarrega tudo. Sem mudança no `appsscript.json`, no `painel-fontes.json` nem nas chaves (todas em `false`). Para implantar: colar os arquivos de `src/`, **Implantar > Gerenciar implantações > Editar > Nova versão**.
 
