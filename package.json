@@ -1,6 +1,6 @@
 {
   "name": "painel-grupo-smart",
-  "version": "3.0.0-estudos",
+  "version": "3.0.0",
   "private": true,
   "description": "Painel Grupo Smart: Apps Script Web App que lê os arquivos dos agentes no Google Drive",
   "scripts": {
