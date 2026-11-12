@@ -427,7 +427,7 @@ var PainelLib = (function () {
    * Chave da integração com o Gestor de Tráfego. Enquanto false, os botões de decisão de
    * Posts e anúncios ficam desabilitados e o servidor não grava nada. Só o Builder liga.
    */
-  var CHAVES = { ANUNCIOS_INTEGRADOS: false, SUPORTE_INTEGRADO: false, EMAILS_INTEGRADO: false };
+  var CHAVES = { ANUNCIOS_INTEGRADOS: false, SUPORTE_INTEGRADO: false, EMAILS_INTEGRADO: false, FINANCAS_INTEGRADO: false };
   var DECISOES_ANUNCIOS = {
     post: { aprovar: ['rascunho', 'aguardando_aprovo'], refazer: ['rascunho', 'aguardando_aprovo'], recusar: ['rascunho', 'aguardando_aprovo'] },
     campanha: { aprovar: ['plano', 'ajuste'], refazer: ['plano', 'ajuste'], recusar: ['plano', 'ajuste'], pausar: ['ativo'] }
@@ -1220,6 +1220,202 @@ var PainelLib = (function () {
     montar: montarEmails
   });
 
+  /* ================= v3: Finanças ================= */
+
+  var ESTADOS_CONTA = [[/^a pagar/, 'a_pagar'], [/^pag[oa]/, 'pago'], [/^(em atraso|atrasad|vencid)/, 'atraso'], [/^sem confirma/, 'sem_confirmacao']];
+
+  /** "2.468,10", "1469,05", "-48,32", "R$ 10", "12.5" -> número; "a informar" -> null. */
+  function numBr(txt) {
+    var s = String(txt === null || txt === undefined ? '' : txt).replace(/R\$|\s/g, '');
+    if (/^-?\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(s) || /^-?\d+,\d{1,2}$/.test(s)) return +s.replace(/\./g, '').replace(',', '.');
+    if (/^-?\d+(\.\d{1,2})?$/.test(s)) return +s;
+    return null;
+  }
+
+  /**
+   * Conserta a linha em que um valor "R$ 321,45" foi escrito sem aspas: a vírgula dos centavos
+   * partiu o campo em dois e empurrou os seguintes uma coluna para a direita (a última coluna, sem nome,
+   * recebe o que sobrou). Junta "...R$ 321" com "66..." e puxa os campos de volta.
+   */
+  function consertarLinha(o, cab) {
+    var l = cab.map(function (k) { return o[k] === undefined ? '' : String(o[k]); });
+    var mudou = false;
+    for (var i = 0; i < l.length - 1; i++) {
+      if (/R\$\s?[\d.]+$/.test(l[i]) && /^\d{2}(?!\d)/.test(l[i + 1])) { l.splice(i, 2, l[i] + ',' + l[i + 1]); l.push(''); mudou = true; }
+    }
+    if (!mudou) return o;
+    var r = {};
+    cab.forEach(function (k, j) { r[k] = String(l[j] || '').trim(); });
+    r._consertada = true;
+    return r;
+  }
+
+  /** Código de pagamento: Pix copia e cola, linha digitável/código de barras ou outro texto. */
+  function tipoCodigo(c) {
+    var s = String(c || '').trim();
+    if (/^000201/.test(s)) return 'pix';
+    if (s.replace(/\D/g, '').length >= 44 && /^[\d\s.\-]+$/.test(s)) return 'barras';
+    return s ? 'texto' : '';
+  }
+
+  function canonicoConta(x) {
+    return canonicoV3('conta', [x.emissor, x.mes_ref, x.valor_texto, x.vencimento, x.forma, x.estado_texto, x.link, x.pago_em, x.codigo, x.pdf_fileId]);
+  }
+  function canonicoRateio(r) { return canonicoV3('rateio', [r.mes_ref, r.total, r.por_pessoa, r.enviado, r.recebidos]); }
+
+  function resumoMes(linhas) {
+    var r = { entradas: 0, saidas: 0, essenciais: 0, nao_essenciais: 0, pessoal: 0, empresa: 0, sem_dono: 0, a_pagar: 0, a_pagar_valor: 0, lancamentos: linhas.length, sem_valor: 0, cat: {} };
+    linhas.forEach(function (x) {
+      if (x.valor === null) { r.sem_valor++; return; }
+      if (x.tipo === 'entrada') { r.entradas += x.valor; return; }
+      r.saidas += x.valor;
+      if (x.essencial === 's') r.essenciais += x.valor; else r.nao_essenciais += x.valor;
+      if (x.dono === 'pessoal') r.pessoal += x.valor; else if (x.dono === 'empresa') r.empresa += x.valor; else r.sem_dono += x.valor;
+      if (x.a_pagar) { r.a_pagar++; r.a_pagar_valor += x.valor; }
+      var c = r.cat[x.categoria] || (r.cat[x.categoria] = { nome: x.categoria, valor: 0, n: 0, essencial: 0 });
+      c.valor += x.valor; c.n++; if (x.essencial === 's') c.essencial += x.valor;
+    });
+    var cats = Object.keys(r.cat).map(function (k) { var c = r.cat[k]; return { nome: c.nome, valor: arred(c.valor), n: c.n, essencial: arred(c.essencial) }; })
+      .sort(function (a, b) { return b.valor - a.valor || a.nome.localeCompare(b.nome); });
+    ['entradas', 'saidas', 'essenciais', 'nao_essenciais', 'pessoal', 'empresa', 'sem_dono', 'a_pagar_valor'].forEach(function (k) { r[k] = arred(r[k]); });
+    r.saldo = arred(r.entradas - r.saidas);
+    delete r.cat; r.categorias = cats;
+    return r;
+  }
+
+  function montarFinancas(f, dm, agora) {
+    var L = function (k) { return (f[k] && f[k].linhas) || []; };
+    var hoje = soDia(agora), consertadas = 0;
+
+    // contas-recebidas: código Pix/barras e PDF, ligados à conta pelo message_id citado no texto da conta
+    var recebidas = L('recebidas').filter(function (r) { return String(r.emissor || r.message_id || '').trim(); }).map(function (r) {
+      return { recebido_em: r.recebido_em || '', caixa: r.caixa || '', emissor: r.emissor || '', tipo: r.tipo || '', valor_texto: r.valor || '', valor: numBr(r.valor), vencimento: r.vencimento || '',
+        codigo: String(r.codigo_ou_pix || '').trim(), tipo_codigo: tipoCodigo(r.codigo_ou_pix), pdf_fileId: String(r.pdf_fileId || '').trim(), message_id: String(r.message_id || '').trim(), ligada: false };
+    });
+
+    var cabC = (f.contas && f.contas.cabecalho) || [];
+    var contas = ultimaPor(L('contas').map(function (o) { var r = consertarLinha(o, cabC); if (r !== o) consertadas++; return r; })
+      .filter(function (x) { return String(x.emissor || '').trim(); }).map(function (x) { x._k = String(x.emissor).trim() + '|' + String(x.mes_ref || '').trim(); return x; }), '_k').map(function (x) {
+      var texto = [x.link, x.estado].join(' ');
+      var rec = null;
+      recebidas.forEach(function (r) { if (r.message_id && texto.indexOf(r.message_id) >= 0) { rec = r; r.ligada = true; } });
+      var pdf = (String(x.link || '').match(/\bpdf\s+([A-Za-z0-9_-]{25,})/) || [])[1] || (rec && rec.pdf_fileId) || '';
+      var codigo = rec && (rec.tipo_codigo === 'pix' || rec.tipo_codigo === 'barras') ? rec.codigo : '';
+      var venc = parseData(x.vencimento);
+      var est = classificarComeco(x.estado, ESTADOS_CONTA);
+      var dias = venc ? Math.round((soDia(venc) - hoje) / DIA_MS) : null;
+      var situacao = est === 'pago' ? 'pago' : est === 'atraso' || (est === 'a_pagar' && dias !== null && dias < 0) ? 'atraso' : est === 'sem_confirmacao' ? 'sem_confirmacao' : est === 'a_pagar' ? 'a_pagar' : 'outro';
+      var pago = parseData(x.pago_em);
+      var c = {
+        item_id: 'conta:' + x._k, tipo_item: 'conta', versao: '', estado: est, estado_texto: String(x.estado || '').trim(), situacao: situacao,
+        emissor: String(x.emissor).trim(), mes_ref: String(x.mes_ref || '').trim(), valor_texto: String(x.valor || '').trim(), valor: numBr(x.valor),
+        vencimento: String(x.vencimento || '').trim(), dias: dias, forma: String(x.forma || '').trim(), link: String(x.link || '').trim(),
+        pago_em: pago ? diaIso(pago) : '', pago_em_texto: String(x.pago_em || '').trim(),
+        codigo: codigo, tipo_codigo: codigo ? rec.tipo_codigo : '', codigo_obs: rec && rec.tipo_codigo === 'texto' ? rec.codigo : '', pdf_fileId: pdf,
+        recebida: rec ? { caixa: rec.caixa, recebido_em: rec.recebido_em } : null, consertada: !!x._consertada
+      };
+      c.snapshot_hash = sha256(canonicoConta(c));
+      return c;
+    });
+    var abertas = contas.filter(function (c) { return c.situacao !== 'pago'; }).sort(function (a, b) {
+      var o = { atraso: 0, sem_confirmacao: 1, a_pagar: 2, outro: 3 };
+      return (o[a.situacao] - o[b.situacao]) || ((a.dias === null ? 9999 : a.dias) - (b.dias === null ? 9999 : b.dias)) || a.emissor.localeCompare(b.emissor);
+    });
+    var urgentes = abertas.filter(function (c) { return c.situacao === 'atraso' || c.situacao === 'sem_confirmacao'; });
+    var proximas = abertas.filter(function (c) { return c.situacao !== 'atraso' && c.situacao !== 'sem_confirmacao' && c.dias !== null && c.dias >= 0 && c.dias <= 30; });
+    var depois = abertas.filter(function (c) { return urgentes.indexOf(c) < 0 && proximas.indexOf(c) < 0; });
+    var pagas = contas.filter(function (c) { return c.situacao === 'pago'; }).sort(function (a, b) { return String(b.pago_em || b.vencimento).localeCompare(String(a.pago_em || a.vencimento)); });
+    var semana = proximas.filter(function (c) { return c.dias <= 7; });
+    var soma = function (l) { return arred(l.reduce(function (s, c) { return s + (c.valor || 0); }, 0)); };
+
+    // Recebidas no e-mail sem conta na lista, com código para pagar (últimos 30 dias)
+    var soltas = recebidas.filter(function (r) {
+      var d = parseData(r.recebido_em);
+      return !r.ligada && (r.tipo_codigo === 'pix' || r.tipo_codigo === 'barras') && d && (hoje - soDia(d)) / DIA_MS <= 30;
+    });
+
+    // Lançamentos por mês
+    var lanc = L('lancamentos').filter(function (x) { return /^\d{4}-\d{2}/.test(String(x.data || '').trim()); }).map(function (x) {
+      return { mes: String(x.data).trim().slice(0, 7), categoria: String(x.categoria || '').trim() || 'Sem categoria', essencial: /^s/i.test(String(x.essencial || '').trim()) ? 's' : 'n',
+        tipo: /^entrada/i.test(semAcento(x.tipo)) ? 'entrada' : 'saida', valor: numBr(x.valor), dono: semAcento(x.dono), a_pagar: /^a pagar/.test(semAcento(x.estado)) };
+    });
+    var porMes = {};
+    lanc.forEach(function (x) { (porMes[x.mes] = porMes[x.mes] || []).push(x); });
+    var mesHoje = diaIso(agora).slice(0, 7);
+    var meses = Object.keys(porMes).sort().map(function (m) { var r = resumoMes(porMes[m]); r.mes = m; return r; });
+    var mesAtual = porMes[mesHoje] ? mesHoje : (meses.length ? meses[meses.length - 1].mes : '');
+
+    // Rateio SKY: a linha mais recente
+    var rateios = L('rateios').filter(function (r) { return String(r.mes_ref || '').trim(); }).sort(function (a, b) { return String(a.mes_ref).localeCompare(String(b.mes_ref)); });
+    var rateio = null, itensRateio = [];
+    if (rateios.length) {
+      var r = rateios[rateios.length - 1];
+      var m = String(r.recebidos || '').match(/(\d+)\s*\/\s*(\d+)/);
+      var rec = m ? +m[1] : 0, de = m ? +m[2] : null;
+      var enviado = /^s/i.test(String(r.enviado || '').trim());
+      rateio = {
+        item_id: 'rateio:' + String(r.mes_ref).trim(), tipo_item: 'rateio', versao: '', mes_ref: String(r.mes_ref).trim(),
+        total_texto: r.total || '', total: numBr(r.total), por_pessoa_texto: r.por_pessoa || '', por_pessoa: numBr(r.por_pessoa),
+        enviado: enviado, enviado_texto: String(r.enviado || '').trim(), recebidos: rec, de: de, recebidos_texto: String(r.recebidos || '').trim(),
+        estado: !enviado ? 'nao_enviado' : de !== null && rec >= de ? 'completo' : 'aberto',
+        anteriores: rateios.length - 1
+      };
+      rateio.snapshot_hash = sha256(canonicoRateio(r));
+      itensRateio = [rateio];
+    }
+
+    var tabela = function (k) { var o = f[k]; return o ? { colunas: (o.cabecalho || []).filter(Boolean), linhas: o.linhas || [] } : null; };
+    var alertas = L('alertas').filter(function (a) { return String(a.alert_id || a.item_link || '').trim(); }).map(function (a, i) {
+      return { id: a.alert_id || '', i: i, quando: a.created_at || '', tier: String(a.tier || '').trim(), assunto: a.item_link || '', objeto: a.object_id || '', sinais: a.signals || '', score: a.score || '', obs: a.suppressed_reason || '', resultado: String(a.outcome || '').trim(), base: a.outcome_basis || '' };
+    }).sort(function (a, b) { return ((parseData(b.quando) || 0) - (parseData(a.quando) || 0)) || b.i - a.i; });
+    var recorrentes = L('recorrentes').filter(function (x) { return String(x.emissor || '').trim(); }).map(function (x) {
+      return { emissor: x.emissor, caixa: x.caixa || '', dia: x.dia_tipico || '', valor: x.valor_medio || '', forma: x.forma || '', categoria: x.categoria || '' };
+    });
+
+    var precisa = [
+      { rotulo: urgentes.length === 1 ? 'conta atrasada ou sem confirmação' : 'contas atrasadas ou sem confirmação', n: urgentes.length },
+      { rotulo: semana.length === 1 ? 'conta vence em 7 dias' : 'contas vencem em 7 dias', n: semana.length },
+      { rotulo: 'rateio SKY esperando', n: rateio && rateio.estado === 'aberto' ? 1 : 0 }
+    ];
+    return {
+      itens: abertas.concat(itensRateio),
+      contas: { urgentes: urgentes.map(function (c) { return c.item_id; }), proximas: proximas.map(function (c) { return c.item_id; }), depois: depois.map(function (c) { return c.item_id; }),
+        total: contas.length, abertas: abertas.length, valor_urgente: soma(urgentes), valor_30d: soma(proximas), valor_semana: soma(semana), sem_valor: abertas.filter(function (c) { return c.valor === null; }).length,
+        pagas: pagas.slice(0, 8).map(function (c) { return { emissor: c.emissor, mes_ref: c.mes_ref, valor: c.valor, valor_texto: c.valor_texto, pago_em: c.pago_em, estado_texto: c.estado_texto }; }), pagas_total: pagas.length,
+        consertadas: consertadas },
+      recebidas_soltas: soltas.map(function (r) { return { emissor: r.emissor, caixa: r.caixa, recebido_em: r.recebido_em, valor: r.valor, valor_texto: r.valor_texto, vencimento: r.vencimento, codigo: r.codigo, tipo_codigo: r.tipo_codigo, pdf_fileId: r.pdf_fileId }; }),
+      meses: meses, mes_atual: mesAtual,
+      rateio: rateio ? rateio.item_id : '',
+      fechamentos: tabela('fechamentos'), orcamento: tabela('orcamento'),
+      alertas: alertas.slice(0, 10), alertas_pendentes: alertas.filter(function (a) { return /^pending/i.test(a.resultado); }).length,
+      recorrentes: recorrentes,
+      precisa: { total: precisa.reduce(function (s, p) { return s + p.n; }, 0), partes: precisa }
+    };
+  }
+
+  registrarModuloV3({
+    id: 'financas', rotulo: 'Finanças', agente: 'Assistente Financeiro', chave: 'FINANCAS_INTEGRADO',
+    fontes: {
+      contas: { arquivo: 'Contas.csv', rotulo: 'Contas (Finanças)', obrigatorias: ['emissor', 'mes_ref', 'valor', 'vencimento', 'estado'] },
+      recebidas: { arquivo: 'contas-recebidas.csv', rotulo: 'Contas recebidas (Finanças)', obrigatorias: ['emissor', 'codigo_ou_pix', 'message_id'], opcional: true },
+      lancamentos: { arquivo: 'Lancamentos.csv', rotulo: 'Lançamentos (Finanças)', obrigatorias: ['data', 'categoria', 'essencial', 'tipo', 'valor'] },
+      recorrentes: { arquivo: 'Recorrentes.csv', rotulo: 'Recorrentes (Finanças)', obrigatorias: ['emissor'], opcional: true },
+      rateios: { arquivo: 'Rateios.csv', rotulo: 'Rateios (Finanças)', obrigatorias: ['mes_ref', 'recebidos'], opcional: true },
+      fechamentos: { arquivo: 'Fechamentos.csv', rotulo: 'Fechamentos (Finanças)', obrigatorias: [], opcional: true },
+      orcamento: { arquivo: 'Orcamento.csv', rotulo: 'Orçamento (Finanças)', obrigatorias: [], opcional: true },
+      alertas: { arquivo: 'Alerts.csv', rotulo: 'Alertas (Finanças)', obrigatorias: ['tier'], opcional: true }
+    },
+    decisoes: {
+      conta: {
+        paguei: { rotulo: 'Paguei', estados: ['a_pagar', 'atraso', 'sem_confirmacao', 'outro'], campos: [{ k: 'data', obrigatorio: false, rotulo: 'Data do pagamento' }, { k: 'valor', obrigatorio: false, rotulo: 'Valor pago (R$)' }, { k: 'texto', obrigatorio: false, rotulo: 'Comentário' }], primario: true }
+      },
+      rateio: {
+        recebi_mais_um: { rotulo: 'Recebi de mais um', estados: ['aberto'], campos: [{ k: 'texto', obrigatorio: false, rotulo: 'De quem?' }], primario: true }
+      }
+    },
+    montar: montarFinancas
+  });
+
   /** Todas as decisões que os módulos v3 aceitam. */
   function decisoesV3() {
     var r = [];
@@ -1244,7 +1440,7 @@ var PainelLib = (function () {
   }
 
   /** Versão exibida no topo do painel. Atualize a cada implantação. */
-  var VERSAO_PAINEL = '3.0.0-emails';
+  var VERSAO_PAINEL = '3.0.0-financas';
   var POSTS_INTEGRADOS = false;
   var ESTADOS_DECIDIVEIS = { design: ['entregue'], post: ['rascunho', 'aguardando_aprovo'] };
 
@@ -1327,6 +1523,7 @@ var PainelLib = (function () {
     decisoesComRecibos: decisoesComRecibos,
     montarModulosV3: montarModulosV3,
     conferirDecisaoV3: conferirDecisaoV3,
+    numBr: numBr, tipoCodigo: tipoCodigo, consertarLinha: consertarLinha, canonicoConta: canonicoConta, canonicoRateio: canonicoRateio, ESTADOS_CONTA: ESTADOS_CONTA,
     parseComentarioV3: parseComentarioV3,
     montarComentarioV3: montarComentarioV3,
     classificarComeco: classificarComeco,
