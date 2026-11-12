@@ -88,15 +88,18 @@ function textosDosArquivos_(itens) {
   return r;
 }
 
-/** Lê um CSV por fileId (ou File já achado). Nunca lança: devolve {ok, linhas, erro}. */
+/**
+ * Lê um CSV por fileId (ou File já achado). Nunca lança: devolve {ok, cabecalho, linhas, erro}.
+ * v3.2.0: o cabeçalho segue para a Lib (Finanças usa: conserto de linha do formato atual e hash do rateio no formato novo).
+ */
 function lerCsv_(rotulo, fileId, obrigatorias, semCache) {
-  var r = { rotulo: rotulo, fileId: typeof fileId === 'string' ? fileId : '', ok: false, linhas: [], erro: '', avisos: [], atualizado: '' };
+  var r = { rotulo: rotulo, fileId: typeof fileId === 'string' ? fileId : '', ok: false, cabecalho: [], linhas: [], erro: '', avisos: [], atualizado: '' };
   try {
     var a = lerArquivoTexto_(fileId, semCache);
     r.fileId = a.fileId;
     r.atualizado = a.atualizado; r.nome = a.nome;
     var o = PainelLib.csvParaObjetos(a.texto, obrigatorias);
-    r.linhas = o.linhas; r.avisos = o.avisos; r.ok = true;
+    r.cabecalho = o.cabecalho; r.linhas = o.linhas; r.avisos = o.avisos; r.ok = true;
   } catch (e) {
     r.erro = String(e && e.message || e);
   }

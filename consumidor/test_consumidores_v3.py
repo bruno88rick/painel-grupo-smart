@@ -319,6 +319,24 @@ class TestEmails(Harness):
 # ---------------------------------------------------------------- finanças
 
 class FinancasComum(Harness):
+    def conferir_dois_hashes(self, iid, decisao, h_novo, h_velho):
+        self.assertEqual(self.base["itens"]["financas"][iid]["snapshot_hash"], h_novo)  # o painel grava o novo
+        m = self.modelo()[iid]
+        self.assertEqual((m["snapshot_hash"], m["hashes_alternativos"]), (h_novo, [h_velho]))
+        for n, h in enumerate((h_velho, h_novo)):
+            self.setUp_dec(iid, decisao, h, n)
+            self.assertEqual(self.rodar("--plano", "--teste"), 0)
+            self.assertEqual(len(self.json["acoes"]), 1, h)
+            self.assertEqual(self.json["rejeitadas"], [])
+            self.assertEqual(self.json["acoes"][0]["snapshot_hash"], h)
+        self.setUp_dec(iid, decisao, "0" * 64, 9)
+        self.assertEqual(self.rodar("--plano", "--teste"), 0)
+        self.assertEqual(self.json["rejeitadas"][0]["motivo"], "versão desatualizada")
+
+    def setUp_dec(self, iid, decisao, h, n):
+        self.gws.add(DEC_ID, "d", self.base["decisoes_csv"] + "D-20261112-150000-0000bee%d,2026-11-12T15:00:00-03:00,financas,"
+                     "%s,%s,,,%s,%s,,painel\n" % (n, iid, iid.split(":")[0], h, decisao))
+
     MOD, MOD_CLASSE, NOME = CF, CF.ConsumidorFinancas, "financas"
     ARQ = {"F1": ("contas_fileId", "CONTAS-FILE"), "F2": ("recebidas_fileId", "RECEB-FILE"), "F5": ("rateios_fileId", "RAT-FILE")}
 
@@ -378,8 +396,8 @@ class TestFinancas(FinancasComum):
 
 
     def test_linha_com_valor_sem_aspas(self):
-        """Linha quebrada pela vírgula do valor: o painel publicado faz o hash da linha crua; o consumidor aceita
-        esse hash (e o da linha consertada) e regrava a linha consertada, com aspas."""
+        """Linha quebrada pela vírgula do valor: o painel (v3.2.0) faz o hash da linha consertada; o consumidor aceita
+        também o da linha crua (v3.1.0) e regrava a linha consertada, com aspas."""
         tv = "conta:TV Estrela (minha parte 1/4)|2026-11"
         m = self.modelo()[tv]
         self.assertTrue(m["consertada"])
@@ -395,14 +413,11 @@ class TestFinancas(FinancasComum):
         self.assertNotIn(tv, self.itens_painel())
 
 
-    def test_hash_alternativo_da_lib_aceito(self):
-        tv = "conta:TV Estrela (minha parte 1/4)|2026-11"
-        alt = self.modelo()[tv]["hashes_alternativos"][0]
-        csv_ = self.gws.texto(DEC_ID) + ("D-20261112-150000-0000beef,2026-11-12T15:00:00-03:00,financas,%s,conta,,,%s,paguei,,painel\n"
-                                        % (tv, alt))
-        self.gws.add(DEC_ID, "d", csv_)
-        self.assertEqual(self.rodar("--plano"), 0)
-        self.assertEqual(len(self.json["acoes"]), 1)
+    def test_aceita_hash_v320_e_hash_v310(self):
+        """Linha consertada: hash da v3.2.0 (linha consertada, como no contrato) e o da v3.1.0 (linha crua) valem."""
+        self.conferir_dois_hashes("conta:TV Estrela (minha parte 1/4)|2026-11", "paguei",
+                                  "1aa5159402ba86af1232549d8ff518b209dc880f3767e73b2e617c3b1280d773",
+                                  "94a9d78b93863c62c751b5662244ddc36f0379c7da96181ba425880f1ffe3fa4")
 
 
 
@@ -443,16 +458,11 @@ class TestFinancasFormatoNovo(FinancasComum):
         self.assertNotIn(contas[0], self.itens_painel())
 
 
-    def test_hash_alternativo_da_lib_aceito(self):
-        """Rateio no formato novo: o painel publicado grava o hash de 5 campos; o de 7 (Lib com cabeçalho) também vale."""
-        rid = next(k for k in self.base["itens"]["financas"] if k.startswith("rateio:"))
-        m = self.modelo()[rid]
-        self.assertEqual(m["snapshot_hash"], self.base["itens"]["financas"][rid]["snapshot_hash"])
-        csv_ = self.gws.texto(DEC_ID) + ("D-20261112-150000-0000beef,2026-11-12T15:00:00-03:00,financas,%s,rateio,,,%s,recebi_mais_um,,painel\n"
-                                        % (rid, m["hashes_alternativos"][0]))
-        self.gws.add(DEC_ID, "d", csv_)
-        self.assertEqual(self.rodar("--plano"), 0)
-        self.assertEqual([a["acao"] for a in self.json["acoes"]], ["registrar_rateio_recebido"])
+    def test_aceita_hash_v320_e_hash_v310(self):
+        """Rateio no formato novo: hash de 7 campos (v3.2.0, contrato) e o de 5 (v3.1.0) valem."""
+        self.conferir_dois_hashes("rateio:2026-10", "recebi_mais_um",
+                                  "6ff1894773e2ff47970e3fa90cc8dea57b65809d44d12dca10f2b91143c7673f",
+                                  "02eb4e4f67e2d44ae3270f970573edfe420abefaf3bd43f21e9d9a93ebc03a3d")
 
 
 del FinancasComum  # só as subclasses (formato atual e novo) rodam

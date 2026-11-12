@@ -118,6 +118,7 @@ function comPropostas() {
 test('anuncios: com a chave desligada o servidor não grava nada', () => {
   const a = comPropostas();
   const e = ambiente(a);
+  e.PainelLib.CHAVES.ANUNCIOS_INTEGRADOS = false; // v3.2.0: ligada por padrão; aqui desligada de propósito
   const d = e.obterDados(true);
   assert.equal(d.anuncios.integrados, false);
   const p = d.anuncios.posts.find((x) => x.id === 'P-20261111-01');
@@ -157,7 +158,7 @@ test('anuncios: com a chave ligada grava post e campanha com tipo_item certo; ha
   const d2 = e.obterDados(true);
   assert.equal(d2.anuncios.posts.find((x) => x.id === 'P-20261112-CAT').decisao_pendente.decisao, 'aprovar');
   assert.equal(d2.inicio.decisoes_pendentes.length, 3);
-  e.PainelLib.CHAVES.ANUNCIOS_INTEGRADOS = false;
+  e.PainelLib.CHAVES.ANUNCIOS_INTEGRADOS = true;
 });
 
 test('anuncios: verba maior que a proposta e comentário fora do formato são recusados', () => {
@@ -177,7 +178,7 @@ test('anuncios: verba maior que a proposta e comentário fora do formato são re
   // programação juntada a uma proposta não existe como item próprio
   assert.throws(() => e.salvarDecisao({ modulo: 'anuncios', item_id: 'post:ORG-20261112-01', decisao: 'aprovar', comentario: 'legenda=1', snapshot_hash: 'a'.repeat(64) }), /não existe mais/);
   assert.equal(e.PainelLib.csvParaObjetos(a.DEC.texto).linhas.length, 0);
-  e.PainelLib.CHAVES.ANUNCIOS_INTEGRADOS = false;
+  e.PainelLib.CHAVES.ANUNCIOS_INTEGRADOS = true;
 });
 
 test('v2.0.1 cache: tela anterior sai na hora marcada como desatualizada; leitura forçada traz a nova', () => {

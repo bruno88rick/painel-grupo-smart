@@ -52,7 +52,9 @@ test('emails: estado livre classificado pelo começo do texto', () => {
 });
 
 test('emails: grupos por conta e pasta, lotes, pendências, alertas e contagem do Início', () => {
-  const s = montar();
+  L.CHAVES.EMAILS_INTEGRADO = false; // v3.2.0: ligada por padrão; aqui desligada de propósito
+  let s;
+  try { s = montar(); } finally { L.CHAVES.EMAILS_INTEGRADO = true; }
   assert.equal(s.integrado, false);
   assert.equal(s.grupos, 12);
   assert.equal(s.emails_propostos, 53);
@@ -127,6 +129,7 @@ test('emails: hash canônico de grupo e de pendência (vetores do contrato)', ()
 
 test('emails no servidor: chave false recusa gravar e não toca no decisoes.csv', () => {
   const e = ambiente(arquivosBase());
+  e.PainelLib.CHAVES.EMAILS_INTEGRADO = false; // v3.2.0: ligada por padrão; aqui desligada de propósito
   const d = e.obterDados(true);
   assert.ok(d.fontes.filter((f) => /E-mails/.test(f.rotulo)).length === 4 && d.fontes.filter((f) => /E-mails/.test(f.rotulo)).every((f) => f.ok), JSON.stringify(d.fontes));
   const s = d.v3.emails;
@@ -169,5 +172,5 @@ test('emails no servidor: chave true grava grupo e pendência; recusa obsoleta, 
     // as pendências aparecem nos itens
     const d2 = e.obterDados(true);
     assert.equal(d2.v3.emails.itens.find((i) => i.item_id === g.item_id).decisao_pendente.decisao, 'recusar');
-  } finally { e.PainelLib.CHAVES.EMAILS_INTEGRADO = false; }
+  } finally { e.PainelLib.CHAVES.EMAILS_INTEGRADO = true; }
 });

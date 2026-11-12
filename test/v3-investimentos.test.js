@@ -92,6 +92,7 @@ test('investimentos: hash canônico do aporte (vetor do contrato)', () => {
 
 test('investimentos no servidor: chave false recusa gravar e não toca no decisoes.csv', () => {
   const e = ambiente(arquivosBase());
+  e.PainelLib.CHAVES.INVESTIMENTOS_INTEGRADO = false; // v3.2.0: ligada por padrão; aqui desligada de propósito
   const d = e.obterDados(true);
   const f8 = d.fontes.filter((f) => /Investimentos/.test(f.rotulo));
   assert.ok(f8.length === 8 && f8.every((f) => f.ok), JSON.stringify(f8));
@@ -126,7 +127,7 @@ test('investimentos no servidor: chave true grava "fiz o aporte" (data, valor e 
     e.arquivos.I5.texto = e.arquivos.I5.texto.replace(',pessoal,planejado (primeiro aporte da reserva; aguardando o usuário)', ',pessoal,confirmado 12/11');
     assert.throws(() => e.salvarDecisao({ modulo: 'investimentos', item_id: x.item_id, decisao: 'nao_fiz', comentario: '', snapshot_hash: x.snapshot_hash }), /não existe mais/);
     assert.equal(e.obterDados(true).v3.investimentos.precisa.total, 0);
-  } finally { e.PainelLib.CHAVES.INVESTIMENTOS_INTEGRADO = false; }
+  } finally { e.PainelLib.CHAVES.INVESTIMENTOS_INTEGRADO = true; }
 });
 
 test('investimentos: "não fiz" com motivo opcional é aceito com a chave ligada', () => {
@@ -136,5 +137,5 @@ test('investimentos: "não fiz" com motivo opcional é aceito com a chave ligada
     const x = e.obterDados(true).v3.investimentos.itens[0];
     assert.equal(e.salvarDecisao({ modulo: 'investimentos', item_id: x.item_id, decisao: 'nao_fiz', comentario: 'texto=sem saldo este mês', snapshot_hash: x.snapshot_hash }).ok, true);
     assert.equal(e.PainelLib.csvParaObjetos(e.arquivos.DEC.texto).linhas[0].decisao, 'nao_fiz');
-  } finally { e.PainelLib.CHAVES.INVESTIMENTOS_INTEGRADO = false; }
+  } finally { e.PainelLib.CHAVES.INVESTIMENTOS_INTEGRADO = true; }
 });
