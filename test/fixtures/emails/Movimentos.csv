@@ -1,0 +1,281 @@
+message_id,conta,pasta,motivo,proposto_em,estado
+94539d29f5c67284,Google,Newsletters e Notícias,Radar Voos,2026-11-06T15:20-03:00,"movido 2026-11-06 | duplicado: id de conector, ver linha do Mac"
+88369fe78ebe68dd,Google,Promoções,Mercado Notícias,2026-11-06T15:20-03:00,"movido 2026-11-06 | duplicado: id de conector, ver linha do Mac"
+5b6c52452ecf8345,Google,Promoções,Café Cápsula,2026-11-06T15:20-03:00,"movido 2026-11-06 | duplicado: id de conector, ver linha do Mac"
+6727ffd48fa976f5,Google,Promoções,Roupa Básica,2026-11-06T15:20-03:00,"movido 2026-11-06 | duplicado: id de conector, ver linha do Mac"
+ac643934c390fb93,Google,Newsletters e Notícias,App Atalhos,2026-11-06T15:20-03:00,"movido 2026-11-06 | duplicado: id de conector, ver linha do Mac"
+31da5147227c3763,Google,Newsletters e Notícias,Jornal Tech,2026-11-06T15:20-03:00,"movido 2026-11-06 | duplicado: id de conector, ver linha do Mac"
+SKQHzOCm4J==,Exchange,Serviços e Notificações,Boas-vindas Plataforma IA Plus,2026-11-06T15:20-03:00,movido 2026-11-06 do Lixo Eletrônico
+BUBzePbeTk==,Exchange,Contas e Faturas,"1º aviso PagaFácil, duplicado do 2º que fica na entrada",2026-11-06T15:20-03:00,"movido 2026-11-06 | duplicado: id de conector, ver linha do Mac"
+5zHbZDfjpD==,Exchange,Promoções,Milhas Mais,2026-11-06T15:20-03:00,"movido 2026-11-06 | duplicado: id de conector, ver linha do Mac"
+eYJbH97PX8H=,Exchange,Promoções,Clube da Cerveja,2026-11-06T15:20-03:00,"fora da entrada: já em Promoções | duplicado: id de conector, ver linha do Mac"
+60ijy6ZXDN==,Exchange,Serviços e Notificações,Código Barra já vencido,2026-11-06T15:20-03:00,"fora da entrada: já em Itens Excluídos | duplicado: id de conector, ver linha do Mac"
+2ndMEecwXqk=,Exchange,Promoções,Compra Boa,2026-11-06T15:20-03:00,"fora da entrada: já em Promoções | duplicado: id de conector, ver linha do Mac"
+A3m93qzOJ1c=,Exchange,Promoções,Roupa Básica,2026-11-06T15:20-03:00,"fora da entrada: já em Promoções | duplicado: id de conector, ver linha do Mac"
+fMXI9vPLZs==,Exchange,Possíveis Golpes,"Domínio estranho, 'restore access now', imita aviso de backup",2026-11-06T15:20-03:00,"fora da entrada: já em Lixo Eletrônico | duplicado: id de conector, ver linha do Mac"
+nROX9ACg2Z==,Exchange,RN Sports,Formulário do site,2026-11-06T15:20-03:00,"movido 2026-11-06 | duplicado: id de conector, ver linha do Mac"
+12z5REDQLc0=,Exchange,Promoções,Aérea Sul,2026-11-06T15:20-03:00,"fora da entrada: já em Promoções | duplicado: id de conector, ver linha do Mac"
+6FrCGFqObD5=,Exchange,Newsletters e Notícias,Jornal Negócios,2026-11-06T15:20-03:00,"fora da entrada: já em Newsletters e Notícias | duplicado: id de conector, ver linha do Mac"
+JpDfoe6xtQ==,Exchange,Possíveis Golpes,"Remetente desconhecido 'campanhas-exemplo', assunto genérico 'Importante'",2026-11-06T15:20-03:00,"movido 2026-11-06 | duplicado: id de conector, ver linha do Mac"
+SO6l8HkbkA==,Exchange,Promoções,"Acordo Fácil, oferta (regra: oferta tipo Cadastro Nacional = Promoções)",2026-11-06T15:20-03:00,"movido 2026-11-06 | duplicado: id de conector, ver linha do Mac"
+ZR52kGvAezI=,Exchange,Promoções,Engenharia,2026-11-06T15:20-03:00,"fora da entrada: já em Cursos e Educação (regra Outlook) | duplicado: id de conector, ver linha do Mac"
+gGBtyTgpKP==,Exchange,Promoções,Eletrônicos,2026-11-06T15:20-03:00,"fora da entrada: já em Lixo Eletrônico | duplicado: id de conector, ver linha do Mac"
+6dle44SKtC1=,Exchange,Promoções,Eletrodomésticos,2026-11-06T15:20-03:00,"fora da entrada: já em Promoções | duplicado: id de conector, ver linha do Mac"
+JUGxDfoXoMv=,Exchange,Promoções,Loja Fácil,2026-11-06T15:20-03:00,"fora da entrada: já em Promoções | duplicado: id de conector, ver linha do Mac"
+Fiq8oI4AO4f=,Exchange,Promoções,Loja Drones,2026-11-06T15:20-03:00,"fora da entrada: já em Promoções | duplicado: id de conector, ver linha do Mac"
+E9k5cxGaxfPxDAPurAmlwD@mtaaa7.exemplo.net,Exchange,Promoções,oferta,2026-11-06T15:20,"movido (execução anterior, após sim)"
+R9WGxVNHqYX8SULR4KO5@mta6bd.exemplo.net,Exchange,RN Sports,formulário do site,2026-11-06T15:20,"movido (execução anterior, após sim)"
+1IB1q79TsgRNbheo5LHUxC@mtae1b.exemplo.net,Exchange,Possíveis Golpes,nome de banco com domínio de envio diferente e assunto vago,2026-11-06T15:20,"movido (execução anterior, após sim)"
+9GY9naZPB6l8PUDGMnMK4m@mta832.exemplo.net,Exchange,Promoções,oferta de renegociação,2026-11-06T15:20,"movido (execução anterior, após sim)"
+o484Gs351WRfokdEFCHXnz@mtabf8.exemplo.net,Exchange,Promoções,oferta,2026-11-06T15:20,proposto
+lX7yIXNkFE25JWkSHPe1Um@mtaa49.exemplo.net,iCloud,Promoções,oferta de banco,2026-11-06T15:20,movido 2026-11-06
+1rVnoKUAjNKxodo2CgZsB9@mta920.exemplo.net,iCloud,Compras e Pedidos,entrega concluída,2026-11-06T15:20,movido 2026-11-06
+ZaDtVAaQCzggRGi4HwaXSx@mta4d1.exemplo.net,iCloud,Redes Sociais,notificação,2026-11-06T15:20,movido 2026-11-06
+LemarVmeByjHaFd91pXgEe@mtad9c.exemplo.net,iCloud,Newsletters e Notícias,boletim do marketplace,2026-11-06T15:20,movido 2026-11-06
+BBQNNQlfpQAmWcM6Us4fAd@mta82b.exemplo.net,iCloud,Promoções,oferta,2026-11-06T15:20,movido 2026-11-06
+7dRqH5zVBvdd5hJw1u9EzB@mtad44.exemplo.net,Google,Newsletters e Notícias,newsletter,2026-11-06T15:20,movido no Correio Web (execução anterior); Mac ainda mostra na entrada
+Pd4U7Alh45aHWAKd1xv4I4@mta86e.exemplo.net,Google,Promoções,oferta de produto,2026-11-06T15:20,movido no Correio Web (execução anterior); Mac ainda mostra na entrada
+FmMhBa4a1FQAcPmJT4rX@mtaf68.exemplo.net,Google,Promoções,oferta,2026-11-06T15:20,movido no Correio Web (execução anterior); Mac ainda mostra na entrada
+GFEUYb1PXysvOKVYk72Bxz@mtacaa.exemplo.net,Google,Promoções,oferta,2026-11-06T15:20,movido no Correio Web (execução anterior); Mac ainda mostra na entrada
+JGP3EaQBoGtxDnvtHeGOmT@mta3ba.exemplo.net,Google,Newsletters e Notícias,newsletter,2026-11-06T15:20,movido no Correio Web (execução anterior); Mac ainda mostra na entrada
+K8g5zsrkT3NIwtMX66wjLE@mta562.exemplo.net,Google,Newsletters e Notícias,newsletter,2026-11-06T15:20,movido no Correio Web (execução anterior); Mac ainda mostra na entrada
+lX7yIXNkFE25JWkSHPe1Um@mtaa49.exemplo.net,iCloud,Promoções,Banco Alfa sorteio,2026-11-06T16:10-03:00,movido 2026-11-06
+aLxRbufdwcUPHKCSId8Pnl@mta548.exemplo.net,iCloud,Contas e Faturas,"1º aviso Banco Alfa, duplicado",2026-11-06T16:10-03:00,movido 2026-11-06
+1rVnoKUAjNKxodo2CgZsB9@mta920.exemplo.net,iCloud,Compras e Pedidos,Mercado Delta entregue,2026-11-06T16:10-03:00,movido 2026-11-06
+ZaDtVAaQCzggRGi4HwaXSx@mta4d1.exemplo.net,iCloud,Redes Sociais,Rede de Fotos,2026-11-06T16:10-03:00,movido 2026-11-06
+LemarVmeByjHaFd91pXgEe@mtad9c.exemplo.net,iCloud,Newsletters e Notícias,Varejo Marketplace para vendedor,2026-11-06T16:10-03:00,movido 2026-11-06
+BBQNNQlfpQAmWcM6Us4fAd@mta82b.exemplo.net,iCloud,Promoções,Rede Hotéis,2026-11-06T16:10-03:00,movido 2026-11-06
+outlook:lojaf4a-2026-11-06T23:36Z|Aviso de atualização de cadastro,Exchange,Promoções,oferta de renegociação,2026-11-07T14:55-03:00,movido 2026-11-07
+outlook:loja9dc-2026-11-07T01:14Z|Unlock Enterprise Pro features,Exchange,Promoções,oferta,2026-11-07T14:55-03:00,movido 2026-11-07
+outlook:loja010-2026-11-07T05:33Z|Revise sua entrega recorrente,Exchange,Compras e Pedidos,Agende e Poupe; sem ação,2026-11-07T14:55-03:00,movido 2026-11-07
+outlook:loja45b-2026-11-07T09:26Z|Tem um registro importante no seu nome,Exchange,Promoções,oferta de renegociação,2026-11-07T14:55-03:00,movido 2026-11-07
+outlook:loja72f-2026-11-07T11:02Z|Pedidos de ingresso de ontem,Exchange,RN Sports,relatório,2026-11-07T14:55-03:00,movido 2026-11-07
+outlook:loja523-2026-11-07T11:22Z|Pedidos de ingresso por evento 30 dias,Exchange,RN Sports,relatório,2026-11-07T14:55-03:00,movido 2026-11-07
+outlook:loja3dd-2026-11-07T11:29Z|Visão geral das vendas do site,Exchange,RN Sports,relatório,2026-11-07T14:55-03:00,movido 2026-11-07
+outlook:lojaa6f-2026-11-07T11:34Z|Como está seu Score,Exchange,Promoções,oferta Cadastro Nacional,2026-11-07T14:55-03:00,movido 2026-11-07
+outlook:loja2d1-2026-11-07T11:35Z|Your Home Consultation,Exchange,Promoções,propaganda,2026-11-07T14:55-03:00,movido 2026-11-07
+outlook:lojae0f-2026-11-07T12:42Z|Seu Auxílio Desendivida foi aprovado,Exchange,Promoções,oferta de renegociação,2026-11-07T14:55-03:00,movido 2026-11-07
+outlook:loja42d-2026-11-07T12:49Z|Mais um envio de Form Login Personalizado,Exchange,RN Sports,formulário do site,2026-11-07T14:55-03:00,movido 2026-11-07
+outlook:lojad30-2026-11-07T14:00Z|Aniversário de Edu Rafael (08/11),Exchange,Lembretes e Aniversários,lembrete,2026-11-07T14:55-03:00,movido 2026-11-07
+outlook:lojad30-2026-11-07T14:00Z|Aniversário de Wagner Drumond (08/11),Exchange,Lembretes e Aniversários,lembrete,2026-11-07T14:55-03:00,movido 2026-11-07
+outlook:loja1bd-2026-11-07T14:41Z|Você recebeu acesso a nossa caixa-preta,Exchange,Promoções,oferta de renegociação,2026-11-07T14:55-03:00,movido 2026-11-07
+outlook:lojad98.com-2026-11-07T15:14Z|Domínio fotosexemplo .com,Exchange,Possíveis Golpes,cobrança falsa de registro de domínio,2026-11-07T14:55-03:00,movido 2026-11-07
+outlook:lojae14-2026-11-07T15:55Z|5 ways to clear clutter,Exchange,Newsletters e Notícias,newsletter,2026-11-07T14:55-03:00,movido 2026-11-07
+outlook:lojaa19-2026-11-07T16:02Z|Chegou o Loja Grande Crédito,Exchange,Promoções,oferta,2026-11-07T14:55-03:00,movido 2026-11-07
+outlook:loja8d4-2026-11-07T16:55Z|Volte a movimentar sua conta Select,Exchange,Promoções,oferta de banco,2026-11-07T14:55-03:00,movido 2026-11-07
+outlook:loja809-2026-11-07T16:56Z|A conta Select tem todo tipo de solução,Exchange,Promoções,oferta de banco,2026-11-07T14:55-03:00,movido 2026-11-07
+gmail:c6e9284f015e2cdf,Google,Promoções,ROUPA BÁSICA: Members cashback,2026-11-07T14:55-03:00,movido 2026-11-07
+gmail:bef92e24d75a0b82,Google,Newsletters e Notícias,Jornal Tech: Will Democrats Crush Data Centers?,2026-11-07T14:55-03:00,movido 2026-11-07
+gmail:42ffcc8c2e1f6827,Google,Promoções,ROUPA BÁSICA: Daily T-Shirt,2026-11-07T14:55-03:00,movido 2026-11-07
+gmail:0fca941a3fa13557,Google,Promoções,Farmácia Um: Oferta do Dia,2026-11-07T14:55-03:00,movido 2026-11-07
+gmail:a7bffbe7d7041ea7,Google,Promoções,Montadora: Connect Me,2026-11-07T14:55-03:00,movido 2026-11-07
+gmail:55cf8b51868428b7,Google,Promoções,Software Gráfico: Black Friday Desenho Pro,2026-11-07T14:55-03:00,movido 2026-11-07
+gmail:72d381a71b5ae28b,Google,Serviços e Notificações,Perfil de Empresa: Relatório outubro Sítio Exemplo,2026-11-07T14:55-03:00,movido 2026-11-07
+gmail:e813cc11841c25c9,Google,Serviços e Notificações,Perfil de Empresa: Relatório outubro Produtora Exemplo,2026-11-07T14:55-03:00,movido 2026-11-07
+gmail:facea12036642907,Google,Promoções,Agência Notícias: Free access ended,2026-11-07T14:55-03:00,movido 2026-11-07
+gmail:2fd051a74f7c0607,Google,Newsletters e Notícias,Blog Diário: Daily Digest,2026-11-07T14:55-03:00,movido 2026-11-07
+gmail:15ffa5418b2d8fbe,Google,Cursos e Educação,Cursos Online: Choose your first course,2026-11-07T14:55-03:00,movido 2026-11-07
+gmail:bdc4e864347934ff,Google,Promoções,Viagens Online: 11.11 Mega Sale,2026-11-07T14:55-03:00,movido 2026-11-07
+gmail:f77374a681b5463a,Google,Serviços e Notificações,Portal Dev: Correção sobre clientes OAuth,2026-11-07T14:55-03:00,movido 2026-11-07
+gmail:4dd7c492b35ea610,Google,Promoções,ROUPA BÁSICA: Últimas horas 42% OFF,2026-11-07T14:55-03:00,movido 2026-11-07
+gmail:dd87cbbb1c8105fe,Google,Serviços e Notificações,Mapas Trânsito: Bem-vindo ao Mapas Trânsito,2026-11-07T14:55-03:00,movido 2026-11-07
+gmail:c865921f80f5ebe7,Google,Serviços e Notificações,Buscador: Dados compartilhados com Mapas Trânsito,2026-11-07T14:55-03:00,movido 2026-11-07
+icloud:lote-2026-11-07|Promoções,iCloud,Promoções,14 e-mails por regras no Mac,2026-11-07T15:45-03:00,movido 2026-11-07
+icloud:lote-2026-11-07|Finanças e Bancos,iCloud,Finanças e Bancos,7 e-mails por regras no Mac,2026-11-07T15:45-03:00,movido 2026-11-07
+icloud:lote-2026-11-07|Cursos e Educação,iCloud,Cursos e Educação,2 e-mails por regras no Mac,2026-11-07T15:45-03:00,movido 2026-11-07
+icloud:lote-2026-11-07|Redes Sociais,iCloud,Redes Sociais,1 e-mails por regras no Mac,2026-11-07T15:45-03:00,movido 2026-11-07
+icloud:lote-2026-11-07|Newsletters e Notícias,iCloud,Newsletters e Notícias,1 e-mails por regras no Mac,2026-11-07T15:45-03:00,movido 2026-11-07
+gmail:9c44adb1884ce24a,Google,Promoções,Loja China: 11.11 Sale,2026-11-08T06:30-03:00,movido 2026-11-08
+gmail:75d4ca363fee8bcc,Google,Promoções,Liga Futebol: Decision Day,2026-11-08T06:30-03:00,movido 2026-11-08
+gmail:f7a6f4b3854819ab,Google,Promoções,App Correio: oferta Pro,2026-11-08T06:30-03:00,movido 2026-11-08
+gmail:404e2cccf6a26ab6,Google,Newsletters e Notícias,Mercado Notícias: ideias de investimento,2026-11-08T06:30-03:00,movido 2026-11-08
+gmail:e3a733188d51aa89,Google,Newsletters e Notícias,Mercado Notícias: Daily Digest,2026-11-08T06:30-03:00,movido 2026-11-08
+outlook:9ftlAQGw8LnQsBTNDeo6Tx==,Exchange,Serviços e Notificações,Plataforma IA: link de login,2026-11-08T06:30-03:00,movido 2026-11-08
+outlook:4adSOHXea680DnIDFPSwCM==,Exchange,Serviços e Notificações,Domínios Já: desempenho do site,2026-11-08T06:30-03:00,movido 2026-11-08
+outlook:yRaeFgDtRdwvD8VdxekBog==,Exchange,Promoções,Aérea Céu: ofertas,2026-11-08T06:30-03:00,movido 2026-11-08
+outlook:KGNMTqSP0KgXBrvkcKaDA0==,Exchange,Promoções,Acordo Fácil: oferta de renegociação,2026-11-08T06:30-03:00,movido 2026-11-08
+icloud:lote-2026-11-08|RN Sports,iCloud,RN Sports,2 e-mails por regras no Mac,2026-11-08T06:30-03:00,movido 2026-11-08
+icloud:lote-2026-11-08|Promoções,iCloud,Promoções,1 e-mail por regras no Mac,2026-11-08T06:30-03:00,movido 2026-11-08
+gmail:9d700373b7314c84,Google,Promoções,Loja 3D: pesquisa de experiência com recompensa · propaganda,2026-11-08T14:05-03:00,movido 2026-11-09
+gmail:36d3103aef25d8be,Google,Promoções,Montadora: Connect Me · propaganda,2026-11-08T14:05-03:00,movido 2026-11-09
+outlook:p3V9G974OKsSbFth3BM6Cj==,Exchange,Serviços e Notificações,"Conferir: Contêiner App: boas-vindas, conta criada · nova conta; confirme se foi você",2026-11-08T14:05-03:00,movido 2026-11-09
+outlook:oK0CJrsWnRqf2XyJNQqoJ0==,Exchange,Promoções,Reclamações: reclamação mais simples no app · propaganda,2026-11-08T14:05-03:00,movido 2026-11-09
+outlook:oZtdS0sEdZdET82uXsH0HA==,Exchange,Lembretes e Aniversários,Lembrete: aniversário de Rafael Fictício (09/11) · lembrete,2026-11-08T14:05-03:00,movido 2026-11-09
+outlook:eDWmOzZ2put0tEeuLVB2nJ==,Exchange,Promoções,"Milhas Mais: Aérea Sul Friday, mais milhas · propaganda",2026-11-08T14:05-03:00,movido 2026-11-09
+icloud:lote-2026-11-08T14|Promoções,iCloud,Promoções,3 e-mails por regras no Mac,2026-11-08T14:05-03:00,movido 2026-11-09 (lote substituído)
+outlook:gE95rFrHhIZJSzrFlK4dXi==,Exchange,Serviços e Notificações,Conferir: Empresa Software: novo login detectado na conta · aviso de segurança,2026-11-08T15:10-03:00,movido 2026-11-09
+outlook:JUJapigHescGMMeTaPlanz==,Exchange,Promoções,Aula Finanças: confirme dados para a Black · propaganda,2026-11-08T15:10-03:00,movido 2026-11-09
+gmail:fa84b5977454bdca,Google,Newsletters e Notícias,Mercado Notícias: ProPicks IA · newsletter,2026-11-08T15:10-03:00,movido 2026-11-09
+gmail:c6f595cc77a204e6,Google,Promoções,Farmácia Dois: hits do autocuidado · propaganda,2026-11-09T06:35-03:00,movido 2026-11-09
+gmail:90d4b26bf896b754,Google,Newsletters e Notícias,Jornal Tech: Briefing sobre a Motor Jogos · newsletter,2026-11-09T06:35-03:00,movido 2026-11-09
+gmail:842f3346f33e96ce,Google,Cursos e Educação,Cursos Online: comece um curso grátis · divulgação,2026-11-09T06:35-03:00,movido 2026-11-09
+gmail:778bf85afddb9ea4,Google,Promoções,"Corrida Plus: Mercedes campeã, ofertas · propaganda",2026-11-09T06:35-03:00,movido 2026-11-09
+outlook:I6tJW8dkg4wMRBg1JmGPqN==,Exchange,Serviços e Notificações,Conferir: Plataforma IA: link de login 08/11 15:29,2026-11-09T06:35-03:00,movido 2026-11-09
+outlook:FoX1fBRu1xoAjAs1w0upLA==,Exchange,Promoções,Modelos 3D: plano vitalício · propaganda,2026-11-09T06:35-03:00,movido 2026-11-09
+outlook:ilibRFpc7aMkv0ATdpQkrf==,Exchange,Serviços e Notificações,Conferir: Repositório Git: proposta no projeto_exemplo,2026-11-09T06:35-03:00,movido 2026-11-09
+icloud:lote-2026-11-09|Promoções,iCloud,Promoções,6 e-mails por regras no Mac,2026-11-09,movido 2026-11-09
+icloud:lote-2026-11-09|Compras e Pedidos,iCloud,Compras e Pedidos,1 e-mails por regras no Mac,2026-11-09,movido 2026-11-09
+icloud:lote-2026-11-09|Cursos e Educação,iCloud,Cursos e Educação,1 e-mails por regras no Mac,2026-11-09,movido 2026-11-09
+icloud:lote-2026-11-09|Finanças e Bancos,iCloud,Finanças e Bancos,1 e-mails por regras no Mac,2026-11-09,movido 2026-11-09
+gmail:f43f2f40f326991e,Google,Promoções,Café Cápsula: oferta relâmpago 50% · propaganda,2026-11-09T14:20-03:00,movido 2026-11-10
+gmail:d8b2d57427828f6b,Google,Contas e Faturas,"Maçã Store: recibo de compra · recibo, já pago",2026-11-09T14:20-03:00,movido 2026-11-10
+gmail:8571f4f0f2ab727d,Google,Promoções,Farmácia Dois: cupom pronto · propaganda,2026-11-09T14:20-03:00,movido 2026-11-10
+gmail:886bc1970bec141b,Google,Promoções,Farmácia Um: oferta do dia · propaganda,2026-11-09T14:20-03:00,movido 2026-11-10
+gmail:ef1284b9af3a5e9b,Google,RN Sports,Esportes Exemplo: calendário esportivo 2026 e 2027 · comunicado da Esportes Exemplo,2026-11-09T14:20-03:00,movido 2026-11-10
+gmail:f108f15ecb963935,Google,Promoções,Montadora: Connect Me · propaganda,2026-11-09T14:20-03:00,movido 2026-11-10
+gmail:655b1da0768a5909,Google,Promoções,Software Gráfico: preços de Black Friday · propaganda,2026-11-09T14:20-03:00,movido 2026-11-10
+outlook:tDrBSUES6W9SBnHFIECbvJ==,Exchange,Promoções,Modelos 3D: Drop #382 · propaganda,2026-11-09T14:20-03:00,recusado 2026-11-10 (usuário: menos Modelos 3D)
+outlook:u9r5sQIgjpggibXCmQ76m5==,Exchange,Promoções,Notebooks: ofertas do 11/11 · propaganda,2026-11-09T14:20-03:00,movido 2026-11-10
+outlook:LdXa7EbqsvwIkYhYhu6N9H==,Exchange,Promoções,SiteFácil Studio: evento ao vivo amanhã · divulgação,2026-11-09T14:20-03:00,movido 2026-11-10
+outlook:r4HmDyogFzVMkIBV8330il==,Exchange,Lembretes e Aniversários,Lembrete: aniversário de Lucas Teste · lembrete,2026-11-09T14:20-03:00,já fora da entrada 2026-11-10
+icloud:lote-2026-11-10|Promoções,iCloud,Promoções,9 e-mails por regras no Mac,2026-11-10,aguardando novo sim (entrada mudou)
+icloud:lote-2026-11-10|Cursos e Educação,iCloud,Cursos e Educação,1 e-mails por regras no Mac,2026-11-10,aguardando novo sim (entrada mudou)
+icloud:lote-2026-11-10|Newsletters e Notícias,iCloud,Newsletters e Notícias,1 e-mails por regras no Mac,2026-11-10,aguardando novo sim (entrada mudou)
+icloud:lote-2026-11-10|Finanças e Bancos,iCloud,Finanças e Bancos,1 e-mails por regras no Mac,2026-11-10,aguardando novo sim (entrada mudou)
+icloud:lote-2026-11-10b|Promoções,iCloud,Promoções,3 e-mails por regras no Mac,2026-11-10,movido 2026-11-10
+gmail:60b1480d2e925dc8,Google,Serviços e Notificações,Conferir: Buscador: alerta de segurança · aviso de segurança da conta,2026-11-10T14:10-03:00,movido 2026-11-11
+gmail:d406ea6c20b602f6,Google,Redes Sociais,Conferir: Rede Social: novo login perto de Cidade Exemplo · confirmar se foi você,2026-11-10T14:10-03:00,movido 2026-11-11
+gmail:149a9ebe9291d576,Google,Serviços e Notificações,Conferir: Buscador: dados compartilhados com Rede Social · acesso de app à conta,2026-11-10T14:10-03:00,movido 2026-11-11
+gmail:94532a22c92b918e,Google,Promoções,Café Cápsula: oportunidades especiais · propaganda,2026-11-10T14:10-03:00,movido 2026-11-11
+gmail:36b7725052361bfd,Google,Newsletters e Notícias,Jornal Tech: The Briefing · newsletter,2026-11-10T14:10-03:00,movido 2026-11-11
+gmail:e6bc62a6ec32050e,Google,Promoções,Loja China: 11.11 últimas 48 horas · propaganda,2026-11-10T14:10-03:00,movido 2026-11-11
+gmail:ac32627b3ab2348c,Google,Newsletters e Notícias,Jornal Tech AM: notícias do dia · newsletter,2026-11-10T14:10-03:00,movido 2026-11-11
+gmail:d843871e9f0550f3,Google,Newsletters e Notícias,Agência Tech: notícias de tecnologia · newsletter,2026-11-10T14:10-03:00,movido 2026-11-11
+gmail:3cbcd43482e4f8fc,Google,Promoções,Montadora: Connect Me · propaganda,2026-11-10T14:10-03:00,movido 2026-11-11
+gmail:2e935a2faf208fc3,Google,Newsletters e Notícias,Notificações App: artigo sobre engajamento · newsletter,2026-11-10T14:10-03:00,movido 2026-11-11
+gmail:55bea1f547f99cbd,Google,Contas e Faturas,"Maçã Store: recibo de compra · recibo, já pago",2026-11-10T14:10-03:00,movido 2026-11-11
+gmail:8c4bcd245e08cb46,Google,Promoções,Hotéis Online: mais 10% OFF · propaganda,2026-11-10T14:10-03:00,movido 2026-11-11
+outlook:YsOY7i4i4BPz54G4jIpTpa==,Exchange,Serviços e Notificações,Conferir: Buscador: alerta de segurança da conta Correio Web · aviso de segurança,2026-11-10T14:10-03:00,movido 2026-11-11
+outlook:4rNFruY22EHuZXtPnBNeBu==,Exchange,Promoções,TV Satélite: programação favorita · propaganda,2026-11-10T14:10-03:00,movido 2026-11-11
+outlook:w3PxM6I8IE7cyF5OQ94z8G==,Exchange,Promoções,SiteFácil: prêmio Symphony · divulgação,2026-11-10T14:10-03:00,movido 2026-11-11
+outlook:y5Pbt6C9BuaB6Fmjo8OqzR==,Exchange,Serviços e Notificações,"Repositório Git: casa-auto, atualização de dependências · notificação",2026-11-10T14:10-03:00,movido 2026-11-11
+outlook:Mwex6ApEelXNrAKnyFLLOo==,Exchange,Serviços e Notificações,"Repositório Git: casa-auto, atualização de dependências · notificação",2026-11-10T14:10-03:00,movido 2026-11-11
+outlook:2fHF5BxDoPFwFslMRRA0QP==,Exchange,Serviços e Notificações,Repositório Git: resposta em casa-auto · notificação,2026-11-10T14:10-03:00,movido 2026-11-11
+outlook:7Cvb1TItJt4PE4C34qISuG==,Exchange,Serviços e Notificações,Repositório Git: resposta em casa-auto · notificação,2026-11-10T14:10-03:00,movido 2026-11-11
+outlook:fuALAJmg1iWIDbRrXX3671==,Exchange,Promoções,Domínios Já: lembrete para finalizar pedido · propaganda,2026-11-10T14:10-03:00,movido 2026-11-11
+outlook:srfjCphzRPGEHDY03jiQT6==,Exchange,Newsletters e Notícias,Plataforma IA: Plataforma IA e ChatGPT · newsletter,2026-11-10T14:10-03:00,recusado 2026-11-11 (usuário: menos Plataforma IA)
+outlook:Deh1Ak1Agv2N294PGAvfPc==,Exchange,Promoções,Orçamento Janelas: Re: your inquiry · propaganda com falso Re:,2026-11-10T14:10-03:00,movido 2026-11-11
+outlook:n0uqCRpJNezlWBelFp12vQ==,Exchange,Contas e Faturas,"Álbum Online: nota fiscal disponível · nota fiscal, já pago",2026-11-10T14:10-03:00,movido 2026-11-11
+outlook:BYWOQE5sH0Ds3QLUn1eySI==,Exchange,Serviços e Notificações,Conferir: TagPedágio: atualize o cartão da recarga · pagamento pode falhar,2026-11-10T14:10-03:00,movido 2026-11-11
+outlook:huPCnZTfjHkEcW6Dhx3FFg==,Exchange,Serviços e Notificações,Nuvem Arquivos: lembranças desse dia · notificação,2026-11-10T14:10-03:00,movido 2026-11-11
+outlook:QBSwj0pmBrb3oqSWLgsL9F==,Exchange,RN Sports,Conferir: Esportes Exemplo: formulário Contato de visitante · pode pedir resposta,2026-11-10T14:10-03:00,movido 2026-11-11
+outlook:UnigZ1VDjasihGWoBrAebS==,Exchange,Promoções,Meu Acordo: resgatar bônus · propaganda,2026-11-10T14:10-03:00,movido 2026-11-11
+outlook:8zMMhF4VfYlm0fpCskTA74==,Exchange,Compras e Pedidos,Conferir: Loja Grande: entrega recorrente cancelada · mudança em pedido,2026-11-10T14:10-03:00,movido 2026-11-11
+outlook:3t1UVUfVmvh3VQ0x2eKZNN==,Exchange,Contas e Faturas,Conferir: TV Satélite: escolher nova data da Fibra · possível cobrança,2026-11-10T14:10-03:00,movido 2026-11-11
+outlook:UCJlCa3xeZ8EfoE44hTmSx==,Exchange,Finanças e Bancos,Banco Laranja: limite da conta evoluiu · aviso do banco,2026-11-10T14:10-03:00,movido 2026-11-11
+outlook:AiZeH6AbYSayy1M7unHsZV==,Exchange,Finanças e Bancos,Conferir: Acordo Fácil: cobrança extrajudicial no CPF · aviso de dívida,2026-11-10T14:10-03:00,movido 2026-11-11
+outlook:FGhA2wuGhfzOxHf7lKZBae==,Exchange,Possíveis Golpes,"Registro Domínios: domínio fotosexemplo · cobrança falsa de domínio, já vista",2026-11-10T14:10-03:00,movido 2026-11-11
+icloud:lote-2026-11-10t|Promoções,iCloud,Promoções,10 e-mails por regras no Mac,2026-11-10T14:10-03:00,substituído pela contagem de 2026-11-11
+icloud:lote-2026-11-10t|Redes Sociais,iCloud,Redes Sociais,1 e-mails por regras no Mac,2026-11-10T14:10-03:00,substituído pela contagem de 2026-11-11
+icloud:lote-2026-11-10t|Governo e Impostos,iCloud,Governo e Impostos,1 e-mails por regras no Mac,2026-11-10T14:10-03:00,substituído pela contagem de 2026-11-11
+icloud:lote-2026-11-10t|Newsletters e Notícias,iCloud,Newsletters e Notícias,1 e-mails por regras no Mac,2026-11-10T14:10-03:00,substituído pela contagem de 2026-11-11
+icloud:lote-2026-11-10t|Compras e Pedidos,iCloud,Compras e Pedidos,1 e-mails por regras no Mac,2026-11-10T14:10-03:00,substituído pela contagem de 2026-11-11
+gmail:6555222c3abba442,Google,Newsletters e Notícias,App Voo: App 5.2 · novidades de app,2026-11-11T06:45-03:00,movido 2026-11-11
+gmail:57212045436b530c,Google,Newsletters e Notícias,Jornal Tech: The Briefing · newsletter,2026-11-11T06:45-03:00,movido 2026-11-11
+gmail:1a141a92a319959e,Google,Cursos e Educação,Cursos Online: cursos de até 8 horas · divulgação de cursos,2026-11-11T06:45-03:00,movido 2026-11-11
+gmail:b0cbc0280b7450d2,Google,Promoções,Gestão 3D: integração com Mercado Delta · divulgação,2026-11-11T06:45-03:00,movido 2026-11-11
+gmail:b7a3d8dd87f6d1c6,Google,Promoções,Farmácia Um: oferta do dia · propaganda,2026-11-11T06:45-03:00,movido 2026-11-11
+gmail:824ba949878e24fa,Google,Newsletters e Notícias,Jornal Tech Applied AI: notícias de IA · newsletter,2026-11-11T06:45-03:00,movido 2026-11-11
+gmail:3f1a8ded93e29f5a,Google,Promoções,Carros Online: multas e IPVA em 12x · propaganda,2026-11-11T06:45-03:00,movido 2026-11-11
+gmail:c07b60d39b1606fb,Google,Promoções,delivery: R$ 9 OFF · propaganda,2026-11-11T06:45-03:00,movido 2026-11-11
+gmail:a12d45354634e971,Google,Promoções,Adobe: novidades Creative Cloud · divulgação,2026-11-11T06:45-03:00,movido 2026-11-11
+gmail:8777f4301fac6b7b,Google,Serviços e Notificações,Conferir: Cofre de Senhas: novo alerta de login · confirmar se foi você,2026-11-11T06:45-03:00,movido 2026-11-11
+gmail:e102f90bdb7cd60f,Google,Serviços e Notificações,Conferir: Cofre de Senhas: novo alerta de login · confirmar se foi você,2026-11-11T06:45-03:00,movido 2026-11-11
+gmail:76622c74aca7a3b5,Google,Promoções,Restaurante: coleção especial · propaganda,2026-11-11T06:45-03:00,movido 2026-11-11
+gmail:6641cea58a1dd668,Google,Promoções,Viagens Online: cupom 11.11 · propaganda,2026-11-11T06:45-03:00,movido 2026-11-11
+outlook:vlnhehUit42jcEk7lm9NDc==,Exchange,Promoções,Orçamento Janelas: agendamento de janelas · propaganda em inglês,2026-11-11T06:45-03:00,movido 2026-11-11
+outlook:zGldbaA1ELP9ROFhC4UL1K==,Exchange,Contas e Faturas,"Banco Roxo: fatura fechou, débito automático em 18/11 · conta anotada",2026-11-11T06:45-03:00,movido 2026-11-11
+outlook:RBjSsDgVpeIe4XIuqfNANK==,Exchange,Contas e Faturas,Banco Roxo: extrato da fatura do cartão · extrato,2026-11-11T06:45-03:00,movido 2026-11-11
+outlook:hpMbRe5m7N82YQ3JiNPLF8==,Exchange,Promoções,Adobe: novidades em fotografia · divulgação,2026-11-11T06:45-03:00,movido 2026-11-11
+outlook:oAAFmMhx9U8BIY6fnPoHEq==,Exchange,Promoções,Seguradora: oferta · propaganda,2026-11-11T06:45-03:00,movido 2026-11-11
+outlook:UTJVmai2cVTdIreTyIIEWH==,Exchange,Promoções,Acordo Fácil: bonificação no CPF · propaganda de negociação,2026-11-11T06:45-03:00,movido 2026-11-11
+outlook:EEk9LDFEfwLCOwLTmCtaf6==,Exchange,Promoções,Cadastro Brasil: data 11.11 · propaganda,2026-11-11T06:45-03:00,movido 2026-11-11
+outlook:ISYA4q4OLc08YbxbLmJ6p6==,Exchange,Finanças e Bancos,Seguros Já: pagamento do Seguro Auto recebido · comprovante,2026-11-11T06:45-03:00,já fora da entrada 2026-11-11
+outlook:zXHvpO7xSkz4ne28B2mCKj==,Exchange,Promoções,Domínios Já: lembrete para finalizar pedido · propaganda,2026-11-11T06:45-03:00,movido 2026-11-11
+outlook:lhl02niK2JkeodRGz6mLJC==,Exchange,Promoções,Aérea Céu: compra de pontos · propaganda,2026-11-11T06:45-03:00,movido 2026-11-11
+outlook:0sPzcTBBCz0RnaUj6kCBtV==,Exchange,Promoções,SiteFácil: Studio Two · divulgação,2026-11-11T06:45-03:00,movido 2026-11-11
+outlook:MlAdx5UnB3NlUBGzs7hR0S==,Exchange,Promoções,Impressora 3D: SPARKX i8 · propaganda,2026-11-11T06:45-03:00,movido 2026-11-11
+icloud:lote-2026-11-11|Promoções,iCloud,Promoções,23 e-mails por regras no Mac,2026-11-11T06:45-03:00,movido 2026-11-11
+icloud:lote-2026-11-11|Finanças e Bancos,iCloud,Finanças e Bancos,5 e-mails por regras no Mac,2026-11-11T06:45-03:00,movido 2026-11-11
+icloud:lote-2026-11-11|Redes Sociais,iCloud,Redes Sociais,1 e-mails por regras no Mac,2026-11-11T06:45-03:00,movido 2026-11-11
+icloud:lote-2026-11-11|Governo e Impostos,iCloud,Governo e Impostos,1 e-mails por regras no Mac,2026-11-11T06:45-03:00,movido 2026-11-11
+icloud:lote-2026-11-11|Newsletters e Notícias,iCloud,Newsletters e Notícias,1 e-mails por regras no Mac,2026-11-11T06:45-03:00,movido 2026-11-11
+icloud:lote-2026-11-11|Compras e Pedidos,iCloud,Compras e Pedidos,1 e-mails por regras no Mac,2026-11-11T06:45-03:00,movido 2026-11-11
+gmail:d481361c5dc0d0e1,Google,Promoções,Reservas Online: estadia em 6x sem juros · propaganda,2026-11-11T14:10-03:00,movido 2026-11-12
+gmail:a13d54969571127b,Google,Promoções,Café Cápsula: máquinas com 50% OFF · propaganda,2026-11-11T14:10-03:00,movido 2026-11-12
+gmail:c99389dc44ddf609,Google,Newsletters e Notícias,Fórum Dev: Issue 355 · newsletter,2026-11-11T14:10-03:00,movido 2026-11-12
+gmail:0e5450730bd9d801,Google,Promoções,Hotéis Online: R$ 75 em recompensas · propaganda,2026-11-11T14:10-03:00,movido 2026-11-12
+gmail:2f99d3f74ccd7990,Google,Promoções,Farmácia Um: atualize preferências · propaganda,2026-11-11T14:10-03:00,movido 2026-11-12
+gmail:f3ed0846b54b0d12,Google,Promoções,Café Cápsula: 11.11 · propaganda,2026-11-11T14:10-03:00,movido 2026-11-12
+gmail:68deba85341d5e3f,Google,Newsletters e Notícias,Agência Notícias: acesso gratuito terminou · oferta de assinatura,2026-11-11T14:10-03:00,recusado 2026-11-12 (usuário pediu deixar na entrada)
+gmail:198928674df4597c,Google,Redes Sociais,Conferir: Rede Social: novo login perto de Cidade Exemplo · confirmar se foi você,2026-11-11T14:10-03:00,movido 2026-11-12
+gmail:88cdb7c2e1db38f9,Google,Redes Sociais,Conferir: Rede Social: novo login perto de Cidade Exemplo · confirmar se foi você,2026-11-11T14:10-03:00,movido 2026-11-12
+gmail:d89a0c40b77438a1,Google,Promoções,Sorveteria: resgatar recompensa · propaganda,2026-11-11T14:10-03:00,movido 2026-11-12
+gmail:08217aa129a75c34,Google,Promoções,Montadora: Connect Me · propaganda,2026-11-11T14:10-03:00,movido 2026-11-12
+gmail:1cd31aba209708f8,Google,Promoções,Software Gráfico: ofertas antecipadas · propaganda,2026-11-11T14:10-03:00,movido 2026-11-12
+gmail:ec5d78ab184e31ec,Google,Newsletters e Notícias,Jornal Tech AM: notícias do dia · newsletter,2026-11-11T14:10-03:00,recusado 2026-11-12 (usuário pediu deixar na entrada)
+gmail:717904672883c2b9,Google,Newsletters e Notícias,Agência Tech: notícias de tecnologia · newsletter,2026-11-11T14:10-03:00,movido 2026-11-12
+outlook:LID7rQv5x0r7KG1pBikd2F==,Exchange,Compras e Pedidos,"Clube da Cerveja: pagamento confirmado, pedido em separação · compra",2026-11-11T14:10-03:00,movido 2026-11-12 (Hotmail: 25 movidos e 1 já fora da entrada no lote)
+outlook:xQeaJM8BgIV5bcid2imTtb==,Exchange,Promoções,Loja Grande: 11.11 Black dos Sonhos · propaganda,2026-11-11T14:10-03:00,movido 2026-11-12 (Hotmail: 25 movidos e 1 já fora da entrada no lote)
+outlook:U6Tg0VKJOluEzbmalm6cUj==,Exchange,Promoções,Acordo Fácil: não aguentamos mais · propaganda de negociação,2026-11-11T14:10-03:00,movido 2026-11-12 (Hotmail: 25 movidos e 1 já fora da entrada no lote)
+outlook:8bBleBPhlkxFwGNlLmYXGC==,Exchange,Lembretes e Aniversários,Lembrete: aniversário de Clara Teste · lembrete,2026-11-11T14:10-03:00,movido 2026-11-12 (Hotmail: 25 movidos e 1 já fora da entrada no lote)
+outlook:qTKzXxExL3JsVtfvaqKAZQ==,Exchange,Lembretes e Aniversários,Lembrete: aniversário de Beatriz Teste · lembrete,2026-11-11T14:10-03:00,movido 2026-11-12 (Hotmail: 25 movidos e 1 já fora da entrada no lote)
+outlook:buQpuiHAzPuXwFEJhsiJr8==,Exchange,Lembretes e Aniversários,Lembrete: aniversário de Marcos Teste · lembrete,2026-11-11T14:10-03:00,movido 2026-11-12 (Hotmail: 25 movidos e 1 já fora da entrada no lote)
+outlook:f6yoE2AyI9vkTUwFZmLAPF==,Exchange,Serviços e Notificações,Conferir: Plataforma IA: link de login · acesso à conta,2026-11-11T14:10-03:00,movido 2026-11-12 (Hotmail: 25 movidos e 1 já fora da entrada no lote)
+outlook:IYmSNIAiqC74XC7Rp8OXvR==,Exchange,Compras e Pedidos,"Loja Global: pedido fechado · pedido não pago, cancelado",2026-11-11T14:10-03:00,movido 2026-11-12 (Hotmail: 25 movidos e 1 já fora da entrada no lote)
+outlook:Fvdthfl3YsQHre3SXFoWFm==,Exchange,Compras e Pedidos,Loja Global: pedido aguardando pagamento · já fechado depois,2026-11-11T14:10-03:00,movido 2026-11-12 (Hotmail: 25 movidos e 1 já fora da entrada no lote)
+outlook:RSgtKQiNFHryzD74NY7Fjn==,Exchange,Promoções,Extensão Correio: e-mails sem resposta · propaganda,2026-11-11T14:10-03:00,movido 2026-11-12 (Hotmail: 25 movidos e 1 já fora da entrada no lote)
+outlook:8fm0Cg2EEoA1xBPEjWKTXZ==,Exchange,Serviços e Notificações,Nuvem Arquivos: lembranças desse dia · notificação,2026-11-12T14:05-03:00,proposto
+outlook:C6S55HE12MIaIQFOrJ3Wzz==,Exchange,Compras e Pedidos,Loja Grande: pedido de creatina · confirmação de compra,2026-11-11T14:10-03:00,movido 2026-11-12 (Hotmail: 25 movidos e 1 já fora da entrada no lote)
+outlook:z0XGfS24ch4L1X3QH4GNqB==,Exchange,Promoções,Meu Acordo: atualização de valores · propaganda de negociação,2026-11-11T14:10-03:00,movido 2026-11-12 (Hotmail: 25 movidos e 1 já fora da entrada no lote)
+outlook:XQRHP9pOwKlWbmD8z1qfyD==,Exchange,Serviços e Notificações,Conferir: Loja Global: código de verificação · login na conta,2026-11-11T14:10-03:00,movido 2026-11-12 (Hotmail: 25 movidos e 1 já fora da entrada no lote)
+outlook:uOj7vmYdRohHXR3a3ETsuR==,Exchange,Promoções,Notebooks: desconto 11/11 · propaganda,2026-11-11T14:10-03:00,movido 2026-11-12 (Hotmail: 25 movidos e 1 já fora da entrada no lote)
+outlook:q48QyOIXkB0yBH5c6BSvyj==,Exchange,Serviços e Notificações,Conferir: Maçã Store: senha da Conta Maçã Store redefinida · confirmar se foi você,2026-11-11T14:10-03:00,movido 2026-11-12 (Hotmail: 25 movidos e 1 já fora da entrada no lote)
+outlook:kQWnSolcg2hxVcFcsmfJMx==,Exchange,RN Sports,Esportes Exemplo: vendas do site subindo · relatório do site,2026-11-11T14:10-03:00,movido 2026-11-12 (Hotmail: 25 movidos e 1 já fora da entrada no lote)
+icloud:lote-2026-11-11t|Promoções,iCloud,Promoções,12 e-mails por regras no Mac,2026-11-11T14:10-03:00,movido 2026-11-12
+icloud:lote-2026-11-11t|Newsletters e Notícias,iCloud,Newsletters e Notícias,2 e-mails por regras no Mac,2026-11-11T14:10-03:00,movido 2026-11-12
+icloud:lote-2026-11-11t|Compras e Pedidos,iCloud,Compras e Pedidos,1 e-mails por regras no Mac,2026-11-11T14:10-03:00,movido 2026-11-12
+icloud:lote-2026-11-11t|Finanças e Bancos,iCloud,Finanças e Bancos,1 e-mails por regras no Mac,2026-11-11T14:10-03:00,movido 2026-11-12
+gmail:527ea58cbaa2b89f,Google,Newsletters e Notícias,Jornal Tech: exclusiva sobre IA · newsletter,2026-11-12T06:45-03:00,recusado 2026-11-12 (usuário pediu deixar na entrada)
+gmail:674449f58bc9f532,Google,Newsletters e Notícias,Jornal Tech: The Briefing · newsletter,2026-11-12T06:45-03:00,recusado 2026-11-12 (usuário pediu deixar na entrada)
+gmail:6037ee46b03dac0a,Google,Newsletters e Notícias,Podcast Tech: gravação do ADT 504 · aviso de podcast,2026-11-12T06:45-03:00,movido 2026-11-12
+gmail:859703572b1ffdc5,Google,Serviços e Notificações,Conferir: Cofre de Senhas: novo alerta de login · confirmar se foi você,2026-11-12T06:45-03:00,movido 2026-11-12
+gmail:4fd0b124b9463f93,Google,Serviços e Notificações,Vagas Online: 2 vagas Mineradora · alerta de vagas,2026-11-12T06:45-03:00,movido 2026-11-12
+gmail:a9b7f8c624dcee21,Google,Newsletters e Notícias,Agência Notícias: sucessão na Fabricante Chips · newsletter,2026-11-12T06:45-03:00,recusado 2026-11-12 (usuário pediu deixar na entrada)
+gmail:41becf83fa7113a3,Google,Serviços e Notificações,Vagas Online: 2 vagas Mineradora · alerta de vagas,2026-11-12T06:45-03:00,movido 2026-11-12
+gmail:47d9fb653a8f541b,Google,Promoções,Farmácia Um: antes da Black Friday · propaganda,2026-11-12T06:45-03:00,movido 2026-11-12
+gmail:4be12d7ec568e31d,Google,Promoções,Farmácia Dois: App Day acaba hoje · propaganda,2026-11-12T06:45-03:00,movido 2026-11-12
+gmail:5ae23dce8cadcacb,Google,Promoções,Nuvem Mais: dicas do Gemini · divulgação,2026-11-12T06:45-03:00,movido 2026-11-12
+gmail:ecf50c1a7972f85c,Google,Newsletters e Notícias,App Teste: testar apps no iPhone · novidades de app,2026-11-12T06:45-03:00,movido 2026-11-12
+gmail:e8765ba9b31bad9e,Google,Promoções,Café Cápsula: últimas horas 11.11 · propaganda,2026-11-12T06:45-03:00,movido 2026-11-12
+gmail:892e6652d645e250,Google,Serviços e Notificações,Conferir: Buscador: alerta de segurança · aviso de segurança da conta,2026-11-12T06:45-03:00,movido 2026-11-12
+gmail:a1bc2a66683d683b,Google,Promoções,Cursos Criativos: recomendações Black Friday · propaganda,2026-11-12T06:45-03:00,movido 2026-11-12
+outlook:9ngiGSQb1XJveWjbpG1G44==,Exchange,Newsletters e Notícias,Contêiner App: segurança de agentes de IA · newsletter,2026-11-12T06:45-03:00,movido 2026-11-12 (Hotmail: 25 movidos e 1 já fora da entrada no lote)
+outlook:usPGQ4n95MpkmdF2iGMZD8==,Exchange,Serviços e Notificações,Conferir: Buscador: alerta de segurança da conta Correio Web · aviso de segurança,2026-11-12T06:45-03:00,movido 2026-11-12 (Hotmail: 25 movidos e 1 já fora da entrada no lote)
+outlook:Vg7BdrgH6hC7D1SODvtBaB==,Exchange,Promoções,Automação Web: ofertas da temporada · propaganda,2026-11-12T06:45-03:00,movido 2026-11-12 (Hotmail: 25 movidos e 1 já fora da entrada no lote)
+outlook:T2buI9bPFhNxf3KFsuuuIa==,Exchange,Promoções,Milhas Mais: 11.11 da Loja Ásia · propaganda,2026-11-12T06:45-03:00,movido 2026-11-12 (Hotmail: 25 movidos e 1 já fora da entrada no lote)
+outlook:33uh3i0kmnUjk2cXYJ23W6==,Exchange,Promoções,Aula Finanças: ENC: NÃO LER · propaganda com falso ENC,2026-11-12T06:45-03:00,movido 2026-11-12 (Hotmail: 25 movidos e 1 já fora da entrada no lote)
+outlook:OFsfgeUosge8pOyIV08by8==,Exchange,RN Sports,Esportes Exemplo: post no grupo Trilha Exemplo · notificação do site,2026-11-12T06:45-03:00,movido 2026-11-12 (Hotmail: 25 movidos e 1 já fora da entrada no lote)
+outlook:64smay6fGH9sMYnwwZl52E==,Exchange,Promoções,Reservas Online: estadia em 6x · propaganda,2026-11-12T06:45-03:00,movido 2026-11-12 (Hotmail: 25 movidos e 1 já fora da entrada no lote)
+outlook:gLlVaDI49JwC0u37JTSMhE==,Exchange,Promoções,Eventos Online: continue seu aprendizado · propaganda,2026-11-12T06:45-03:00,movido 2026-11-12 (Hotmail: 25 movidos e 1 já fora da entrada no lote)
+outlook:tGt6dBGRflxFkox6dG7o4T==,Exchange,Promoções,PagRápido: sua loja pronta · propaganda,2026-11-12T06:45-03:00,movido 2026-11-12 (Hotmail: 25 movidos e 1 já fora da entrada no lote)
+outlook:CmYk8aRnw6ztbvOoWvWuaR==,Exchange,Contas e Faturas,"Conferir: Energia Local: notificação de débitos em aberto · conta anotada, ver pendência",2026-11-12T06:45-03:00,movido 2026-11-12 (Hotmail: 25 movidos e 1 já fora da entrada no lote)
+gmail:dd3dc38b43d1673c,Google,Promoções,Farmácia Um: oferta do dia até 70% OFF · propaganda,2026-11-12T14:05-03:00,proposto
+gmail:c90fb4da1794ec81,Google,Promoções,Farmácia Um: até 70% OFF na rotina · propaganda,2026-11-12T14:05-03:00,proposto
+gmail:5b0c862ef4a8f420,Google,Promoções,Café Cápsula: oferta relâmpago · propaganda,2026-11-12T14:05-03:00,proposto
+gmail:c80cc110598643e7,Google,Promoções,Montadora: Connect Me · propaganda,2026-11-12T14:05-03:00,proposto
+gmail:e30f560ead9c302f,Google,Promoções,Farmácia Dois: até 51% OFF verão · propaganda,2026-11-12T14:05-03:00,proposto
+outlook:4qP4WZOfKXFiKZVOzqR4lM==,Exchange,Promoções,Score Bom: verificação de situação do CPF · propaganda de crédito,2026-11-12T14:05-03:00,proposto
+outlook:u8AQSYP9glE5w5ibk347om==,Exchange,Promoções,Meu Acordo: programa de regularização · propaganda de negociação,2026-11-12T14:05-03:00,proposto
+outlook:dWIWbdANGLEFyX1tgO9Zw2==,Exchange,Newsletters e Notícias,Loja Virtual: News #004 · newsletter,2026-11-12T14:05-03:00,proposto
+outlook:Cdf1E0HR2JO0tqAcbX096l==,Exchange,Serviços e Notificações,Nuvem Arquivos: lembranças desse dia (12/11) · notificação,2026-11-12T14:05-03:00,proposto
+outlook:K46TV4AT500SfmIyPaRaVo==,Exchange,Lembretes e Aniversários,Lembrete: aniversário de Diego Exemplo · lembrete,2026-11-12T14:05-03:00,proposto
+outlook:EdR9EwemXYBlMyWEsaJMQ7==,Exchange,Lembretes e Aniversários,Lembrete: aniversário de Ana Exemplo · lembrete,2026-11-12T14:05-03:00,proposto
+outlook:bvHjNqucgWACBOboLS09gV==,Exchange,Lembretes e Aniversários,Lembrete: aniversário de Paulo Exemplo · lembrete,2026-11-12T14:05-03:00,proposto
+outlook:wz36fdCgfhiXa4nTMmSkKl==,Exchange,Promoções,Conferir: Acordo Fácil: revisão processual de pendências ativas · cobrança já em Pendências,2026-11-12T14:05-03:00,proposto
+icloud:lote-2026-11-12t|RN Sports,iCloud,RN Sports,13 e-mails por regras no Mac,2026-11-12T14:05-03:00,proposto
+icloud:lote-2026-11-12t|Cursos e Educação,iCloud,Cursos e Educação,2 e-mails por regras no Mac,2026-11-12T14:05-03:00,proposto
+icloud:lote-2026-11-12t|Governo e Impostos,iCloud,Governo e Impostos,2 e-mails por regras no Mac,2026-11-12T14:05-03:00,proposto
+icloud:lote-2026-11-12t|Compras e Pedidos,iCloud,Compras e Pedidos,1 e-mails por regras no Mac,2026-11-12T14:05-03:00,proposto
+icloud:lote-2026-11-12t|Promoções,iCloud,Promoções,16 e-mails por regras no Mac,2026-11-12T14:05-03:00,proposto
+icloud:lote-2026-11-12t|Finanças e Bancos,iCloud,Finanças e Bancos,3 e-mails por regras no Mac,2026-11-12T14:05-03:00,proposto

@@ -41,14 +41,6 @@
       '</article>';
   }
 
-  function tabelaContagem(l) {
-    if (!l.length) return '<div class="vazio">Nenhum.</div>';
-    var max = Math.max.apply(null, l.map(function (x) { return x.n; })) || 1;
-    return '<div class="fontes contagem">' + l.map(function (x) {
-      return '<div class="fonte"><span class="contagem-nome">' + window.Painel.util.esc(x.nome) + '</span><span class="contagem-barra" aria-hidden="true"><i style="width:' + Math.round(x.n / max * 100) + '%"></i></span><span class="quando">' + x.n + '</span></div>';
-    }).join('') + '</div>';
-  }
-
   PainelV3.registrar('suporte', {
     desenhar: function (m, U, V3) {
       var e = U.esc;
@@ -76,8 +68,8 @@
         return '<div class="fonte' + (a.substituido ? ' substituido' : '') + '"><span>' + U.selo(/now/i.test(a.tier) ? 'refazer' : 'entregue', a.tier) + ' ' + e(a.sinais) + (a.substituido ? ' <span class="mudo">(substituído por outro alerta)</span>' : '') + (a.link ? ' · <a href="' + e(a.link) + '" target="_blank" rel="noopener">abrir</a>' : '') + '</span><span class="quando">' + U.dataBr(a.quando) + '</span></div>';
       }).join('') + '</div>';
 
-      h += '<div class="duas-colunas"><div><h2>Abertos por evento <span class="qtd">' + m.abertos.total + '</span></h2>' + tabelaContagem(m.abertos.por_evento) + '</div>' +
-        '<div><h2>Abertos por tipo</h2>' + tabelaContagem(m.abertos.por_tipo.map(function (x) { return { nome: rotTipo(x.nome), n: x.n }; })) + '</div></div>';
+      h += '<div class="duas-colunas"><div><h2>Abertos por evento <span class="qtd">' + m.abertos.total + '</span></h2>' + V3.contagem(m.abertos.por_evento) + '</div>' +
+        '<div><h2>Abertos por tipo</h2>' + V3.contagem(m.abertos.por_tipo.map(function (x) { return { nome: rotTipo(x.nome), n: x.n }; })) + '</div></div>';
 
       h += '<h2>Parados há mais de 24 h <span class="qtd">' + m.parados.length + '</span></h2>' + (m.parados.length ? '<div class="fontes">' + m.parados.map(function (c) {
         return '<div class="fonte"><span><b>#' + e(c.id) + '</b> ' + e(c.evento || 'sem evento') + ' · ' + e(rotTipo(c.tipo)) + '<br><span class="mudo">' + e(c.proxima_acao || c.ultima_acao || '') + '</span></span><span class="quando">' + horas(c.horas) + '</span></div>';

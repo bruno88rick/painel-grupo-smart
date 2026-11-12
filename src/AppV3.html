@@ -106,6 +106,15 @@ window.PainelV3 = (function () {
     return 'Enviado: ' + qual + (p.versao ? ' (v' + p.versao + ')' : '') + '. Aguardando o ' + m.agente + '.';
   }
 
+  /** Lista nome + barra + número (contagens por evento, tipo, estado...). */
+  function contagem(l) {
+    if (!l || !l.length) return '<div class="vazio">Nenhum.</div>';
+    var e = U().esc, max = Math.max.apply(null, l.map(function (x) { return x.n; })) || 1;
+    return '<div class="fontes contagem">' + l.map(function (x) {
+      return '<div class="fonte"><span class="contagem-nome">' + e(x.nome) + '</span><span class="contagem-barra" aria-hidden="true"><i style="width:' + Math.round(x.n / max * 100) + '%"></i></span><span class="quando">' + x.n + '</span></div>';
+    }).join('') + '</div>';
+  }
+
   /* Diálogo genérico: campos data, valor e texto conforme a definição da decisão. */
   function abrirDialogo(modId, itemId, dec) {
     var m = modelo()[modId], x = item(modId, itemId); if (!m || !x) return;
@@ -171,7 +180,7 @@ window.PainelV3 = (function () {
   var api = {
     registrar: function (id, t) { telas[id] = t; },
     desenhar: desenhar, desenharModulo: desenharModulo, abrirModulo: abrirModulo, abrirDialogo: abrirDialogo,
-    cartoesInicio: cartoesInicio, total: total, lista: lista, botoes: botoes, avisoChave: avisoChave, item: item,
+    cartoesInicio: cartoesInicio, total: total, lista: lista, botoes: botoes, avisoChave: avisoChave, item: item, contagem: contagem,
     sair: function () { est.mod = ''; }
   };
   return api;
