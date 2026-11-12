@@ -8,11 +8,11 @@ Painel visual, privado e mobile-first, para o Bruno ver e aprovar as artes e os 
 
 ## Produção e main
 
-A produção (Web App, implantação **versão 7 = v3.0.1**, de 12/11/2026, mesma URL `/exec`) está igual à `main`. A v3.0.1 carrega o Início primeiro e os módulos v3 em segundo plano, cada um com cache próprio: na primeira carga após a implantação, o Início apareceu em ~9 s e os módulos em ~13 s; no segundo acesso, em 4,4 s e 5,5 s. A implantação única da v3.0.0 foi autorizada pelo Bruno em 12/11 e levou de uma vez a v2.0.1 e os cinco módulos v3: **Suporte RN Sports**, **E-mails**, **Finanças**, **Investimentos** e **Estudos**.
+A produção (Web App, implantação **versão 8 = v3.1.0**, de 12/11/2026, mesma URL `/exec`) está igual à `main`. A v3.1.0 liga o **Suporte RN Sports** (`SUPORTE_INTEGRADO = true`, sim do Bruno em 12/11): os botões de decisão do Suporte gravam no `decisoes.csv` para o Agente de Suporte ler. A v3.0.1 carrega o Início primeiro e os módulos v3 em segundo plano, cada um com cache próprio: na primeira carga após a implantação, o Início apareceu em ~9 s e os módulos em ~13 s; no segundo acesso, em 4,4 s e 5,5 s. A implantação única da v3.0.0 foi autorizada pelo Bruno em 12/11 e levou de uma vez a v2.0.1 e os cinco módulos v3: **Suporte RN Sports**, **E-mails**, **Finanças**, **Investimentos** e **Estudos**.
 
 - O `painel-fontes.json` do Drive tem os sete módulos ativos, com os ids reais. A cópia anterior (v2.0.0) ficou na mesma pasta como `painel-fontes.backup-v2.0.0-2026-11-12.json`.
-- Todas as chaves continuam em `false`: `ANUNCIOS_INTEGRADOS`, `POSTS_INTEGRADOS`, `SUPORTE_INTEGRADO`, `EMAILS_INTEGRADO`, `FINANCAS_INTEGRADO` e `INVESTIMENTOS_INTEGRADO`. Os botões dos módulos v3 aparecem desligados, com o aviso "o agente ainda não lê estas decisões". Estudos é só leitura.
-- Para desfazer: em **Implantar > Gerenciar implantações > Editar**, escolha a versão 6 (v3.0.0); para voltar à v2.0.0, a versão 5, e devolva o `painel-fontes.json` da cópia.
+- Só `SUPORTE_INTEGRADO` está em `true`. Continuam em `false`: `ANUNCIOS_INTEGRADOS`, `POSTS_INTEGRADOS`, `EMAILS_INTEGRADO`, `FINANCAS_INTEGRADO` e `INVESTIMENTOS_INTEGRADO`. Os botões desses módulos aparecem desligados, com o aviso "o agente ainda não lê estas decisões". Estudos é só leitura.
+- Para desfazer: em **Implantar > Gerenciar implantações > Editar**, escolha a versão 7 (v3.0.1, Suporte desligado); para a v3.0.0, a versão 6; para a v2.0.0, a versão 5, e devolva o `painel-fontes.json` da cópia.
 
 Falta implantar: nada.
 
