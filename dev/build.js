@@ -70,7 +70,7 @@ window.google = { script: { get run() {
       var q = window.__Q, i = Object.keys(window.__MODELO.v3 || {}).indexOf(id);
       if ((q.get('carregando') || '').split(',').indexOf(id) >= 0) return;
       setTimeout(function () {
-        if ((q.get('erro') || '').split(',').indexOf(id) >= 0) return fal(new Error('Tempo esgotado ao ler o Drive (Contas.csv)'));
+        if ((q.get('erro') || '').split(',').indexOf(id) >= 0) return fal(new Error('Tempo esgotado ao ler o Drive (' + ({ suporte: 'Chamados.csv', emails: 'Movimentos.csv', financas: 'Contas.csv', investimentos: 'Posicoes.csv', estudos: 'Cursos.csv' }[id] || id) + ')'));
         ok({ id: id, modulo: JSON.parse(JSON.stringify(window.__MODELO.v3[id])), fontes: window.__FONTES_V3[id] || [], gerado_em: new Date().toISOString() });
       }, q.get('lento') ? 1500 + i * 400 : 120 + i * 40); },
     obterMiniatura: function () { setTimeout(function () { ok(''); }, 50); },
