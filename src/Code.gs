@@ -252,6 +252,45 @@ function lerModuloV3_(mod) {
   return { fontes: fontes, status: status };
 }
 
+/** Primeira subpasta com o nome, dentro de uma pasta (ou null). */
+function acharSubpasta_(folderId, nome) {
+  var it = DriveApp.getFolderById(folderId).getFoldersByName(nome);
+  while (it.hasNext()) { var p = it.next(); if (!p.isTrashed || !p.isTrashed()) return p.getId(); }
+  return null;
+}
+
+/**
+ * Estudos: caminho relativo à pasta de materiais ("pasta/arquivo.md" ou só "arquivo.md") -> fileId.
+ * Só arquivo solto: procura na raiz e, se não achar, nas subpastas de primeiro nível. Só leitura.
+ * Cache curto por caminho (o "não achou" também, para não varrer o Drive a cada carga).
+ */
+function resolverCaminhos_(raizId, caminhos) {
+  var r = {}, c = null;
+  try { c = CacheService.getScriptCache(); } catch (e) { c = null; }
+  caminhos.slice(0, 60).forEach(function (cam) {
+    var chave = CACHE_PREFIXO + 'cam_' + raizId + '_' + cam;
+    var v = null;
+    try { v = c ? c.get(chave) : null; } catch (e) { v = null; }
+    if (v === null) {
+      var id = null;
+      try {
+        var partes = cam.split('/').filter(function (x) { return x; });
+        var pasta = raizId;
+        for (var i = 0; i < partes.length - 1 && pasta; i++) pasta = acharSubpasta_(pasta, partes[i]);
+        if (pasta) id = acharNaPasta_(pasta, partes[partes.length - 1]);
+        if (!id && partes.length === 1) {
+          var it = DriveApp.getFolderById(raizId).getFolders();
+          while (!id && it.hasNext()) { var sub = it.next(); id = acharNaPasta_(sub.getId(), partes[0]); }
+        }
+      } catch (e) { id = null; }
+      v = id || '-';
+      try { if (c) c.put(chave, v, id ? 3600 : 600); } catch (e) {}
+    }
+    if (v && v !== '-') r[cam] = v;
+  });
+  return r;
+}
+
 function lerModulosV3_(cfg) {
   var fontes = {}, status = [];
   (cfg.modulos || []).forEach(function (m) {
@@ -295,6 +334,9 @@ function montarDados_(cfgPronta) {
     var x = modelo.v3[m.id];
     if (x) x.pastas = { ledger: (m.fontes && m.fontes.ledger && m.fontes.ledger.folderId) || '', materiais: (m.fontes && m.fontes.materiais && m.fontes.materiais.folderId) || '' };
   });
+  if (modelo.v3.estudos && modelo.v3.estudos.pastas.materiais) {
+    modelo.v3.estudos.links = resolverCaminhos_(modelo.v3.estudos.pastas.materiais, modelo.v3.estudos.caminhos || []);
+  }
   modelo.gerado_em = new Date().toISOString();
   modelo.decisoes_ok = decisoes.ok && recibos.ok;
   modelo.fontes = [pedidos, artes, posts, midia, produtos, checkpoints, rasc, decisoes, recibos].concat(an ? an.status : []).concat(v3.status).map(function (s) {

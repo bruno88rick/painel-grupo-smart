@@ -128,9 +128,20 @@
     {
       "id": "estudos",
       "rotulo": "Estudos",
-      "ativo": false,
+      "ativo": true,
       "agente": "Assistente de Estudos",
-      "fontes": {}
+      "fontes": {
+        "ledger": {
+          "folderId": "ID_DA_PASTA_ledger_estudos"
+        },
+        "materiais": {
+          "folderId": "ID_DA_PASTA_materiais",
+          "_comentario": "Pasta de materiais do Assistente de Estudos: resumo_arquivo do Modulos.csv é caminho relativo a ela. O painel só lê (acha o arquivo para o link)."
+        },
+        "arquivos": {
+          "_comentario": "Opcional: fileId por arquivo (cursos, entregas, modulos, provas, pedidos). Sem fileId, o painel procura pelo nome na pasta do ledger: Cursos.csv, Entregas.csv, Modulos.csv, Provas.csv, Pedidos.csv."
+        }
+      }
     }
   ]
 }

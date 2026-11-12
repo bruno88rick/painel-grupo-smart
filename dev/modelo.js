@@ -41,6 +41,18 @@ module.exports = function (agora, decisoes, recibos, opc) {
   const ag = agora || new Date(2026, 10, 11, 15);
   const modelo = L.montarModelo(f, decisoes || [], ag, { dias_refazer_parado: 2, recibos: recibos || {}, anuncios: opc.anuncios ? fontesAnuncios(opc.semPropostas, opc.v201) : null });
   modelo.v3 = L.montarModulosV3(fontesV3(opc.v3), L.decisoesComRecibos(decisoes || [], recibos || {}), ag);
+  if (modelo.v3.estudos) {
+    // Como o servidor: pastas do config e fileId dos resumos achados na pasta de materiais (a mesma do ambiente de teste).
+    const arq = require('./ambiente-gas').arquivosBase();
+    const est = modelo.v3.estudos;
+    est.pastas = { ledger: 'EST', materiais: 'MAT' };
+    est.links = {};
+    est.caminhos.forEach((c) => {
+      const p = c.split('/'), nome = p.pop();
+      const id = Object.keys(arq).find((k) => arq[k].nome === nome && !arq[k].ehPasta && (p.length === 0 ? ['MAT', 'MATSUB'].includes(arq[k].pasta) : p.join('/') === 'espec_omega' && arq[k].pasta === 'MATSUB'));
+      if (id) est.links[c] = id;
+    });
+  }
   return { L, modelo, fontesV3 };
 };
 if (require.main === module) {

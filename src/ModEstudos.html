@@ -1,0 +1,94 @@
+<script>
+/* Tela do módulo Estudos (v3, só leitura). Lê Cursos.csv, Entregas.csv, Modulos.csv, Provas.csv e Pedidos.csv
+   do Assistente de Estudos; os links dos resumos vêm da pasta de materiais no Drive. Sem decisões. */
+(function () {
+  'use strict';
+  var SIT = { resumido: ['aprovado', 'Resumido'], parcial: ['entregue', 'Parcial'], sem_resumo: ['cancelado', 'Sem resumo'], outro: ['novo', 'Ver texto'] };
+
+  function hora(q) { return String(q || '').slice(11, 16); }
+  function linkResumo(cam, nota, m, U) {
+    if (!cam) return '';
+    var id = (m.links || {})[cam];
+    if (id) return '<a class="est-link" href="' + U.urlDrive(id) + '" target="_blank" rel="noopener">Abrir resumo</a>' + (nota ? ' <span class="mudo">(' + U.esc(nota) + ')</span>' : '');
+    var p = cam.split('/'), onde = p.length > 1 ? p[0] + '/' : p[0];
+    return '<span class="mudo est-fora" title="' + U.esc(cam) + '">Resumo fora da pasta de materiais (' + U.esc(onde) + ')</span>';
+  }
+
+  function cartaoEvento(e, U) {
+    var esc = U.esc;
+    var tipo = e.tipo === 'prova' ? U.selo('novo', 'Prova') : U.selo('aguardando_aprovo', 'Entrega');
+    var urg = !e.a_confirmar && e.dias !== null && e.dias <= 2 && !e.passou;
+    return '<article class="cartao-v3' + (urg ? ' est-urgente' : '') + '"><div class="v3-topo"><span class="cartao-empresa">' + esc(e.curso) + '</span>' + tipo + '</div>' +
+      '<div class="cartao-titulo">' + esc(e.titulo) + '</div>' +
+      '<div class="est-prazo' + (e.a_confirmar ? ' est-aconf' : '') + '"><b>' + esc(e.a_confirmar ? (e.data_texto || 'a confirmar') : e.prazo) + '</b>' +
+      (e.quando ? '<span>' + U.dataBr(e.quando.slice(0, 10)) + ' às ' + hora(e.quando) + '</span>' : '') + '</div>' +
+      (e.fonte ? '<p class="mudo ajuda">Fonte: ' + esc(e.fonte) + '</p>' : '') +
+      (e.plano_em ? '<p class="v3-resumo"><b>Plano:</b> ' + esc(e.plano_em) + '</p>' : '') +
+      (e.rascunho_em ? '<p class="v3-resumo"><b>Rascunho:</b> ' + esc(e.rascunho_em) + '</p>' : '') +
+      (e.modulos ? '<p class="v3-resumo"><b>Módulos:</b> ' + esc(e.modulos) + '</p>' : '') +
+      (e.simulado_em ? '<p class="v3-resumo"><b>Simulado:</b> ' + esc(e.simulado_em) + '</p>' : '') +
+      (e.arquivos ? '<p class="mudo ajuda est-arq">' + esc(e.arquivos) + '</p>' : '') + '</article>';
+  }
+
+  function linhaModulo(x, m, U) {
+    var esc = U.esc, r = x.resumo, s = SIT[x.situacao_final] || SIT.outro;
+    var rot = s[1] + (x.situacao_final === 'resumido' && r && r.data ? ' ' + U.dataBr(r.data) : '');
+    var det = [x.tipo.replace(/\+/g, ' + ').replace(/\//g, ' / '), x.no_drive ? 'resumo no Drive' : x.arquivo, x.chegou_em ? 'chegou ' + U.dataBr(x.chegou_em) : ''].filter(Boolean).join(' · ');
+    var obs = r && r.situacao !== 'resumido' && r.texto && r.situacao !== 'sem_resumo' ? '<br><span class="mudo">' + esc(r.obs || r.texto) + '</span>' : '';
+    return '<div class="fonte est-mod"><div class="est-mod-cab"><b>' + esc(x.modulo) + '</b>' + U.selo(s[0], rot) + '</div><span class="mudo">' + esc(det) + '</span>' + obs +
+      (r && r.caminho ? '<br>' + linkResumo(r.caminho, r.nota, m, U) : '') + '</div>';
+  }
+
+  function blocoCurso(c, m, U) {
+    var esc = U.esc, k = c.contagem;
+    var h = '<section class="est-curso"><h3>' + esc(c.curso) + '</h3><div class="v3-meta">' +
+      (c.situacao ? '<span>' + esc(c.situacao) + '</span>' : '') + (c.calendario ? '<span>Calendário: ' + esc(c.calendario) + '</span>' : '<span>Calendário: não informado</span>') +
+      (c.pasta_nome ? '<span>Pasta no Mac: ' + esc(c.pasta_nome) + '</span>' : '') + '</div>';
+    if (!c.modulos.length) return h + '<div class="vazio">Nenhum módulo no Modulos.csv.</div></section>';
+    h += '<p class="mudo ajuda">' + c.modulos.length + ' módulos · ' + k.resumido + ' resumidos · ' + k.parcial + ' parciais · ' + k.sem_resumo + ' sem resumo</p>';
+    c.mestres.forEach(function (r) {
+      h += '<div class="est-mestre"><b>' + esc(r.modulo) + '</b>' + (r.data ? ' de ' + U.dataBr(r.data) : '') + ' ' + linkResumo(r.caminho, r.nota, m, U) + '</div>';
+    });
+    var fase = null;
+    c.modulos.forEach(function (x) {
+      if (x.fase !== fase) { h += (fase !== null ? '</div>' : '') + '<h4 class="est-fase">' + esc(x.fase || 'Sem fase') + '</h4><div class="fontes">'; fase = x.fase; }
+      h += linhaModulo(x, m, U);
+    });
+    return h + '</div></section>';
+  }
+
+  PainelV3.registrar('estudos', {
+    desenhar: function (m, U) {
+      var esc = U.esc;
+      var em7 = m.precisa.total, total = 0, res = 0;
+      m.cursos.forEach(function (c) { total += c.modulos.length; res += c.contagem.resumido; });
+      var h = '<h1>Estudos</h1><p class="intro">Entregas, provas, módulos e pedidos do Assistente de Estudos. Só leitura: o painel não grava nada para este agente.</p>';
+      h += '<div class="contadores">' +
+        '<div class="contador-card' + (em7 ? ' destaque' : ' zero') + '"><div class="num">' + em7 + '</div><div class="rot">Entregas e provas em 7 dias</div></div>' +
+        '<div class="contador-card' + (m.a_confirmar ? '' : ' zero') + '"><div class="num">' + m.a_confirmar + '</div><div class="rot">Com data a confirmar</div></div>' +
+        '<div class="contador-card"><div class="num">' + res + '<span class="est-de">/' + total + '</span></div><div class="rot">Módulos resumidos</div></div>' +
+        '<div class="contador-card' + (m.pedidos_andamento.length ? '' : ' zero') + '"><div class="num">' + m.pedidos_andamento.length + '</div><div class="rot">Pedidos em andamento</div></div></div>';
+
+      h += '<h2 id="est-proximas">Próximas entregas e provas <span class="qtd">' + m.proximas.length + '</span></h2>' +
+        (m.proximas.length ? '<div class="lista-v3">' + m.proximas.map(function (e) { return cartaoEvento(e, U); }).join('') + '</div>' : '<div class="vazio">Nenhuma entrega ou prova marcada.</div>');
+      if (m.passadas.length) {
+        h += '<details class="mais-motivos"><summary>Passaram nos últimos 30 dias (' + m.passadas.length + ')</summary><div class="lista-v3">' + m.passadas.map(function (e) { return cartaoEvento(e, U); }).join('') + '</div></details>';
+      }
+
+      h += '<h2 id="est-modulos">Módulos por curso</h2>' + (m.cursos.length ? m.cursos.map(function (c) { return blocoCurso(c, m, U); }).join('') : '<div class="vazio">Sem Cursos.csv.</div>');
+      if (m.pastas && m.pastas.materiais) h += '<p class="mudo ajuda"><a class="est-link" href="' + U.urlPasta(m.pastas.materiais) + '" target="_blank" rel="noopener">Abrir a pasta de materiais no Drive</a></p>';
+
+      h += '<h2 id="est-pedidos">Pedidos em andamento <span class="qtd">' + m.pedidos_andamento.length + '</span></h2>' +
+        (m.pedidos_andamento.length ? '<div class="fontes">' + m.pedidos_andamento.map(function (p) {
+          return '<div class="fonte"><span><b>' + esc(p.pedido) + '</b><br><span class="mudo">' + esc([p.tipo, p.estado_texto].filter(Boolean).join(' · ')) + '</span></span><span class="quando">' + U.dataBr(p.data) + '</span></div>';
+        }).join('') + '</div>' : '<div class="vazio">Nenhum pedido em andamento.</div>');
+      if (m.pedidos_entregues.length) {
+        h += '<details class="mais-motivos"><summary>Entregues recentes (' + m.pedidos_entregues.length + ')</summary><div class="fontes">' + m.pedidos_entregues.map(function (p) {
+          return '<div class="fonte"><span>' + U.selo('aprovado', 'Entregue') + ' <b>' + esc(p.pedido) + '</b><br><span class="mudo">' + esc([p.tipo, p.estado_texto].filter(Boolean).join(' · ')) + '</span></span><span class="quando">' + U.dataBr(p.entregue_em || p.data) + '</span></div>';
+        }).join('') + '</div></details>';
+      }
+      return h;
+    }
+  });
+})();
+</script>

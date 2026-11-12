@@ -1,0 +1,29 @@
+curso,fase,modulo,arquivo,tipo,chegou_em,resumo_em,resumo_arquivo
+ESPEC OMEGA,FASE 1,(raiz da fase),2 arquivos,apostila/anotação,2026-04-14,,
+ESPEC OMEGA,FASE 1,Modulo 1 - Ecologia e Ecossistemas,31 arquivos,apostila/anotação+codigo+dados+imagem+outro,2026-04-14,2026-06-22,RESUMOS MESTRE/resumo_mestre_espec_omega_gestao_ambiental_atualizado_2026_06_22.md
+ESPEC OMEGA,FASE 1,Introdução - Gestão Ambiental,1 arquivos,apostila/anotação,2026-04-18,,
+ESPEC OMEGA,FASE 1,Modulo 2 - Legislação Ambiental Básica,7 arquivos,apostila/anotação,2026-04-14,2026-06-22,RESUMOS MESTRE/resumo_mestre_espec_omega_gestao_ambiental_atualizado_2026_06_22.md
+ESPEC OMEGA,FASE 1,Modulo 3 - Hidrollogia Aplicada,16 arquivos,apostila/anotação+codigo+dados,2026-05-02,2026-06-22,RESUMOS MESTRE/resumo_mestre_espec_omega_gestao_ambiental_atualizado_2026_06_22.md
+ESPEC OMEGA,FASE 1,Modulo 0 - Análise de Indicadores Ambientais,29 arquivos,apostila/anotação+codigo+dados,2026-04-14,2026-06-22,RESUMOS MESTRE/resumo_mestre_espec_omega_gestao_ambiental_atualizado_2026_06_22.md
+ESPEC OMEGA,FASE 4,MÓDULO 1 - Análise de Impacto Ambiental,12 arquivos,apostila/anotação+codigo+painel,2026-09-21,,
+ESPEC OMEGA,FASE 4,(raiz da fase),1 arquivos,apostila/anotação,2026-09-20,,
+ESPEC OMEGA,FASE 4,PROJETO INTEGRADOR - ENTREGA 18-11,1 arquivos,trabalho,2026-11-05,,
+ESPEC OMEGA,FASE 4,MÓDULO 2 - Licenciamento e Auditoria,18 arquivos,apostila/anotação+dados+imagem+painel,2026-11-03,,
+ESPEC OMEGA,FASE 4,MÓDULO 3 - Gestão de Resíduos Sólidos,57 arquivos,apostila/anotação+codigo+imagem+outro,2026-11-04,,
+ESPEC OMEGA,FASE 3,MÓDULO 2 - Qualidade do Ar e Emissões,6 arquivos,apostila/anotação+codigo+outro,2026-08-17,,
+ESPEC OMEGA,FASE 3,MÓDULO 1 - Recursos Hídricos e Bacias,9 arquivos,apostila/anotação+codigo+dados,2026-08-14,,
+ESPEC OMEGA,FASE 3,(raiz da fase),1 arquivos,apostila/anotação,2026-08-11,,
+ESPEC OMEGA,FASE 3,PROJETO INTEGRADOR - A ENTREGAR,1 arquivos,trabalho,2026-11-05,,
+ESPEC OMEGA,FASE 3,"MÓDULO 3 - Energias Renováveis, Eficiência Energética, Créditos de Carbono e Mercaddo Voluntário",4 arquivos,apostila/anotação,2026-11-05,,
+ESPEC OMEGA,FASE 2,PROJETO INTEGRADOR,88 arquivos,trabalho,2026-07-03,,
+ESPEC OMEGA,FASE 2,MODULO 2 - Solos e Uso da Terra,35 arquivos,apostila/anotação+codigo+dados,2026-06-25,parcial (conteúdo antecipado no Resumo Mestre 22/06; simulado Fase 2 em 23/06),
+ESPEC OMEGA,FASE 2,MODULO 1 - Biodiversidade e Conservação,14 arquivos,apostila/anotação+codigo,2026-05-30,parcial (conteúdo antecipado no Resumo Mestre 22/06; simulado Fase 2 em 23/06),
+ESPEC OMEGA,FASE 2,Introdução - Monitoramento Ambiental,1 arquivos,apostila/anotação,2026-04-18,,
+ESPEC OMEGA,FASE 2,MODULO 3 - Mudanças Climáticas,51 arquivos,apostila/anotação+codigo+dados+imagem+outro,2026-06-28,parcial (Resumo Mestre 22/06; PDF da Aula 2 chegou 09/11 e entrou no Resumo Mestre 09/11),resumo_mestre_espec_omega_2026_11_05.md seção 8.3
+ESPEC OMEGA,FASE 3,Módulo 1 Recursos Hídricos,Google Drive,apostila,2026-11-05,2026-11-05,materiais/espec_omega/resumo_fase3_modulo1_recursos_hidricos.md
+ESPEC OMEGA,FASE 3,Módulo 2 Qualidade do Ar,Google Drive,apostila,2026-11-05,2026-11-05,materiais/espec_omega/resumo_fase3_modulo2_qualidade_do_ar.md
+ESPEC OMEGA,FASE 4,Módulo 1 Impacto Ambiental,Google Drive,apostila,2026-11-05,2026-11-05,materiais/espec_omega/resumo_fase4_modulo1_impacto_ambiental.md
+ESPEC OMEGA,FASE 4,Módulo 2 Licenciamento e Auditoria,Google Drive,apostila,2026-11-05,2026-11-05,materiais/espec_omega/resumo_fase4_modulo2_licenciamento_auditoria.md
+ESPEC OMEGA,FASE 4,Módulo 3 Resíduos Sólidos,Google Drive,apostila,2026-11-05,2026-11-05,materiais/espec_omega/resumo_fase4_modulo3_residuos_solidos.md
+ESPEC OMEGA,TODAS,Resumo Mestre,Google Drive,apostila,2026-11-05,2026-11-05,materiais/espec_omega/resumo_mestre_espec_omega_2026_11_05.md
+ESPEC OMEGA,FASE 3,Módulo 3 Energia/Carbono,Google Drive,apostila,2026-11-05,2026-11-05,materiais/espec_omega/resumo_fase3_modulo3_energia_carbono.md

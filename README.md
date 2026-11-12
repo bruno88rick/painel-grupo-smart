@@ -17,6 +17,7 @@ Falta implantar:
 - **v3.0.0-emails:** módulo **E-mails** (Gestor de E-mails): movimentações propostas agrupadas por conta e pasta (aprovar o grupo ou recusar), pendências abertas (marcar como resolvida ou pedir rascunho), alertas recentes e rascunhos. Só conta, pasta, motivo, remetente, assunto, data e estado; nunca corpo nem anexos. Chave `EMAILS_INTEGRADO` em `false`. Contrato: [docs/contrato-emails.md](docs/contrato-emails.md). Antes de implantar, preencha em `painel-fontes.json` o `ledger.folderId` dos E-mails.
 - **v3.0.0-financas:** módulo **Finanças** (Assistente Financeiro): contas atrasadas e sem confirmação, próximos 30 dias em linha do tempo, recebidas no e-mail com código Pix ou de barras escondido (Copiar/Mostrar) e PDF, pagas, mês por categoria (entradas, saídas, essenciais, pessoal e empresa), rateio SKY, fechamentos, orçamento, alertas e recorrentes. Decisões `paguei` (data, valor e comentário opcionais) e `recebi_mais_um` no rateio. Conserta a linha de `Contas.csv` partida por `R$ 321,45` sem aspas. Chave `FINANCAS_INTEGRADO` em `false`. Contrato: [docs/contrato-financas.md](docs/contrato-financas.md). Antes de implantar, preencha em `painel-fontes.json` o `ledger.folderId` das Finanças e o `arquivos.recebidas.folderId` da subpasta `contas-recebidas`.
 - **v3.0.0-investimentos:** módulo **Investimentos** (Analista de Investimentos): aportes para confirmar (`fiz_aporte` com data, valor e comentário opcionais; `nao_fiz` com motivo opcional), preços do BTC e da AAPL com gráfico e variação (intradiário fica fora), carteira ARCA com peso e meta por categoria, o que fica fora da ARCA, posições com ganho, recomendações com o resultado em 30 dias, previdência, reserva de emergência, aportes do mês e alertas. Chave `INVESTIMENTOS_INTEGRADO` em `false`. Contrato: [docs/contrato-investimentos.md](docs/contrato-investimentos.md). Antes de implantar, preencha em `painel-fontes.json` o `ledger.folderId` dos Investimentos.
+- **v3.0.0-estudos:** módulo **Estudos** (Assistente de Estudos), só leitura: próximas entregas e provas com contagem regressiva ("em 6 dias", "amanhã às 21:00") e as de data "a confirmar", entregas que passaram nos últimos 30 dias, módulos por curso e fase com a situação do resumo (resumido, parcial, sem resumo) e o link "Abrir resumo" para o arquivo na pasta de materiais do Drive, Resumo Mestre, pedidos em andamento e entregues. O Início conta entregas e provas em até 7 dias. Não grava nada: não há chave nem decisão, e o servidor recusa qualquer decisão do módulo. Contrato: [docs/contrato-estudos.md](docs/contrato-estudos.md). Antes de implantar, preencha em `painel-fontes.json` o `ledger.folderId` dos Estudos e o `materiais.folderId` da pasta de materiais.
 
 ## Sumário
 
@@ -147,6 +148,17 @@ O `Aportes.csv` real não tem aporte pendente hoje; as capturas e os testes do s
 | ![Módulo inteiro](docs/screenshots/v3/investimentos/390-claro-modulo-inteiro.jpg) | ![Módulo inteiro](docs/screenshots/v3/investimentos/desktop-escuro-modulo-inteiro.jpg) |
 | ![Fiz o aporte com data e valor (chave ligada)](docs/screenshots/v3/investimentos/390-claro-dialogo-preenchido.jpg) | ![Depois de decidir (chave ligada)](docs/screenshots/v3/investimentos/desktop-claro-apos-decisao.jpg) |
 
+### v3.0.0-estudos: Estudos
+
+As fixtures de `test/fixtures/estudos/` são inteiramente fictícias (curso, módulos, datas, notas e caminhos inventados), com o mesmo formato e a mesma sujeira do ledger real.
+
+| Celular (390 px) | Desktop |
+|---|---|
+| ![Estudos, tema claro](docs/screenshots/v3/estudos/390-claro-modulo.jpg) | ![Estudos, tema claro](docs/screenshots/v3/estudos/desktop-claro-modulo.jpg) |
+| ![Estudos, tema escuro](docs/screenshots/v3/estudos/390-escuro-modulo.jpg) | ![Estudos, tema escuro](docs/screenshots/v3/estudos/desktop-escuro-modulo.jpg) |
+| ![Módulo inteiro](docs/screenshots/v3/estudos/390-claro-modulo-inteiro.jpg) | ![Módulo inteiro](docs/screenshots/v3/estudos/desktop-escuro-modulo-inteiro.jpg) |
+| ![Cartão no Início](docs/screenshots/v3/estudos/390-claro-inicio-cartoes.jpg) | ![Cartão no Início](docs/screenshots/v3/estudos/desktop-claro-inicio-cartoes.jpg) |
+
 ## Decisões e agentes
 
 1. Você toca em **Aprovar v<N>** ou **Pedir ajuste** (com comentário) num cartão `entregue` (designs) ou `rascunho`/`aguardando_aprovo` (posts). O detalhe só oferece Aprovar na versão mais recente.
@@ -248,7 +260,7 @@ npm test
 python3 -m unittest discover consumidor
 ```
 
-v3.0.0-investimentos: 77 testes no Node (7 novos em `test/v3-investimentos.test.js`, com as fixtures anonimizadas de `test/fixtures/investimentos/`). v3.0.0-financas: 70 testes no Node (11 novos em `test/v3-financas.test.js`: formato atual e o formato novo do Assistente Financeiro em `test/fixtures/financas-novo/`, e a compilação dos scripts das telas). v3.0.0-emails: 59 testes no Node (7 novos em `test/v3-emails.test.js`). v3.0.0-suporte: 52 testes no Node (9 novos em `test/v3-suporte.test.js`, com as fixtures anonimizadas de `test/fixtures/suporte/`). v2.0.1: 43 testes no Node e 29 no consumidor Python. v2.0.0: 35 e 29. Os vetores de hash do `Propostas.csv` são conferidos nos dois lados.
+v3.0.0-estudos: 82 testes no Node (5 novos em `test/v3-estudos.test.js`, com as fixtures fictícias de `test/fixtures/estudos/`). v3.0.0-investimentos: 77 testes no Node (7 novos em `test/v3-investimentos.test.js`, com as fixtures anonimizadas de `test/fixtures/investimentos/`). v3.0.0-financas: 70 testes no Node (11 novos em `test/v3-financas.test.js`: formato atual e o formato novo do Assistente Financeiro em `test/fixtures/financas-novo/`, e a compilação dos scripts das telas). v3.0.0-emails: 59 testes no Node (7 novos em `test/v3-emails.test.js`). v3.0.0-suporte: 52 testes no Node (9 novos em `test/v3-suporte.test.js`, com as fixtures anonimizadas de `test/fixtures/suporte/`). v2.0.1: 43 testes no Node e 29 no consumidor Python. v2.0.0: 35 e 29. Os vetores de hash do `Propostas.csv` são conferidos nos dois lados.
 
 22 testes: CSV com BOM, CRLF, aspas e quebra de linha; CSV quebrado; colunas ausentes; leitura dos CSVs reais; marcas `post:`; rascunho `post-*.md`; o modelo das telas; decisões, hash, versão velha, decisão repetida, estado inválido, recibos, cabeçalho antigo e a regra do relógio; a versão do painel; e o `Code.gs` com os serviços do Google simulados (cache, fonte quebrada, gravação em `decisoes.csv`).
 
@@ -267,6 +279,7 @@ python3 dev/shots_v3.py suporte integrado   # diálogo e depois de decidir (buil
 python3 dev/shots_v3.py emails integrado recusar "texto"   # decisão e texto do diálogo
 python3 dev/shots_v3.py financas integrado paguei "texto" 2026-11-12 210.54   # e data e valor
 python3 dev/shots_v3.py investimentos integrado fiz_aporte "texto" 2026-11-12 250.00
+python3 dev/shots_v3.py estudos base          # só leitura: não há modo integrado
 python3 -m http.server 8765 -d dev/out
 ```
 
@@ -301,7 +314,7 @@ Módulos v3 (caminho genérico, desde a v3.0.0):
 
 As decisões vão para o mesmo `decisoes.csv`, com `snapshot_hash` por linha, recibos e recusa de versão velha; o agente do módulo filtra por `modulo`.
 
-Planejado: **Estudos**.
+Todos os módulos do pedido P-20261112-2 estão na v3.0.0 (Suporte, E-mails, Finanças, Investimentos e Estudos). Estudos é só leitura: `decisoes: null` e nenhuma chave em `CHAVES`.
 
 ## Fuso horário
 

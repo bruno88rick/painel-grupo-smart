@@ -1620,6 +1620,166 @@ var PainelLib = (function () {
     montar: montarInvestimentos
   });
 
+  /* ---------- v3: Estudos (Assistente de Estudos, só leitura) ---------- */
+  /** Texto do arquivo em NFC (o Mac grava acentos decompostos) e sem espaços nas pontas. */
+  function nfc(s) { return String(s === null || s === undefined ? '' : s).normalize('NFC').trim(); }
+
+  /** "2026-11-17 23:59" ou "2026-11-17" (vale 23:59) -> Date local; "a confirmar" e outros textos -> null. */
+  function quandoEstudo(txt) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{1,2}):(\d{2}))?/.exec(nfc(txt));
+    if (!m) return null;
+    return m[4] !== undefined ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) : new Date(+m[1], +m[2] - 1, +m[3], 23, 59);
+  }
+
+  /** Contagem regressiva em texto: "hoje às 23:59", "amanhã às 08:00", "em 5 dias", "passou há 2 dias". */
+  function prazoEstudo(q, agora) {
+    function p(n) { return (n < 10 ? '0' : '') + n; }
+    var dias = Math.round((soDia(q).getTime() - soDia(agora).getTime()) / DIA_MS);
+    var hora = p(q.getHours()) + ':' + p(q.getMinutes());
+    if (q.getTime() < agora.getTime()) return { dias: dias, texto: dias === 0 ? 'hoje, já passou das ' + hora : 'passou há ' + (-dias) + (dias === -1 ? ' dia' : ' dias') };
+    if (dias === 0) return { dias: 0, texto: 'hoje às ' + hora };
+    if (dias === 1) return { dias: 1, texto: 'amanhã às ' + hora };
+    return { dias: dias, texto: 'em ' + dias + ' dias' };
+  }
+
+  /** resumo_arquivo -> caminho relativo à pasta de materiais + nota ("materiais/x/y.md", "y.md seção 8.3"). */
+  function caminhoResumo(txt) {
+    var t = nfc(txt);
+    if (!t) return { caminho: '', nota: '' };
+    var m = /^(.*?\.(?:md|pdf|docx?|txt|html))(?:\s+(.*))?$/i.exec(t);
+    var c = m ? m[1] : t, nota = m && m[2] ? m[2].trim() : '';
+    c = c.replace(/^\.?\/+/, '').replace(/^materiais\//i, '');
+    return { caminho: c, nota: nota };
+  }
+
+  var ESTADOS_RESUMO = [[/^parcial/, 'parcial'], [/^\d{4}-\d{2}-\d{2}/, 'resumido'], [/^(nao|sem|pendente|a fazer)/, 'sem_resumo']];
+  var ESTADOS_PEDIDO_ESTUDO = [[/^entregue/, 'entregue'], [/^(cancelad|desistiu)/, 'cancelado']];
+  var ORDEM_RESUMO = { resumido: 3, parcial: 2, outro: 1, sem_resumo: 0 };
+
+  function numeroModulo(nome) { var m = /m[oó]?dulo\s*(\d+)/i.exec(semAcento(nome)); return m ? +m[1] : null; }
+  function numeroFase(f) { var m = /(\d+)/.exec(String(f || '')); return m ? +m[1] : 99; }
+
+  function montarEstudos(f, dm, agora) {
+    var L = function (k) { return (f[k] && f[k].linhas) || []; };
+    // entregas e provas
+    var eventos = [];
+    [['entregas', 'entrega'], ['provas', 'prova']].forEach(function (par) {
+      L(par[0]).forEach(function (x, i) {
+        if (!nfc(x.titulo) && !nfc(x.data)) return;
+        var q = quandoEstudo(x.data), pr = q ? prazoEstudo(q, agora) : null, cr = caminhoResumo(x.simulado_arquivo);
+        eventos.push({ tipo: par[1], i: i, curso: nfc(x.curso), titulo: nfc(x.titulo), data_texto: nfc(x.data), quando: q ? dataIso(q).slice(0, 16).replace('T', ' ') : '',
+          a_confirmar: !q, dias: pr ? pr.dias : null, prazo: pr ? pr.texto : nfc(x.data) || 'sem data', passou: !!(q && q.getTime() < agora.getTime()),
+          fonte: nfc(x.fonte), plano_em: nfc(x.plano_em), rascunho_em: nfc(x.rascunho_em), arquivos: nfc(x.arquivos), modulos: nfc(x.modulos),
+          simulado_em: nfc(x.simulado_em), simulado_caminho: cr.caminho, simulado_nota: cr.nota });
+      });
+    });
+    var proximas = eventos.filter(function (e) { return !e.passou; }).sort(function (a, b) {
+      if (a.a_confirmar !== b.a_confirmar) return a.a_confirmar ? 1 : -1;
+      return a.quando.localeCompare(b.quando) || a.titulo.localeCompare(b.titulo);
+    });
+    var passadas = eventos.filter(function (e) { return e.passou && e.dias >= -30; }).sort(function (a, b) { return b.quando.localeCompare(a.quando); });
+
+    // módulos: linhas da pasta do Mac + linhas de resumo no Drive (mesmo curso, fase e número do módulo)
+    var linhas = L('modulos').filter(function (x) { return nfc(x.modulo); }).map(function (x, i) {
+      var re = nfc(x.resumo_em), cr = caminhoResumo(x.resumo_arquivo);
+      var sit = re ? classificarComeco(re, ESTADOS_RESUMO, 'outro') : 'sem_resumo';
+      var obs = (/\((.*)\)\s*$/.exec(re) || [])[1] || '';
+      return { i: i, curso: nfc(x.curso), fase: nfc(x.fase), modulo: nfc(x.modulo), arquivo: nfc(x.arquivo), tipo: nfc(x.tipo), chegou_em: nfc(x.chegou_em),
+        resumo_texto: re, situacao: sit, resumo_data: sit === 'resumido' ? re.slice(0, 10) : '', resumo_obs: obs, caminho: cr.caminho, nota: cr.nota,
+        no_drive: /^google drive$/i.test(nfc(x.arquivo)), numero: numeroModulo(x.modulo) };
+    });
+    var mestres = linhas.filter(function (x) { return /^todas$/i.test(x.fase) || /resumo mestre/i.test(x.modulo); });
+    var resto = linhas.filter(function (x) { return mestres.indexOf(x) < 0; });
+    var chave = function (x) { return x.numero === null ? null : semAcento(x.curso) + '|' + semAcento(x.fase) + '|' + x.numero; };
+    var doMac = resto.filter(function (x) { return !x.no_drive; }), doDrive = resto.filter(function (x) { return x.no_drive; });
+    var porChave = {};
+    doMac.forEach(function (x) { var k = chave(x); if (k && !porChave[k]) porChave[k] = x; });
+    var modulos = doMac.map(function (x) { return Object.assign({}, x, { resumos: [x].filter(function (r) { return r.resumo_texto || r.caminho; }) }); });
+    var achar = function (x) { for (var j = 0; j < modulos.length; j++) if (modulos[j].i === x.i) return modulos[j]; return null; };
+    doDrive.forEach(function (d) {
+      var k = chave(d), alvo = k && porChave[k] ? achar(porChave[k]) : null;
+      if (alvo) alvo.resumos.push(d);
+      else modulos.push(Object.assign({}, d, { resumos: [d] }));
+    });
+    modulos.forEach(function (x) {
+      x.resumos.sort(function (a, b) { return (ORDEM_RESUMO[b.situacao] - ORDEM_RESUMO[a.situacao]) || b.resumo_data.localeCompare(a.resumo_data); });
+      var r = x.resumos[0];
+      x.situacao_final = r ? r.situacao : 'sem_resumo';
+      x.resumo = r ? { situacao: r.situacao, data: r.resumo_data, texto: r.resumo_texto, obs: r.resumo_obs, caminho: r.caminho, nota: r.nota, no_drive: r.no_drive } : null;
+      x.outros_resumos = x.resumos.slice(1).map(function (o) { return { situacao: o.situacao, data: o.resumo_data, texto: o.resumo_texto, caminho: o.caminho, nota: o.nota }; });
+      delete x.resumos;
+    });
+    modulos.sort(function (a, b) {
+      return a.curso.localeCompare(b.curso) || numeroFase(a.fase) - numeroFase(b.fase) ||
+        ((a.numero === null ? 99 : a.numero) - (b.numero === null ? 99 : b.numero)) || a.modulo.localeCompare(b.modulo);
+    });
+
+    // cursos (sem o caminho do Mac: só o nome da pasta)
+    var cursos = L('cursos').filter(function (x) { return nfc(x.curso); }).map(function (x) {
+      var pasta = nfc(x.pasta).replace(/\/+$/, '');
+      return { curso: nfc(x.curso), pasta_nome: pasta.split('/').pop(), calendario: nfc(x.calendario), situacao: nfc(x.situacao) };
+    });
+    // liga módulos e mestres ao curso: "POS X" casa com "POS X - Gestão Ambiental"
+    var doCurso = function (nome) {
+      var n = semAcento(nome);
+      return function (x) { var c = semAcento(x.curso); return c && (n === c || n.indexOf(c + ' ') === 0 || n.indexOf(c + ' -') === 0 || c.indexOf(n) === 0); };
+    };
+    var usados = {};
+    var grupos = cursos.map(function (c) {
+      var ms = modulos.filter(doCurso(c.curso)), me = mestres.filter(doCurso(c.curso));
+      ms.forEach(function (x) { usados[x.i + (x.no_drive ? 'd' : 'm')] = 1; });
+      var cont = { resumido: 0, parcial: 0, sem_resumo: 0, outro: 0 };
+      ms.forEach(function (x) { cont[x.situacao_final]++; });
+      return Object.assign({}, c, { modulos: ms, contagem: cont,
+        mestres: me.map(function (r) { return { modulo: r.modulo, data: r.resumo_data, texto: r.resumo_texto, caminho: r.caminho, nota: r.nota }; }) });
+    });
+    var soltos = modulos.filter(function (x) { return !usados[x.i + (x.no_drive ? 'd' : 'm')]; });
+    if (soltos.length) {
+      var porC = {};
+      soltos.forEach(function (x) { (porC[x.curso] = porC[x.curso] || []).push(x); });
+      Object.keys(porC).forEach(function (k) {
+        var cont = { resumido: 0, parcial: 0, sem_resumo: 0, outro: 0 };
+        porC[k].forEach(function (x) { cont[x.situacao_final]++; });
+        grupos.push({ curso: k, pasta_nome: '', calendario: '', situacao: 'não está no Cursos.csv', modulos: porC[k], contagem: cont, mestres: [] });
+      });
+    }
+
+    // pedidos
+    var pedidos = L('pedidos').filter(function (x) { return nfc(x.pedido); }).map(function (x, i) {
+      var et = nfc(x.estado);
+      return { i: i, data: nfc(x.data), pedido: nfc(x.pedido), tipo: nfc(x.tipo), estado_texto: et, estado: classificarComeco(et, ESTADOS_PEDIDO_ESTUDO, 'andamento'), entregue_em: nfc(x.entregue_em) };
+    });
+    var andamento = pedidos.filter(function (p) { return p.estado === 'andamento'; }).sort(function (a, b) { return a.data.localeCompare(b.data); });
+    var entregues = pedidos.filter(function (p) { return p.estado === 'entregue'; }).sort(function (a, b) { return (b.entregue_em || b.data).localeCompare(a.entregue_em || a.data) || b.i - a.i; }).slice(0, 5);
+
+    // caminhos para o servidor achar o fileId na pasta de materiais
+    var caminhos = {};
+    modulos.forEach(function (x) { if (x.resumo && x.resumo.caminho) caminhos[x.resumo.caminho] = 1; x.outros_resumos.forEach(function (o) { if (o.caminho) caminhos[o.caminho] = 1; }); });
+    mestres.forEach(function (r) { if (r.caminho) caminhos[r.caminho] = 1; });
+    eventos.forEach(function (e) { if (e.simulado_caminho) caminhos[e.simulado_caminho] = 1; });
+
+    var em7 = proximas.filter(function (e) { return !e.a_confirmar && e.dias <= 7; }).length;
+    return {
+      itens: [], proximas: proximas, passadas: passadas, a_confirmar: proximas.filter(function (e) { return e.a_confirmar; }).length,
+      cursos: grupos, modulos_total: modulos.length, pedidos_andamento: andamento, pedidos_entregues: entregues, pedidos_total: pedidos.length,
+      caminhos: Object.keys(caminhos).sort(), links: {},
+      precisa: { total: em7, partes: [{ rotulo: em7 === 1 ? 'entrega ou prova em 7 dias' : 'entregas ou provas em 7 dias', n: em7 }] }
+    };
+  }
+
+  registrarModuloV3({
+    id: 'estudos', rotulo: 'Estudos', agente: 'Assistente de Estudos', chave: null,
+    fontes: {
+      cursos: { arquivo: 'Cursos.csv', rotulo: 'Cursos (Estudos)', obrigatorias: ['curso'] },
+      entregas: { arquivo: 'Entregas.csv', rotulo: 'Entregas (Estudos)', obrigatorias: ['curso', 'titulo', 'data'] },
+      modulos: { arquivo: 'Modulos.csv', rotulo: 'Módulos (Estudos)', obrigatorias: ['curso', 'fase', 'modulo', 'resumo_em', 'resumo_arquivo'] },
+      provas: { arquivo: 'Provas.csv', rotulo: 'Provas (Estudos)', obrigatorias: ['curso', 'titulo', 'data'], opcional: true },
+      pedidos: { arquivo: 'Pedidos.csv', rotulo: 'Pedidos (Estudos)', obrigatorias: ['pedido', 'estado'], opcional: true }
+    },
+    decisoes: null,
+    montar: montarEstudos
+  });
+
   /** Todas as decisões que os módulos v3 aceitam. */
   function decisoesV3() {
     var r = [];
@@ -1644,7 +1804,7 @@ var PainelLib = (function () {
   }
 
   /** Versão exibida no topo do painel. Atualize a cada implantação. */
-  var VERSAO_PAINEL = '3.0.0-investimentos';
+  var VERSAO_PAINEL = '3.0.0-estudos';
   var POSTS_INTEGRADOS = false;
   var ESTADOS_DECIDIVEIS = { design: ['entregue'], post: ['rascunho', 'aguardando_aprovo'] };
 
@@ -1727,7 +1887,7 @@ var PainelLib = (function () {
     decisoesComRecibos: decisoesComRecibos,
     montarModulosV3: montarModulosV3,
     conferirDecisaoV3: conferirDecisaoV3,
-    numBr: numBr, tipoCodigo: tipoCodigo, consertarLinha: consertarLinha, canonicoConta: canonicoConta, canonicoRateio: canonicoRateio, limparTokens: limparTokens, quandoPreco: quandoPreco, numDec: numDec, seriesPrecos: seriesPrecos, canonicoAporte: canonicoAporte, ESTADOS_APORTE: ESTADOS_APORTE, ESTADOS_CONTA: ESTADOS_CONTA,
+    numBr: numBr, tipoCodigo: tipoCodigo, consertarLinha: consertarLinha, canonicoConta: canonicoConta, canonicoRateio: canonicoRateio, limparTokens: limparTokens, quandoPreco: quandoPreco, numDec: numDec, seriesPrecos: seriesPrecos, canonicoAporte: canonicoAporte, ESTADOS_APORTE: ESTADOS_APORTE, quandoEstudo: quandoEstudo, prazoEstudo: prazoEstudo, caminhoResumo: caminhoResumo, nfc: nfc, ESTADOS_RESUMO: ESTADOS_RESUMO, ESTADOS_CONTA: ESTADOS_CONTA,
     parseComentarioV3: parseComentarioV3,
     montarComentarioV3: montarComentarioV3,
     classificarComeco: classificarComeco,
