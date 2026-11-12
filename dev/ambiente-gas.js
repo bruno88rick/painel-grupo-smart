@@ -1,6 +1,6 @@
 // Ambiente simulado do Apps Script (DriveApp, CacheService etc.) para os testes do servidor.
 const fs = require('fs'), path = require('path');
-const src = (n) => fs.readFileSync(path.join(__dirname, '..', 'src', n), 'utf8');
+const src = (n) => fs.readFileSync(path.join(process.env.PAINEL_SRC || path.join(__dirname, '..', 'src'), n), 'utf8');
 const APORTE_PLANEJADO = '2026-11-15,Reserva de emergência,Fora da ARCA,Tesouro Selic,250.00,pessoal,planejado (primeiro aporte da reserva; aguardando o usuário)\r\n';
 const fx = (n) => fs.readFileSync(path.join(__dirname, '..', 'test', 'fixtures', n), 'utf8');
 
@@ -8,38 +8,42 @@ const fx = (n) => fs.readFileSync(path.join(__dirname, '..', 'test', 'fixtures',
 function versaoDoTexto(t) { let h = 0; for (const ch of String(t)) h = (h * 31 + ch.codePointAt(0)) % 1000003; return h; }
 
 function ambiente(arquivos) {
-  const props = {}, cache = {}, scache = {}, leituras = {}; let uuid = 0;
+  const props = {}, cache = {}, scache = {}, leituras = {}, chamadas = {}; let uuid = 0;
+  // Conta as chamadas ao Drive e ao cache (para medir o caminho do Início): conta('getFileById') etc.
+  const conta = (k) => { chamadas[k] = (chamadas[k] || 0) + 1; };
   const arquivo = (id) => {
     const a = arquivos[id]; if (!a) throw new Error('Arquivo não encontrado: ' + id);
-    return { getId: () => id, getName: () => a.nome, isTrashed: () => false, getLastUpdated: () => new Date(a.atualizado || (Date.parse('2026-11-11T12:00:00Z') + versaoDoTexto(a.texto) * 1000)),
-      getBlob: () => ({ getDataAsString: () => { leituras[id] = (leituras[id] || 0) + 1; return a.texto; } }), setContent: (t) => { a.texto = t; } };
+    return { getId: () => id, getName: () => (conta('getName'), a.nome), isTrashed: () => (conta('isTrashed'), false), getLastUpdated: () => (conta('getLastUpdated'), new Date(a.atualizado || (Date.parse('2026-11-11T12:00:00Z') + versaoDoTexto(a.texto) * 1000))),
+      getBlob: () => ({ getDataAsString: () => { conta('getBlob'); leituras[id] = (leituras[id] || 0) + 1; return a.texto; } }), setContent: (t) => { a.texto = t; } };
   };
-  const iter = (lista) => { let i = 0; return { hasNext: () => i < lista.length, next: () => lista[i++] }; };
+  const iter = (lista) => { let i = 0; return { hasNext: () => i < lista.length, next: () => (conta('next'), lista[i++]) }; };
   const g = {
     PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => props[k] || null, setProperty: (k, v) => { props[k] = v; } }) },
     DriveApp: {
-      getFileById: arquivo,
-      getFilesByName: (n) => iter(Object.keys(arquivos).filter((id) => arquivos[id].nome === n && !arquivos[id].pasta).map(arquivo)),
+      getFileById: (id) => (conta('getFileById'), arquivo(id)),
+      getFilesByName: (n) => (conta('getFilesByName'), iter(Object.keys(arquivos).filter((id) => arquivos[id].nome === n && !arquivos[id].pasta).map(arquivo))),
       getFolderById: function pasta(fid) {
+        conta('getFolderById');
         const de = (f) => Object.keys(arquivos).filter((id) => arquivos[id].pasta === fid && f(arquivos[id]));
         const sub = (id) => Object.assign(pasta(id), { getId: () => id, getName: () => arquivos[id].nome, isTrashed: () => false });
         return {
-          getFilesByName: (n) => iter(de((a) => !a.ehPasta && a.nome === n).map(arquivo)),
-          getFiles: () => iter(de((a) => !a.ehPasta).map(arquivo)),
-          getFoldersByName: (n) => iter(de((a) => a.ehPasta && a.nome === n).map(sub)),
-          getFolders: () => iter(de((a) => a.ehPasta).map(sub))
+          getFilesByName: (n) => (conta('pasta.getFilesByName'), iter(de((a) => !a.ehPasta && a.nome === n).map(arquivo))),
+          getFiles: () => (conta('pasta.getFiles'), iter(de((a) => !a.ehPasta).map(arquivo))),
+          getFoldersByName: (n) => (conta('pasta.getFoldersByName'), iter(de((a) => a.ehPasta && a.nome === n).map(sub))),
+          getFolders: () => (conta('pasta.getFolders'), iter(de((a) => a.ehPasta).map(sub)))
         };
       }
     },
     CacheService: { getUserCache: () => ({ get: (k) => cache[k] || null, getAll: (ks) => { const o = {}; ks.forEach((k) => { if (k in cache) o[k] = cache[k]; }); return o; }, putAll: (o) => Object.assign(cache, o), put: (k, v) => { cache[k] = v; }, remove: (k) => { delete cache[k]; } }),
-      getScriptCache: () => ({ get: (k) => (k in scache ? scache[k] : null), put: (k, v) => { scache[k] = v; }, remove: (k) => { delete scache[k]; } }) },
+      getScriptCache: () => ({ get: (k) => (conta('cache.get'), k in scache ? scache[k] : null), put: (k, v) => { conta('cache.put'); scache[k] = v; }, remove: (k) => { delete scache[k]; },
+        getAll: (ks) => { conta('cache.getAll'); const o = {}; ks.forEach((k) => { if (k in scache) o[k] = scache[k]; }); return o; }, putAll: (o) => { conta('cache.putAll'); Object.assign(scache, o); } }) },
     LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => {} }) },
     Utilities: { formatDate: (d, tz, f) => f === 'yyyy-MM-dd HH:mm:ss' ? '2026-11-11 15:00:00' : f.indexOf('yyyy-MM-dd') === 0 ? '2026-11-11T15:00:00-03:00' : '20261111-150000', getUuid: () => 'abcdef12-0000-4000-8000-' + String(++uuid).padStart(12, '0') }
   };
   const m = { exports: {} };
   const nomes = Object.keys(g);
-  const corpo = src('Lib.gs') + '\n' + src('Code.gs') + '\nreturn { obterDados, salvarDecisao, PainelLib };';
-  return Object.assign(new Function('module', ...nomes, corpo)(m, ...nomes.map((k) => g[k])), { arquivos, cache, scache, leituras });
+  const corpo = src('Lib.gs') + '\n' + src('Code.gs') + '\nreturn { obterDados, salvarDecisao, PainelLib, obterInicio: typeof obterInicio === \'function\' ? obterInicio : null, obterModulo: typeof obterModulo === \'function\' ? obterModulo : null };';
+  return Object.assign(new Function('module', ...nomes, corpo)(m, ...nomes.map((k) => g[k])), { arquivos, cache, scache, leituras, chamadas, zerar: () => Object.keys(chamadas).forEach((k) => delete chamadas[k]) });
 }
 
 function arquivosBase(cfgExtra) {

@@ -14,7 +14,9 @@ A produção (Web App, implantação **versão 6 = v3.0.0**, de 12/11/2026, mesm
 - Todas as chaves continuam em `false`: `ANUNCIOS_INTEGRADOS`, `POSTS_INTEGRADOS`, `SUPORTE_INTEGRADO`, `EMAILS_INTEGRADO`, `FINANCAS_INTEGRADO` e `INVESTIMENTOS_INTEGRADO`. Os botões dos módulos v3 aparecem desligados, com o aviso "o agente ainda não lê estas decisões". Estudos é só leitura.
 - Para desfazer: em **Implantar > Gerenciar implantações > Editar**, escolha a versão 5 e devolva o `painel-fontes.json` da cópia.
 
-Falta implantar: nada.
+Falta implantar: v3.0.1.
+
+- **v3.0.1:** carga mais rápida. O Início (design e anúncios) chega primeiro por `obterInicio`; os cinco módulos v3 chegam depois, em segundo plano, cada um pela sua chamada `obterModulo(id)`, com o seu cache e a cópia `_ult` desatualizada devolvida na hora. Enquanto um módulo carrega, o cartão dele mostra "Carregando…"; se der erro, o erro fica só naquele cartão (e na tela do módulo, com **Tentar de novo**). **Atualizar agora** recarrega tudo. Sem mudança no `appsscript.json`, no `painel-fontes.json` nem nas chaves (todas em `false`). Para implantar: colar os arquivos de `src/`, **Implantar > Gerenciar implantações > Editar > Nova versão**.
 
 ## Sumário
 
@@ -35,7 +37,8 @@ Falta implantar: nada.
 - **Google Apps Script Web App** (HtmlService). Executa como o Bruno e só o Bruno acessa (`executeAs: USER_DEPLOYING`, `access: MYSELF`). Nada fica em site público.
 - **Leitura:** `Code.gs` lê os CSVs e os `post-*.md` do Drive com `DriveApp` e monta o modelo com `Lib.gs` (funções puras, testadas no Node).
 - **Configuração:** um único arquivo, `painel-fontes.json`, na pasta `painel-grupo-smart` do Drive. Ele diz qual módulo lê quais arquivos (fileId e folderId). Não há ids espalhados no código. Exemplo em `config/painel-fontes.example.json`.
-- **Cache:** `CacheService` por 5 minutos (`cache_minutos`). O botão **Atualizar agora** ignora o cache.
+- **Carga em duas etapas (v3.0.1):** `obterInicio` devolve só o Início (design, posts e anúncios) e a lista dos módulos v3 ativos; o navegador pede cada módulo com `obterModulo(id)`, em paralelo. Cada resposta tem o seu cache (`painel_v2_inicio`, `painel_v2_mod_<id>`) e a sua cópia `_ult` de 6 horas, devolvida na hora quando o cache venceu (a tela pede a versão nova em silêncio). `obterDados` continua existindo, com tudo junto.
+- **Cache:** `CacheService` por 5 minutos (`cache_minutos`), e o texto de cada arquivo no `ScriptCache` preso à data de modificação (lido em lote com `getAll`). O botão **Atualizar agora** ignora o cache.
 - **Imagens:** miniaturas por `https://drive.google.com/thumbnail?id=<fileId>&sz=w1000`, com plano B pelo servidor (`obterMiniatura`) quando a URL não carrega. Vídeos abrem no player do Drive.
 - **Decisões:** **Aprovar** e **Pedir ajuste** só acrescentam uma linha em `decisoes.csv` (pasta do painel), presa à versão exata que estava na tela (`snapshot_hash`). O servidor confere o item e o estado atuais antes de gravar e recusa versão velha. O painel nunca edita os arquivos dos agentes. Os agentes respondem com um recibo imutável em `recibos/`. Detalhes em [Contrato de decisões](#contrato-de-decisões).
 - **Robustez:** cada fonte é lida separada. Arquivo ausente ou CSV quebrado vira um aviso no topo e o resto continua.
@@ -43,7 +46,7 @@ Falta implantar: nada.
 ```
 src/
   appsscript.json   manifesto (fuso, V8, Web App só para você)
-  Code.gs           servidor: doGet, obterDados, obterMiniatura, salvarDecisao
+  Code.gs           servidor: doGet, obterInicio, obterModulo, obterDados, obterMiniatura, salvarDecisao
   Lib.gs            parsing de CSV e md, modelo das telas, validação (sem serviços Google)
   Index.html        estrutura da página
   Styles.html       visual (tema claro e escuro, selos com texto)
@@ -90,6 +93,19 @@ O estado **aprovado** é um acréscimo à lista original: separa o que você já
 | ![Início com decisão obsoleta e recusada](docs/screenshots/v2-390-inicio.jpg) | ![Início com decisão obsoleta e recusada](docs/screenshots/v2-desktop-inicio.jpg) |
 | ![Posts aguardando confirmação](docs/screenshots/v2-390-posts.jpg) | ![Posts aguardando confirmação](docs/screenshots/v2-desktop-posts.jpg) |
 | ![Versão velha recusada](docs/screenshots/v2-390-recusa-obsoleta.jpg) | ![Versão velha recusada](docs/screenshots/v2-desktop-recusa-obsoleta.jpg) |
+
+### v3.0.1: carga em segundo plano
+
+Gerado com `python3 dev/shots_v301.py` (o harness aceita `?lento=1`, `?carregando=<ids>` e `?erro=<ids>`).
+
+| Celular (390 px) | Desktop |
+|---|---|
+| ![Cartões carregando](docs/screenshots/v3.0.1/390-claro-cartoes-carregando.jpg) | ![Cartões carregando](docs/screenshots/v3.0.1/desktop-claro-cartoes-carregando.jpg) |
+| ![Um carregando e um com erro](docs/screenshots/v3.0.1/390-escuro-cartoes-um-carregando.jpg) | ![Um carregando e um com erro](docs/screenshots/v3.0.1/desktop-escuro-cartoes-um-carregando.jpg) |
+| ![Mais com carregando](docs/screenshots/v3.0.1/390-claro-menu-mais-carregando.jpg) | ![Mais com carregando](docs/screenshots/v3.0.1/desktop-claro-menu-mais-carregando.jpg) |
+| ![Módulo carregando](docs/screenshots/v3.0.1/390-escuro-modulo-carregando.jpg) | ![Módulo com erro](docs/screenshots/v3.0.1/desktop-claro-modulo-erro.jpg) |
+
+Chamadas ao Drive medidas com `node dev/medir-chamadas.js` (fixtures; `PAINEL_SRC=<pasta>` mede outra versão): na `main` (v3.0.0), `obterDados` frio fazia 477 chamadas (46 leituras de arquivo, 43 `getFileById`) e, com o cache de arquivos quente, 326 (82 `getFileById`). Na v3.0.1, `obterInicio` frio faz 108 (17 leituras, 3 `getFileById`) e quente 81 (1 leitura, 14 `getFileById`). Os módulos fazem 34 a 105 chamadas cada, em paralelo, fora do caminho do Início.
 
 ### v2.0.0: Posts e anúncios
 
@@ -257,7 +273,7 @@ npm test
 python3 -m unittest discover consumidor
 ```
 
-v3.0.0-estudos: 82 testes no Node (5 novos em `test/v3-estudos.test.js`, com as fixtures fictícias de `test/fixtures/estudos/`). v3.0.0-investimentos: 77 testes no Node (7 novos em `test/v3-investimentos.test.js`, com as fixtures anonimizadas de `test/fixtures/investimentos/`). v3.0.0-financas: 70 testes no Node (11 novos em `test/v3-financas.test.js`: formato atual e o formato novo do Assistente Financeiro em `test/fixtures/financas-novo/`, e a compilação dos scripts das telas). v3.0.0-emails: 59 testes no Node (7 novos em `test/v3-emails.test.js`). v3.0.0-suporte: 52 testes no Node (9 novos em `test/v3-suporte.test.js`, com as fixtures anonimizadas de `test/fixtures/suporte/`). v2.0.1: 43 testes no Node e 29 no consumidor Python. v2.0.0: 35 e 29. Os vetores de hash do `Propostas.csv` são conferidos nos dois lados.
+v3.0.1: 92 testes no Node (10 novos em `test/v301-carga.test.js`: `obterInicio` sem v3, `obterModulo` por módulo, cache e cópia `_ult`, erro só no módulo, cache limpo depois de decidir, e o cartão carregando, com erro e pronto no navegador). v3.0.0-estudos: 82 testes no Node (5 novos em `test/v3-estudos.test.js`, com as fixtures fictícias de `test/fixtures/estudos/`). v3.0.0-investimentos: 77 testes no Node (7 novos em `test/v3-investimentos.test.js`, com as fixtures anonimizadas de `test/fixtures/investimentos/`). v3.0.0-financas: 70 testes no Node (11 novos em `test/v3-financas.test.js`: formato atual e o formato novo do Assistente Financeiro em `test/fixtures/financas-novo/`, e a compilação dos scripts das telas). v3.0.0-emails: 59 testes no Node (7 novos em `test/v3-emails.test.js`). v3.0.0-suporte: 52 testes no Node (9 novos em `test/v3-suporte.test.js`, com as fixtures anonimizadas de `test/fixtures/suporte/`). v2.0.1: 43 testes no Node e 29 no consumidor Python. v2.0.0: 35 e 29. Os vetores de hash do `Propostas.csv` são conferidos nos dois lados.
 
 22 testes: CSV com BOM, CRLF, aspas e quebra de linha; CSV quebrado; colunas ausentes; leitura dos CSVs reais; marcas `post:`; rascunho `post-*.md`; o modelo das telas; decisões, hash, versão velha, decisão repetida, estado inválido, recibos, cabeçalho antigo e a regra do relógio; a versão do painel; e o `Code.gs` com os serviços do Google simulados (cache, fonte quebrada, gravação em `decisoes.csv`).
 

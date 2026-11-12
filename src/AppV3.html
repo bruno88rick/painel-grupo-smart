@@ -8,22 +8,62 @@ window.PainelV3 = (function () {
   'use strict';
   var telas = {};
   var est = { dec: null, mod: '' };
+  /* v3.0.1: carga de cada módulo, em segundo plano. carga[id] = { estado: 'carregando'|'ok'|'erro', erro, fontes } */
+  var carga = {}, geracao = 0;
   function U() { return window.Painel.util; }
   function $(s) { return document.querySelector(s); }
 
   function modelo() { var d = window.Painel && window.Painel.dados(); return d && d.v3 ? d.v3 : {}; }
-  /** Módulos v3 na ordem do painel-fontes.json; os inativos aparecem como "em breve". */
+  /**
+   * Módulos v3 na ordem do painel-fontes.json; os inativos aparecem como "em breve".
+   * Ativo = está em v3_ids (o servidor manda no Início), mesmo antes de o módulo chegar.
+   */
   function lista() {
     var d = window.Painel.dados(), v3 = modelo(), r = [];
-    var vistos = {};
+    var ids = d.v3_ids || Object.keys(v3), vistos = {};
     (d.modulos || []).forEach(function (m) {
       if (m.id === 'design' || m.id === 'anuncios') return;
       vistos[m.id] = 1;
-      r.push({ id: m.id, rotulo: (v3[m.id] && v3[m.id].rotulo) || m.rotulo, ativo: !!v3[m.id], m: v3[m.id] || null });
+      var ativo = ids.indexOf(m.id) >= 0;
+      r.push({ id: m.id, rotulo: (v3[m.id] && v3[m.id].rotulo) || m.rotulo, ativo: ativo, m: ativo ? v3[m.id] || null : null, c: carga[m.id] || { estado: v3[m.id] ? 'ok' : 'carregando' } });
     });
-    Object.keys(v3).forEach(function (id) { if (!vistos[id]) r.push({ id: id, rotulo: v3[id].rotulo, ativo: true, m: v3[id] }); });
+    ids.forEach(function (id) { if (!vistos[id]) r.push({ id: id, rotulo: (v3[id] && v3[id].rotulo) || id, ativo: true, m: v3[id] || null, c: carga[id] || { estado: v3[id] ? 'ok' : 'carregando' } }); });
     return r;
   }
+
+  /**
+   * Pede cada módulo ao servidor, em paralelo (uma chamada google.script.run por módulo).
+   * Cópia desatualizada ("_ult") chega na hora e o módulo pede a nova sozinho, sem voltar a "carregando".
+   * Uma carga nova (Atualizar agora) invalida as respostas da anterior.
+   */
+  function carregarModulos(ids, forcar) {
+    var g = ++geracao, v3 = modelo();
+    Object.keys(v3).forEach(function (id) { if (ids.indexOf(id) < 0) delete v3[id]; });
+    Object.keys(carga).forEach(function (id) { if (ids.indexOf(id) < 0) delete carga[id]; });
+    ids.forEach(function (id) { pedir(id, forcar, g, false); });
+    window.Painel.redesenharInicio();
+  }
+  function pedir(id, forcar, g, silencioso) {
+    var antes = carga[id] || {};
+    if (!silencioso) carga[id] = { estado: 'carregando', erro: '', fontes: antes.fontes || [] };
+    if (est.mod === id) desenharModulo(id);
+    return U().chamar('obterModulo', id, !!forcar).then(function (r) {
+      if (g !== geracao) return;
+      var d = window.Painel.dados(); if (!d) return;
+      d.v3 = d.v3 || {};
+      d.v3[id] = r.modulo;
+      carga[id] = { estado: 'ok', erro: '', fontes: r.fontes || [], gerado_em: r.gerado_em, desatualizado: !!r.desatualizado };
+      window.Painel.redesenharInicio();
+      if (r.desatualizado) pedir(id, true, g, true);
+    }).catch(function (e) {
+      if (g !== geracao) return;
+      carga[id] = { estado: 'erro', erro: (e && e.message) || String(e), fontes: (carga[id] || {}).fontes || [] };
+      window.Painel.redesenharInicio();
+    });
+  }
+  function recarregarModulo(id) { pedir(id, true, geracao, false); window.Painel.redesenharInicio(); }
+  /** Estado das fontes de cada módulo que já chegou (para os avisos e a lista do Início). */
+  function fontes() { return Object.keys(carga).reduce(function (a, id) { return a.concat(carga[id].fontes || []); }, []); }
   function total() { return lista().reduce(function (s, x) { return s + (x.m && x.m.precisa ? x.m.precisa.total : 0); }, 0); }
 
   function textoPartes(p) {
@@ -36,9 +76,15 @@ window.PainelV3 = (function () {
     if (!l.length) return '';
     var e = U().esc;
     return '<h2 id="sec-modulos">Outros agentes <span class="qtd">' + l.length + '</span></h2><div class="grade modulos-v3">' + l.map(function (x) {
+      var topo = function (num) { return '<div class="cartao-mod-topo"><span class="rot-mod">' + e(x.rotulo) + '</span><span class="num">' + num + '</span></div>'; };
+      if (x.c.estado === 'erro' && !x.m) return '<button class="contador-card cartao-mod erro-mod" data-mod="' + e(x.id) + '">' + topo('!') +
+        '<div class="rot">Não carregou: ' + e(x.c.erro) + '</div></button>';
+      if (!x.m) return '<button class="contador-card cartao-mod carregando-mod" data-mod="' + e(x.id) + '" aria-busy="true">' + topo('<span class="girador" aria-hidden="true"></span>') +
+        '<div class="rot">Carregando…</div></button>';
       var n = x.m.precisa ? x.m.precisa.total : 0;
-      return '<button class="contador-card cartao-mod' + (n ? ' destaque' : ' zero') + '" data-mod="' + e(x.id) + '"><div class="cartao-mod-topo"><span class="rot-mod">' + e(x.rotulo) + '</span><span class="num">' + n + '</span></div>' +
-        '<div class="rot">' + e(n ? textoPartes(x.m.precisa) : (x.m.precisa && x.m.precisa.vazio) || 'Nada precisa de você aqui') + '</div></button>';
+      var nota = x.c.estado === 'carregando' ? '<div class="rot nota-mod">Atualizando…</div>' : x.c.estado === 'erro' ? '<div class="rot nota-mod erro">Não atualizou: ' + e(x.c.erro) + '</div>' : '';
+      return '<button class="contador-card cartao-mod' + (n ? ' destaque' : ' zero') + (x.c.estado === 'carregando' ? ' atualizando-mod' : '') + '" data-mod="' + e(x.id) + '"' + (x.c.estado === 'carregando' ? ' aria-busy="true"' : '') + '>' + topo(n) +
+        '<div class="rot">' + e(n ? textoPartes(x.m.precisa) : (x.m.precisa && x.m.precisa.vazio) || 'Nada precisa de você aqui') + '</div>' + nota + '</button>';
     }).join('') + '</div>';
   }
 
@@ -48,8 +94,10 @@ window.PainelV3 = (function () {
       '<button class="item-mais so-celular" data-aba="biblioteca"><span>Biblioteca</span><span class="mudo">fotos e produtos</span></button>';
     lista().forEach(function (x) {
       if (!x.ativo) { h += '<div class="item-mais inativo" aria-disabled="true"><span>' + e(x.rotulo) + '</span><span class="mudo">em breve</span></div>'; return; }
-      var n = x.m.precisa ? x.m.precisa.total : 0;
-      h += '<button class="item-mais" data-mod="' + e(x.id) + '"><span>' + e(x.rotulo) + '</span>' + (n ? '<b class="contador-mais">' + n + '</b>' : '<span class="mudo">em dia</span>') + '</button>';
+      var n = x.m && x.m.precisa ? x.m.precisa.total : 0;
+      var dir = !x.m ? (x.c.estado === 'erro' ? '<span class="erro">não carregou</span>' : '<span class="mudo"><span class="girador" aria-hidden="true"></span> carregando</span>')
+        : n ? '<b class="contador-mais">' + n + '</b>' : '<span class="mudo">em dia</span>';
+      h += '<button class="item-mais" data-mod="' + e(x.id) + '"><span>' + e(x.rotulo) + '</span>' + dir + '</button>';
     });
     $('#mais-lista').innerHTML = h + '</div>';
   }
@@ -64,9 +112,18 @@ window.PainelV3 = (function () {
   function desenharModulo(id) {
     var m = modelo()[id], el = $('#aba-mod');
     est.mod = id;
+    var x = lista().filter(function (y) { return y.id === id; })[0];
+    if (!m && x && x.ativo) {
+      var e = U().esc;
+      if (x.c.estado === 'erro') { el.innerHTML = '<h1>' + e(x.rotulo) + '</h1><div class="aviso"><span><b>Não carregou:</b> ' + e(x.c.erro) + '. O resto do painel segue.</span></div><p><button class="botao" data-v3-recarregar="' + e(id) + '">Tentar de novo</button></p>'; return; }
+      el.innerHTML = '<h1>' + e(x.rotulo) + '</h1><p class="intro" aria-live="polite"><span class="girador" aria-hidden="true"></span> Carregando do Drive…</p><div class="esqueleto" style="height:84px;margin-bottom:12px"></div><div class="esqueleto" style="height:160px"></div>';
+      return;
+    }
     if (!m) { el.innerHTML = '<h1>Módulo indisponível</h1><div class="vazio">Este módulo não está ativo no painel-fontes.json.</div>'; return; }
     var t = telas[id];
-    el.innerHTML = t ? t.desenhar(m, U(), api) : '<h1>' + U().esc(m.rotulo) + '</h1><div class="vazio">Tela ainda não construída.</div>';
+    var c = carga[id] || {};
+    var faixa = c.estado === 'erro' ? '<div class="aviso leve"><span><b>Não atualizou:</b> ' + U().esc(c.erro) + '. Mostrando a última leitura.</span></div>' : '';
+    el.innerHTML = faixa + (t ? t.desenhar(m, U(), api) : '<h1>' + U().esc(m.rotulo) + '</h1><div class="vazio">Tela ainda não construída.</div>');
     if (t && t.depois) t.depois(el, m);
   }
   function abrirModulo(id) { U().fecharFolhas(); window.Painel.trocarAba('mod:' + id); desenharModulo(id); }
@@ -162,8 +219,9 @@ window.PainelV3 = (function () {
   }
 
   document.addEventListener('click', function (ev) {
-    var t = ev.target.closest('[data-mais],[data-mod],[data-v3-dec],[data-v3-copiar],[data-v3-mostrar]');
+    var t = ev.target.closest('[data-mais],[data-mod],[data-v3-dec],[data-v3-copiar],[data-v3-mostrar],[data-v3-recarregar]');
     if (!t) return;
+    if (t.hasAttribute('data-v3-recarregar')) { ev.preventDefault(); return recarregarModulo(t.getAttribute('data-v3-recarregar')); }
     if (t.hasAttribute('data-mais')) { ev.preventDefault(); return abrirMais(); }
     if (t.hasAttribute('data-mod')) { ev.preventDefault(); return abrirModulo(t.getAttribute('data-mod')); }
     if (t.hasAttribute('data-v3-dec')) { ev.preventDefault(); if (t.disabled) return; return abrirDialogo(t.getAttribute('data-mod-id'), t.getAttribute('data-item'), t.getAttribute('data-v3-dec')); }
@@ -180,7 +238,7 @@ window.PainelV3 = (function () {
   var api = {
     registrar: function (id, t) { telas[id] = t; },
     desenhar: desenhar, desenharModulo: desenharModulo, abrirModulo: abrirModulo, abrirDialogo: abrirDialogo,
-    cartoesInicio: cartoesInicio, total: total, lista: lista, botoes: botoes, avisoChave: avisoChave, item: item, contagem: contagem,
+    cartoesInicio: cartoesInicio, total: total, carregarModulos: carregarModulos, fontes: fontes, carga: function () { return carga; }, lista: lista, botoes: botoes, avisoChave: avisoChave, item: item, contagem: contagem,
     sair: function () { est.mod = ''; }
   };
   return api;
