@@ -222,7 +222,8 @@ test('financas: estado e origem mostrados sem os tokens que o painel já extraiu
 
 // Formato novo que o Assistente Financeiro vai gravar (test/fixtures/financas-novo/): CSV com aspas, última coluna
 // nomeada, message_id/codigo/pdf_fileId em Contas, pago_em limpo, "em atraso", entradas e dono em Lancamentos,
-// emissor e pagantes em Rateios. O painel aceita os dois formatos.
+// emissor e pagaram em Rateios (cabeçalho real: mes_ref,total,por_pessoa,enviado,recebidos,emissor,pagaram;
+// o nome antigo 'pagantes' também vale). O painel aceita os dois formatos.
 const txtN = (n) => fs.readFileSync(path.join(__dirname, 'fixtures', 'financas-novo', n), 'utf8');
 const fontesNovo = () => {
   const f = {};
@@ -262,7 +263,7 @@ test('financas formato novo: contas com message_id, codigo e pdf_fileId em colun
   assert.equal(fac.snapshot_hash, L.sha256(L.canonicoConta(fac)));
 });
 
-test('financas formato novo: entradas e dono em Lancamentos, emissor e pagantes em Rateios', () => {
+test('financas formato novo: entradas e dono em Lancamentos, emissor e pagaram em Rateios', () => {
   const s = montar(fontesNovo());
   const nov = s.meses.find((x) => x.mes === '2026-11');
   assert.equal(nov.entradas, 5840.5);
@@ -274,15 +275,30 @@ test('financas formato novo: entradas e dono em Lancamentos, emissor e pagantes 
   const r = item(s, s.rateio);
   assert.equal(r.item_id, 'rateio:2026-10');
   assert.equal(r.emissor, 'TV Estrela');
-  assert.deepEqual(r.pagantes, ['Ana', 'Rita']);
+  assert.deepEqual(fontesNovo().rateios.cabecalho, ['mes_ref', 'total', 'por_pessoa', 'enviado', 'recebidos', 'emissor', 'pagaram']);
+  assert.deepEqual(r.pagaram, ['Ana', 'Rita']);
   assert.equal(r.recebidos, 2);
   assert.equal(r.de, 3);
   assert.equal(r.estado, 'aberto');
   assert.deepEqual(r.decisoes_possiveis, ['recebi_mais_um']);
   assert.deepEqual(s.precisa.partes[2], { rotulo: 'rateio TV Estrela esperando', n: 1 });
-  // canônico novo: emissor e pagantes no fim (vetor do contrato)
-  const can = L.canonicoRateio({ mes_ref: '2026-10', total: '861,53', por_pessoa: '136,34', enviado: 's (09/11 09:17 WhatsApp Grupo TV)', recebidos: '2/3', emissor: 'TV Estrela', pagantes: 'Ana; Rita' }, true);
+  // canônico novo: emissor e pagaram no fim (vetor do contrato)
+  const can = L.canonicoRateio({ mes_ref: '2026-10', total: '861,53', por_pessoa: '136,34', enviado: 's (09/11 09:17 WhatsApp Grupo TV)', recebidos: '2/3', emissor: 'TV Estrela', pagaram: 'Ana; Rita' }, true);
   assert.equal(can, ['rateio', '2026-10', '861,53', '136,34', 's (09/11 09:17 WhatsApp Grupo TV)', '2/3', 'TV Estrela', 'Ana; Rita'].join('\u001F'));
   assert.equal(r.snapshot_hash, L.sha256(can));
   assert.equal(L.sha256(can), '6ff1894773e2ff47970e3fa90cc8dea57b65809d44d12dca10f2b91143c7673f');
+});
+
+test("financas formato novo: coluna 'pagantes' (nome antigo) vale como 'pagaram', com o mesmo hash", () => {
+  const comPagaram = fontesNovo();
+  const comPagantes = fontesNovo();
+  comPagantes.rateios = L.csvParaObjetos(txtN('Rateios.csv').replace('emissor,pagaram', 'emissor,pagantes'));
+  assert.deepEqual(comPagantes.rateios.cabecalho.slice(-1), ['pagantes']);
+  const a = montar(comPagaram), b = montar(comPagantes);
+  const ra = item(a, a.rateio), rb = item(b, b.rateio);
+  assert.deepEqual(rb.pagaram, ['Ana', 'Rita']);
+  assert.equal(rb.recebidos, 2);
+  assert.equal(rb.formato_novo, true);
+  assert.equal(rb.snapshot_hash, ra.snapshot_hash);
+  assert.equal(rb.snapshot_hash, L.sha256(L.canonicoRateio({ mes_ref: '2026-10', total: '861,53', por_pessoa: '136,34', enviado: 's (09/11 09:17 WhatsApp Grupo TV)', recebidos: '2/3', emissor: 'TV Estrela', pagantes: 'Ana; Rita' }, true)));
 });

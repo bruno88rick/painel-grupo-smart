@@ -105,7 +105,7 @@
       '<div class="v3-meta"><span>Total ' + e(x.total !== null ? brl(x.total) : x.total_texto) + '</span><span>Por pessoa ' + e(x.por_pessoa !== null ? brl(x.por_pessoa) : x.por_pessoa_texto) + '</span>' +
       (x.de ? '<span>Falta receber ' + brl((x.por_pessoa || 0) * Math.max(0, x.de - x.recebidos)) + '</span>' : '') + '</div>' +
       '<p class="v3-resumo"><b>Enviado:</b> ' + e(x.enviado ? 'sim' + (x.enviado_texto.replace(/^s(im)?\s*/i, '') ? ', ' + x.enviado_texto.replace(/^s(im)?\s*/i, '').replace(/^\((.*)\)$/, '$1') : '') : (x.enviado_texto || 'não')) + '</p>' +
-      (x.pagantes && x.pagantes.length ? '<p class="v3-resumo"><b>Já pagaram:</b> ' + e(x.pagantes.join(', ')) + '</p>' : '') +
+      (x.pagaram && x.pagaram.length ? '<p class="v3-resumo"><b>Já pagaram:</b> ' + e(x.pagaram.join(', ')) + '</p>' : '') +
       V3.botoes('financas', x, { recebi_mais_um: 'Recebi de mais um' }) + '</article>';
   }
 

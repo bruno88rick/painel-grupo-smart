@@ -236,7 +236,7 @@ npm test
 python3 -m unittest discover consumidor
 ```
 
-v3.0.0-financas: 69 testes no Node (10 novos em `test/v3-financas.test.js`: formato atual e o formato novo do Assistente Financeiro em `test/fixtures/financas-novo/`, e a compilação dos scripts das telas). v3.0.0-emails: 59 testes no Node (7 novos em `test/v3-emails.test.js`). v3.0.0-suporte: 52 testes no Node (9 novos em `test/v3-suporte.test.js`, com as fixtures anonimizadas de `test/fixtures/suporte/`). v2.0.1: 43 testes no Node e 29 no consumidor Python. v2.0.0: 35 e 29. Os vetores de hash do `Propostas.csv` são conferidos nos dois lados.
+v3.0.0-financas: 70 testes no Node (11 novos em `test/v3-financas.test.js`: formato atual e o formato novo do Assistente Financeiro em `test/fixtures/financas-novo/`, e a compilação dos scripts das telas). v3.0.0-emails: 59 testes no Node (7 novos em `test/v3-emails.test.js`). v3.0.0-suporte: 52 testes no Node (9 novos em `test/v3-suporte.test.js`, com as fixtures anonimizadas de `test/fixtures/suporte/`). v2.0.1: 43 testes no Node e 29 no consumidor Python. v2.0.0: 35 e 29. Os vetores de hash do `Propostas.csv` são conferidos nos dois lados.
 
 22 testes: CSV com BOM, CRLF, aspas e quebra de linha; CSV quebrado; colunas ausentes; leitura dos CSVs reais; marcas `post:`; rascunho `post-*.md`; o modelo das telas; decisões, hash, versão velha, decisão repetida, estado inválido, recibos, cabeçalho antigo e a regra do relógio; a versão do painel; e o `Code.gs` com os serviços do Google simulados (cache, fonte quebrada, gravação em `decisoes.csv`).
 

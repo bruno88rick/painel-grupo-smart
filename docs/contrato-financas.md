@@ -31,7 +31,7 @@ O Assistente Financeiro vai passar a gravar um formato mais limpo. O painel lê 
 | --- | --- | --- |
 | `Contas.csv` | CSV com aspas; última coluna com nome (ex. `obs`); colunas `message_id`, `codigo` e `pdf_fileId`; `pago_em` só com a data; `estado` `em atraso` quando vence | o conserto de linha só roda quando a última coluna não tem nome (formato atual); `message_id` da coluna liga a recebida por igualdade; `codigo` (Pix ou barras) e `pdf_fileId` da própria conta têm preferência sobre os da recebida |
 | `Lancamentos.csv` | entradas com `tipo=entrada` e `dono` sempre preenchido | nada novo: entradas, saldo e pessoal/empresa já saem das colunas |
-| `Rateios.csv` | `mes_ref,emissor,total,por_pessoa,enviado,recebidos,pagantes` (`pagantes` = nomes separados por `;`) | título e contagem do Início com o `emissor`; "Já pagaram: ..." no cartão; recebidos = o maior entre `x` de `x/y` e o número de nomes |
+| `Rateios.csv` | `mes_ref,total,por_pessoa,enviado,recebidos,emissor,pagaram` (cabeçalho real; `pagaram` = nomes separados por `;`; o nome antigo `pagantes` também vale) | título e contagem do Início com o `emissor`; "Já pagaram: ..." no cartão; recebidos = o maior entre `x` de `x/y` e o número de nomes |
 
 Fixture de exemplo: `test/fixtures/financas-novo/`.
 
@@ -66,10 +66,10 @@ rateio␟mes_ref␟total␟por_pessoa␟enviado␟recebidos
 
 Vetor: `2026-10`, `600,00`, `150,00`, `s (09/11 WhatsApp)`, `1/3` → `c982befc6ef4cfcfda0f839df7beda3bf14247c3e82ab201c0f7b64f57976f65`.
 
-Formato novo (o `Rateios.csv` tem `emissor` ou `pagantes` no cabeçalho): os dois entram no fim.
+Formato novo (o `Rateios.csv` tem `emissor`, `pagaram` ou `pagantes` no cabeçalho): `emissor` e `pagaram` (ou `pagantes`, se for essa a coluna) entram no fim.
 
 ```
-rateio␟mes_ref␟total␟por_pessoa␟enviado␟recebidos␟emissor␟pagantes
+rateio␟mes_ref␟total␟por_pessoa␟enviado␟recebidos␟emissor␟pagaram
 ```
 
 Vetor: `2026-10`, `861,53`, `136,34`, `s (09/11 09:17 WhatsApp Grupo TV)`, `2/3`, `TV Estrela`, `Ana; Rita` → `6ff1894773e2ff47970e3fa90cc8dea57b65809d44d12dca10f2b91143c7673f`.

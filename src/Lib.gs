@@ -1268,10 +1268,10 @@ var PainelLib = (function () {
   function canonicoConta(x) {
     return canonicoV3('conta', [x.emissor, x.mes_ref, x.valor_texto, x.vencimento, x.forma, x.estado_texto, x.link, x.pago_em, x.codigo, x.pdf_fileId]);
   }
-  /** Formato atual: 5 campos. Formato novo (Rateios.csv com emissor e pagantes): os dois entram no fim. */
+  /** Formato atual: 5 campos. Formato novo (Rateios.csv com emissor e pagaram; 'pagantes' também vale): os dois entram no fim. */
   function canonicoRateio(r, novo) {
     var c = [r.mes_ref, r.total, r.por_pessoa, r.enviado, r.recebidos];
-    if (novo) c = c.concat([r.emissor, r.pagantes]);
+    if (novo) c = c.concat([r.emissor, r.pagaram !== undefined ? r.pagaram : r.pagantes]);
     return canonicoV3('rateio', c);
   }
   /** "Ana; João, Rita" -> ['Ana', 'João', 'Rita']. */
@@ -1369,15 +1369,15 @@ var PainelLib = (function () {
     if (rateios.length) {
       var r = rateios[rateios.length - 1];
       var cabR = (f.rateios && f.rateios.cabecalho) || [];
-      var novo = cabR.indexOf('emissor') >= 0 || cabR.indexOf('pagantes') >= 0;
-      var pagantes = listaNomes(r.pagantes);
+      var novo = cabR.indexOf('emissor') >= 0 || cabR.indexOf('pagaram') >= 0 || cabR.indexOf('pagantes') >= 0;
+      var pagaram = listaNomes(r.pagaram !== undefined ? r.pagaram : r.pagantes);
       var m = String(r.recebidos || '').match(/(\d+)\s*\/\s*(\d+)/);
-      var rec = m ? Math.max(+m[1], pagantes.length) : pagantes.length, de = m ? +m[2] : null;
+      var rec = m ? Math.max(+m[1], pagaram.length) : pagaram.length, de = m ? +m[2] : null;
       var enviado = /^s/i.test(String(r.enviado || '').trim());
       rateio = {
         item_id: 'rateio:' + String(r.mes_ref).trim(), tipo_item: 'rateio', versao: '', mes_ref: String(r.mes_ref).trim(),
         total_texto: r.total || '', total: numBr(r.total), por_pessoa_texto: r.por_pessoa || '', por_pessoa: numBr(r.por_pessoa),
-        enviado: enviado, enviado_texto: String(r.enviado || '').trim(), recebidos: rec, emissor: String(r.emissor || '').trim() || 'SKY', pagantes: pagantes, formato_novo: novo, de: de, recebidos_texto: String(r.recebidos || '').trim(),
+        enviado: enviado, enviado_texto: String(r.enviado || '').trim(), recebidos: rec, emissor: String(r.emissor || '').trim() || 'SKY', pagaram: pagaram, formato_novo: novo, de: de, recebidos_texto: String(r.recebidos || '').trim(),
         estado: !enviado ? 'nao_enviado' : de !== null && rec >= de ? 'completo' : 'aberto',
         anteriores: rateios.length - 1
       };
