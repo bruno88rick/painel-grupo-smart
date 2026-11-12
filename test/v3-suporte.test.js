@@ -45,8 +45,17 @@ test('suporte: estado livre classificado pelo começo do texto, texto inteiro pr
   assert.deepEqual(x.decisoes_possiveis, ['aprovar', 'refazer', 'recusar']);
 });
 
+test('v3.1.0: SUPORTE_INTEGRADO ligada por padrão; as outras chaves continuam desligadas', () => {
+  assert.equal(L.CHAVES.SUPORTE_INTEGRADO, true);
+  for (const k of ['ANUNCIOS_INTEGRADOS', 'EMAILS_INTEGRADO', 'FINANCAS_INTEGRADO', 'INVESTIMENTOS_INTEGRADO']) assert.equal(L.CHAVES[k], false, k);
+  assert.match(fs.readFileSync(path.join(__dirname, '../src/Lib.gs'), 'utf8'), /var POSTS_INTEGRADOS = false;/);
+  assert.equal(montar().integrado, true);
+});
+
 test('suporte: fila, prazos, abertos, parados, alertas e contagem do Início', () => {
-  const s = montar();
+  L.CHAVES.SUPORTE_INTEGRADO = false;
+  let s;
+  try { s = montar(); } finally { L.CHAVES.SUPORTE_INTEGRADO = true; }
   assert.equal(s.integrado, false);
   assert.match(s.aviso_chave, /o agente ainda não lê estas decisões/);
   // só a última versão de cada chamado; 666 já foi enviado e fica fora da fila
@@ -108,6 +117,7 @@ test('suporte: comentário estruturado v3 (texto por último, sem quebra de linh
 
 test('suporte no servidor: chave false recusa gravar e não toca no decisoes.csv', () => {
   const e = ambiente(arquivosBase());
+  e.PainelLib.CHAVES.SUPORTE_INTEGRADO = false;
   const d = e.obterDados(true);
   assert.ok(d.fontes.filter((f) => /Suporte/.test(f.rotulo)).every((f) => f.ok), JSON.stringify(d.fontes));
   const s = d.v3.suporte;
@@ -156,7 +166,7 @@ test('suporte no servidor: chave true grava no mesmo decisoes.csv; recusa repeti
     const y = d2.v3.suporte.itens.find((i) => i.item_id === 'resposta:643');
     assert.equal(y.decisao_pendente.decisao, 'refazer');
     assert.equal(y.decisao_pendente.obsoleta, false);
-  } finally { e.PainelLib.CHAVES.SUPORTE_INTEGRADO = false; }
+  } finally { e.PainelLib.CHAVES.SUPORTE_INTEGRADO = true; }
 });
 
 test('suporte: recibo do agente vira último recibo do item', () => {
