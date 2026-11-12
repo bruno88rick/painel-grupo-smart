@@ -384,4 +384,24 @@ h2 .qtd { font-size: var(--text-sm); color: var(--texto-3); font-weight: 500; }
 .fin-tabela-rolagem { overflow-x: auto; max-width: 100%; }
 .fin-tabela { border-collapse: collapse; font-size: var(--text-xs); min-width: 100%; }
 .fin-tabela th, .fin-tabela td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--borda); white-space: nowrap; }
+/* v3: Investimentos */
+.inv-sobe { color: var(--e-aprovado); }
+.inv-desce { color: var(--e-refazer, #c0392b); }
+.inv-valor { font-size: var(--text-lg); font-weight: 700; font-variant-numeric: tabular-nums; margin: 6px 0; overflow-wrap: anywhere; }
+.inv-quando { font-size: var(--text-xs); white-space: nowrap; }
+.inv-precos { display: grid; gap: 12px; }
+@media (min-width: 900px) { .inv-precos { grid-template-columns: 1fr 1fr; } }
+.inv-grafico { margin: 10px 0 0; }
+.inv-grafico svg { display: block; width: 100%; height: 90px; }
+.inv-linha { fill: none; stroke: var(--acento); stroke-width: 2; }
+.inv-area { fill: var(--acento); opacity: .12; stroke: none; }
+.inv-eixo { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 8px; font-size: var(--text-xs); color: var(--texto-2); margin-top: 4px; font-variant-numeric: tabular-nums; }
+.inv-arca { display: grid; gap: 12px; margin-top: 10px; }
+@media (min-width: 900px) { .inv-arca { grid-template-columns: 1fr 1fr; gap: 12px 24px; } }
+.inv-barra { position: relative; height: 10px; border-radius: 5px; background: var(--superficie-2); margin: 4px 0; }
+.inv-barra > i { display: block; height: 100%; border-radius: 5px; background: var(--acento); max-width: 100%; }
+.inv-meta { position: absolute; top: -3px; bottom: -3px; width: 3px; margin-left: -1px; border-radius: 2px; background: var(--texto); }
+.inv-cat-rodape { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 10px; font-size: var(--text-xs); }
+.inv-acima { color: var(--e-entregue); }
+.inv-abaixo { color: var(--texto-2); }
 </style>

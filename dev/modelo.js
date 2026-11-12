@@ -22,7 +22,10 @@ function fontesV3(mods) {
     const f = {};
     Object.keys(def.fontes).forEach((k) => {
       const p = path.join(__dirname, '..', 'test', 'fixtures', id, def.fontes[k].arquivo);
-      f[k] = fs.existsSync(p) ? L.csvParaObjetos(fs.readFileSync(p, 'utf8')) : null;
+      let t = fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : null;
+      // Aportes.csv real não tem aporte pendente hoje: a mesma linha fictícia do ambiente de teste mostra a decisão.
+      if (t !== null && id === 'investimentos' && k === 'aportes') t += require('./ambiente-gas').APORTE_PLANEJADO;
+      f[k] = t === null ? null : L.csvParaObjetos(t);
     });
     r[id] = f;
   });

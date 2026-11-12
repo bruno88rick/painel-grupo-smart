@@ -1,0 +1,5 @@
+data,destino,categoria_arca,ativo,valor_brl,origem,estado
+2026-02-06,BTC Corretora Alfa,Alternativos,BTC,881.50,pessoal,confirmado
+2026-11-02,AAPL,Alternativos,AAPL,,"pessoal (US$ 21,50)",confirmado
+2026-11-01,Previdência PrevPlano,Fora da ARCA,PrevPlano,68.32,"pessoal 2,5% de R$ 2.732,85",confirmado
+2026-11-01,Previdência PrevPlano,Fora da ARCA,PrevPlano,136.64,"empresa 5% de R$ 2.732,85",confirmado

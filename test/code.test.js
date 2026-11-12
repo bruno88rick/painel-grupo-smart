@@ -13,7 +13,7 @@ test('obterDados lê todas as fontes e usa o cache na segunda chamada', () => {
   assert.equal(d1.do_cache, false);
   assert.ok(d1.fontes.every((f) => f.ok), JSON.stringify(d1.fontes));
   assert.equal(d1.designs.length, 11);
-  assert.equal(d1.modulos.filter((m) => !m.ativo).length, 2);
+  assert.equal(d1.modulos.filter((m) => !m.ativo).length, 1);
   // agora = 11/11 15:00 em São Paulo: reels das 18:30 ainda programado
   assert.equal(d1.posts.find((p) => p.id === 'P-20261109-01').estado, 'programado');
   assert.deepEqual(d1.inicio.artes_entregues.sort(), ['P-20261111-02', 'P-20261111-03']);

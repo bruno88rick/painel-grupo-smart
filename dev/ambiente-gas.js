@@ -1,6 +1,7 @@
 // Ambiente simulado do Apps Script (DriveApp, CacheService etc.) para os testes do servidor.
 const fs = require('fs'), path = require('path');
 const src = (n) => fs.readFileSync(path.join(__dirname, '..', 'src', n), 'utf8');
+const APORTE_PLANEJADO = '2026-11-15,Reserva de emergência,Fora da ARCA,Tesouro Selic,300.00,pessoal,planejado (primeiro aporte da reserva; aguardando o usuário)\r\n';
 const fx = (n) => fs.readFileSync(path.join(__dirname, '..', 'test', 'fixtures', n), 'utf8');
 
 // Como no Drive: conteúdo mudou, data de alteração muda.
@@ -47,6 +48,7 @@ function arquivosBase(cfgExtra) {
   cfg.modulos.find((m) => m.id === 'emails').fontes.ledger.folderId = 'EML';
   const fin = cfg.modulos.find((m) => m.id === 'financas').fontes;
   fin.ledger.folderId = 'FIN'; fin.arquivos.recebidas.folderId = 'FINREC';
+  cfg.modulos.find((m) => m.id === 'investimentos').fontes.ledger.folderId = 'INV';
   Object.assign(cfg, cfgExtra || {});
   return {
     CFG: { nome: 'painel-fontes.json', texto: JSON.stringify(cfg) },
@@ -81,8 +83,17 @@ function arquivosBase(cfgExtra) {
     F5: { nome: 'Rateios.csv', pasta: 'FIN', texto: fx('financas/Rateios.csv') },
     F6: { nome: 'Fechamentos.csv', pasta: 'FIN', texto: fx('financas/Fechamentos.csv') },
     F7: { nome: 'Orcamento.csv', pasta: 'FIN', texto: fx('financas/Orcamento.csv') },
-    F8: { nome: 'Alerts.csv', pasta: 'FIN', texto: fx('financas/Alerts.csv') }
+    F8: { nome: 'Alerts.csv', pasta: 'FIN', texto: fx('financas/Alerts.csv') },
+    I1: { nome: 'Posicoes.csv', pasta: 'INV', texto: fx('investimentos/Posicoes.csv') },
+    I2: { nome: 'Precos.csv', pasta: 'INV', texto: fx('investimentos/Precos.csv') },
+    I3: { nome: 'Metas_ARCA.csv', pasta: 'INV', texto: fx('investimentos/Metas_ARCA.csv') },
+    I4: { nome: 'Recomendacoes.csv', pasta: 'INV', texto: fx('investimentos/Recomendacoes.csv') },
+    // Linha fictícia só no ambiente de teste: o Aportes.csv real não tem aporte pendente hoje, e a tela precisa mostrar a decisão.
+    I5: { nome: 'Aportes.csv', pasta: 'INV', texto: fx('investimentos/Aportes.csv') + APORTE_PLANEJADO },
+    I6: { nome: 'Previdencia.csv', pasta: 'INV', texto: fx('investimentos/Previdencia.csv') },
+    I7: { nome: 'Reserva.csv', pasta: 'INV', texto: fx('investimentos/Reserva.csv') },
+    I8: { nome: 'Alerts.csv', pasta: 'INV', texto: fx('investimentos/Alerts.csv') }
   };
 }
 
-module.exports = { ambiente, arquivosBase, fx };
+module.exports = { ambiente, arquivosBase, fx, APORTE_PLANEJADO };
