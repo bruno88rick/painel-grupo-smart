@@ -216,6 +216,53 @@ function lerAnuncios_(cfg, rascDesign) {
   };
 }
 
+/**
+ * Lê as fontes de um módulo v3 (Suporte, E-mails, Finanças, Investimentos, Estudos).
+ * Quais arquivos: PainelLib.MODULOS_V3[id].fontes. Onde: painel-fontes.json, em
+ * modulos[id].fontes.ledger.folderId (pelo nome do arquivo) ou modulos[id].fontes.arquivos[chave]
+ * ("fileId" ou { fileId, nome, folderId }). Sempre pelo cache por versão (textoDoArquivo_, acharNaPasta_).
+ * Arquivo opcional ausente não é erro: vira "ainda não criado".
+ */
+function lerModuloV3_(mod) {
+  var def = PainelLib.MODULOS_V3[mod.id];
+  var cfgF = mod.fontes || {};
+  var pasta = cfgF.ledger && cfgF.ledger.folderId;
+  var arqs = cfgF.arquivos || {};
+  var fontes = {}, status = [];
+  Object.keys(def.fontes).forEach(function (k) {
+    var fd = def.fontes[k];
+    var c = arqs[k];
+    if (typeof c === 'string') c = { fileId: c };
+    c = c || {};
+    var nome = c.nome || fd.arquivo;
+    var r;
+    if (c.fileId) {
+      r = lerCsv_(fd.rotulo, c.fileId, fd.obrigatorias || []);
+    } else {
+      var dir = c.folderId || pasta;
+      var id = null;
+      try { id = dir ? acharNaPasta_(dir, nome) : null; } catch (e) { id = null; }
+      if (!id) r = fd.opcional ? { rotulo: fd.rotulo, ok: true, ausente: true, linhas: null, erro: '', avisos: [], atualizado: '' }
+        : { rotulo: fd.rotulo, ok: false, linhas: [], erro: dir ? nome + ' não está na pasta do ledger' : 'pasta do ledger não configurada', avisos: [], atualizado: '' };
+      else r = lerCsv_(fd.rotulo, id, fd.obrigatorias || []);
+    }
+    fontes[k] = r.ok && r.linhas ? r : null;
+    status.push(r);
+  });
+  return { fontes: fontes, status: status };
+}
+
+function lerModulosV3_(cfg) {
+  var fontes = {}, status = [];
+  (cfg.modulos || []).forEach(function (m) {
+    if (!m.ativo || !PainelLib.MODULOS_V3[m.id]) return;
+    var r = lerModuloV3_(m);
+    fontes[m.id] = r.fontes;
+    status = status.concat(r.status);
+  });
+  return { fontes: fontes, status: status };
+}
+
 /** Monta tudo o que a tela precisa. */
 function montarDados_(cfgPronta) {
   var cfg = cfgPronta || lerConfig_();
@@ -233,17 +280,24 @@ function montarDados_(cfgPronta) {
   var decisoes = lerDecisoes_(cfg);
   var recibos = lerRecibos_(cfg);
   var an = lerAnuncios_(cfg, { folderId: f.criativos.folderId, leitura: rasc });
+  var v3 = lerModulosV3_(cfg);
 
+  var agora = agoraSp_();
   var modelo = PainelLib.montarModelo(
     { pedidos: pedidos.ok ? pedidos : null, artes: artes.ok ? artes : null, posts: posts.ok ? posts : null, midia: midia.ok ? midia : null, produtos: produtos.ok ? produtos : null, rascunhos: rasc.ok ? rasc.itens : [] },
     decisoes.ok ? decisoes.linhas : [],
-    agoraSp_(),
+    agora,
     { dias_refazer_parado: cfg.dias_refazer_parado || 2, recibos: recibos.ok ? recibos.mapa : {}, anuncios: an ? an.fontes : null }
   );
 
+  modelo.v3 = PainelLib.montarModulosV3(v3.fontes, PainelLib.decisoesComRecibos(decisoes.ok ? decisoes.linhas : [], recibos.ok ? recibos.mapa : {}), agora);
+  (cfg.modulos || []).forEach(function (m) {
+    var x = modelo.v3[m.id];
+    if (x) x.pastas = { ledger: (m.fontes && m.fontes.ledger && m.fontes.ledger.folderId) || '', materiais: (m.fontes && m.fontes.materiais && m.fontes.materiais.folderId) || '' };
+  });
   modelo.gerado_em = new Date().toISOString();
   modelo.decisoes_ok = decisoes.ok && recibos.ok;
-  modelo.fontes = [pedidos, artes, posts, midia, produtos, checkpoints, rasc, decisoes, recibos].concat(an ? an.status : []).map(function (s) {
+  modelo.fontes = [pedidos, artes, posts, midia, produtos, checkpoints, rasc, decisoes, recibos].concat(an ? an.status : []).concat(v3.status).map(function (s) {
     return { rotulo: s.rotulo, ok: s.ok, ausente: !!s.ausente, erro: s.erro || '', avisos: (s.avisos || []).slice(0, 3), atualizado: s.atualizado || '' };
   });
   modelo.checkpoints = checkpoints.ok ? checkpoints.linhas : [];

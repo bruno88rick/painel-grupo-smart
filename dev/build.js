@@ -19,8 +19,10 @@ else {
   // v2: 12/11 19:00 com o módulo Posts e anúncios
   const mod = require('./modelo');
   const v201 = process.argv.includes('--v201');
-  const r = mod(v201 ? new Date(2026, 10, 12, 15, 30) : new Date(2026, 10, 12, 19), [], {}, { anuncios: true, semPropostas: process.argv.includes('--sem-propostas'), v201 });
-  if (process.argv.includes('--integrado')) { r.L.CHAVES.ANUNCIOS_INTEGRADOS = true; modelo = mod(new Date(2026, 10, 12, 19), [], {}, { anuncios: true }).modelo; }
+  const V3 = ['suporte'];
+  if (process.argv.includes('--integrado-v3')) V3.forEach((id) => { const def = require('./modelo')().L.MODULOS_V3[id]; if (def.chave) require('./modelo')().L.CHAVES[def.chave] = true; });
+  const r = mod(v201 ? new Date(2026, 10, 12, 15, 30) : new Date(2026, 10, 12, 19), [], {}, { anuncios: true, semPropostas: process.argv.includes('--sem-propostas'), v201, v3: process.argv.includes('--sem-v3') ? [] : V3 });
+  if (process.argv.includes('--integrado')) { r.L.CHAVES.ANUNCIOS_INTEGRADOS = true; modelo = mod(new Date(2026, 10, 12, 19), [], {}, { anuncios: true, v3: V3 }).modelo; }
   else modelo = r.modelo;
 }
 modelo.fontes = [
@@ -40,7 +42,10 @@ if (modelo.anuncios) modelo.fontes.push(
   { rotulo: 'Resultados (ledger do Tráfego)', ok: true, atualizado: new Date(Date.now() - 12 * 3600000).toISOString() },
   { rotulo: 'Propostas (Tráfego)', ok: true, ausente: !modelo.anuncios.propostas_ativas, atualizado: modelo.anuncios.propostas_ativas ? new Date(Date.now() - 2 * 3600000).toISOString() : '' },
   { rotulo: 'Planos de campanha', ok: true, atualizado: new Date(Date.now() - 20 * 3600000).toISOString() });
-modelo.modulos = [['design', 'Designs e posts', true, 'Agente de Design'], ['anuncios', 'Posts e anúncios', !!modelo.anuncios, 'Gestor de Tráfego'], ['financas', 'Finanças', false, 'Assistente Financeiro'], ['investimentos', 'Investimentos', false, 'Analista de Investimentos'], ['suporte', 'Suporte RN Sports', false, 'Agente de Suporte RN Sports'], ['estudos', 'Estudos', false, 'Assistente de Estudos'], ['emails', 'E-mails (só resumo)', false, 'Gestor de E-mails']].map(([id, rotulo, ativo, agente]) => ({ id, rotulo, ativo, agente }));
+const v3 = modelo.v3 || {};
+const rotV3 = { suporte: 'Chamados (Suporte)|Respostas (Suporte)|Alertas (Suporte)|Rascunhos para o painel (Suporte)' };
+Object.keys(v3).forEach((id) => (rotV3[id] || '').split('|').filter(Boolean).forEach((r) => modelo.fontes.push({ rotulo: r, ok: true, atualizado: new Date(Date.now() - 2 * 3600000).toISOString() })));
+modelo.modulos = [['design', 'Designs e posts', true, 'Agente de Design'], ['anuncios', 'Posts e anúncios', !!modelo.anuncios, 'Gestor de Tráfego'], ['suporte', 'Suporte RN Sports', !!v3.suporte, 'Agente de Suporte RN Sports'], ['emails', 'E-mails', !!v3.emails, 'Gestor de E-mails'], ['financas', 'Finanças', !!v3.financas, 'Assistente Financeiro'], ['investimentos', 'Investimentos', !!v3.investimentos, 'Analista de Investimentos'], ['estudos', 'Estudos', !!v3.estudos, 'Assistente de Estudos']].map(([id, rotulo, ativo, agente]) => ({ id, rotulo, ativo, agente }));
 modelo.gerado_em = new Date().toISOString();
 const mock = `<script>
 window.PAINEL_THUMB = function (id) { return 'img/' + id + '.jpg'; };
@@ -62,6 +67,14 @@ window.google = { script: { get run() {
         var ra = { ok: true, id: 'D-teste-' + (window.__DECISOES.length + 1), quando: new Date().toISOString(), versao: ia.versao, snapshot_hash: ia.snapshot_hash };
         window.__DECISOES.push(Object.assign({}, d, ra)); return ok(ra);
       }
+      var m3 = (window.__MODELO.v3 || {})[d.modulo];
+      if (m3) {
+        var i3 = (m3.itens || []).filter(function (x) { return x.item_id === d.item_id; })[0];
+        if (!m3.integrado) return fal(new Error('o agente ainda não lê estas decisões (' + m3.agente + '); nada foi gravado'));
+        if (!i3 || i3.snapshot_hash !== d.snapshot_hash) return fal(new Error('o item mudou; atualize o painel'));
+        var r3 = { ok: true, id: 'D-teste-' + (window.__DECISOES.length + 1), quando: new Date().toISOString(), versao: i3.versao, snapshot_hash: i3.snapshot_hash };
+        window.__DECISOES.push(Object.assign({}, d, r3)); return ok(r3);
+      }
       var it = window.__MODELO.designs.filter(function (x) { return x.id === d.item_id; })[0];
       if (!it || it.snapshot_hash !== d.snapshot_hash || window.__FORCAR_OBSOLETO) return fal(new Error('o item ' + d.item_id + ' mudou desde que a tela foi carregada; atualize o painel e confira de novo'));
       var r = { ok: true, id: 'D-teste-' + (window.__DECISOES.length + 1), quando: new Date().toISOString(), versao: it.versao, snapshot_hash: it.snapshot_hash };
@@ -73,6 +86,7 @@ window.google = { script: { get run() {
 let html = ler('Index')
   .replace("<?!= include('Styles'); ?>", ler('Styles'))
   .replace("<?!= include('App'); ?>", mock + ler('App'))
+  .replace(/<\?!= include\('(\w+)'\); \?>/g, (_, n) => ler(n))
   .replace('<?= versao ?>', (fs.readFileSync(path.join(raiz, 'src', 'Lib.gs'), 'utf8').match(/VERSAO_PAINEL = '([^']+)'/) || [, '?'])[1]);
 if (/<\?/.test(html)) throw new Error('sobrou scriptlet');
 const out = path.join(__dirname, 'out');

@@ -209,6 +209,6 @@ test('validarDecisao', () => {
 });
 
 test('versão do painel: semver e igual ao package.json', () => {
-  assert.match(L.VERSAO_PAINEL, /^\d+\.\d+\.\d+$/);
+  assert.match(L.VERSAO_PAINEL, /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/);
   assert.equal(L.VERSAO_PAINEL, require('../package.json').version);
 });
