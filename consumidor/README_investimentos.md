@@ -17,8 +17,9 @@ Copie `config.investimentos.example.json` para `config.investimentos.json` e tro
    | `marcar_nao_feito` (`nao_fiz`) | os dados do aporte e `texto` (motivo) | nada na corretora |
 
 3. Confirmar: `python3 consumidor_investimentos.py --confirmar <decision_id>` (opcional `--link URL`).
-   - `confirmar_aporte`: `estado=confirmado <data>` (com `(<texto>)` se veio); `valor_brl` recebe o valor se a decisão trouxe um.
-   - `marcar_nao_feito`: `estado=não fiz` (com `(<motivo>)` se veio).
+   - `confirmar_aporte`: `estado=confirmado` (só o valor estrito, desde a v3.2.0); `valor_brl` recebe o valor se a decisão trouxe um. Data, valor e texto vão no recibo.
+   - `marcar_nao_feito`: `estado=nao_feito`; o motivo vai no recibo.
+   - Se o `Aportes.csv` tiver a coluna `obs`, a data e o motivo também vão nela (somados ao que já houver).
    - Colunas extras (ex. `valor`, `moeda`) ficam como estão.
 
 Sem gravar nada: acrescente `--teste`.
@@ -30,5 +31,5 @@ Sem gravar nada: acrescente `--teste`.
 
 ## Segurança
 
-- Só aporte pendente (estado que não começa por `confirmad`, `não fiz`, `nao feito`, `cancelad`, `desistiu`) aceita decisão, e só com hash igual ao do painel. Senão, recibo `rejeitado`.
+- Só aporte pendente (estado que não começa por `confirmad`, `não fiz`, `nao feito`, `nao_feito`, `cancelad`, `desistiu`; lê o formato estrito e o antigo) aceita decisão, e só com hash igual ao do painel. Senão, recibo `rejeitado`.
 - Só a linha do aporte muda; o resto do CSV fica byte a byte. Ledger local antes do recibo; retomada com `--confirmar` de novo; recibo existente não é refeito.

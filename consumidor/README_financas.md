@@ -27,7 +27,7 @@ Copie `config.financas.example.json` para `config.financas.json` e troque os `PR
    | `registrar_rateio_recebido` (`recebi_mais_um` em `rateio:<mes_ref>`) | `mes_ref`, `emissor`, `nome` (o texto do Bruno), `recebidos`, `de` | confere o recebimento |
 
 3. Confirmar: `python3 consumidor_financas.py --confirmar <decision_id>` (opcional `--link URL`).
-   - Conta: `estado=pago <data>` (com `(valor pago R$ x,xx; <texto>)` quando vierem) e `pago_em=<data>`. A coluna `valor` (valor da conta) não muda. Linha do formato atual quebrada pela vírgula do valor é regravada consertada, com aspas.
+   - Conta: `estado=pago` (só o valor estrito, desde a v3.2.0) e `pago_em=<data>`; valor pago e texto vão no recibo. A coluna `valor` (valor da conta) não muda. Linha do formato atual quebrada pela vírgula do valor é regravada consertada, com aspas.
    - Rateio: `recebidos` `x/y` vira `x+1/y` (o resto do texto fica). No formato novo, com `nome`, o nome entra em `pagaram` (ou `pagantes`) separado por `; `. No formato atual o nome fica só no recibo.
 
 Sem gravar nada: acrescente `--teste`.

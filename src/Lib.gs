@@ -1441,7 +1441,8 @@ var PainelLib = (function () {
   /** Número com ponto decimal e qualquer casa ("0.00531465", "5.5056") ou no formato BR (numBr). */
   function numDec(t) { var x = String(t === null || t === undefined ? '' : t).trim(); return /^-?\d+\.\d+$/.test(x) || /^-?\d+$/.test(x) ? +x : numBr(x); }
 
-  var ESTADOS_APORTE = [[/^confirmad/, 'confirmado'], [/^(nao fiz|nao feito|cancelad|desistiu)/, 'nao_feito']];
+  // v3.2.0: lê o estado estrito do ledger (planejado, confirmado, nao_feito) e o antigo, com data e texto.
+  var ESTADOS_APORTE = [[/^confirmad/, 'confirmado'], [/^(nao fiz|nao[ _]feito|cancelad|desistiu)/, 'nao_feito']];
 
   /**
    * Hora da cotação em horário de Brasília: "2026-11-06 16:17 BRT", "2026-11-06 16:00 NY" (NY = BRT - 2 h

@@ -65,9 +65,11 @@ O servidor recusa (e não grava): chave desligada, item que não existe mais, es
 
 | Decisão | Na caixa | No ledger |
 | --- | --- | --- |
-| aprovar | move as linhas do grupo (e o lote do Mac) | `estado=movido <data>` em cada linha |
-| recusar | não move | `estado=recusado <data> (<motivo>)` |
-| resolvida | nada no e-mail | `estado=fechada`, `fechado_em` |
+| aprovar | move as linhas do grupo (e o lote do Mac) | `estado=movido` em cada linha; lotes antigos do mesmo destino, `estado=substituído` |
+| recusar | não move | `estado=recusado` |
+| resolvida | nada no e-mail | `estado=fechada`, `fechado_em` com a data |
 | pedir_rascunho | prepara o rascunho no Mac | linha em `Rascunhos.csv`; `rascunho` da pendência |
+
+Desde a v3.2.0 o leitor (`consumidor/consumidor_emails.py`) grava na coluna `estado` só o valor estrito (`movido`, `recusado`, `substituído`, `fechada`). `Movimentos.csv` não tem coluna de data da decisão nem de motivo: a data e o motivo vão só no recibo. Em `Pendencias.csv` a data vai em `fechado_em`, e o texto, no recibo. O painel lê os dois formatos: o antigo, com data e texto (`movido 2026-11-12`, `recusado 2026-11-12 (<motivo>)`, `fechada (<texto>)`), e o estrito, porque classifica pelo começo do texto.
 
 Antes de aplicar, o agente recalcula o hash do grupo ou da pendência. Se for diferente do `snapshot_hash`, não aplica e grava recibo `rejeitado` com motivo `versão desatualizada`. Recibo em `recibos/<decision_id>.json`, mesmo formato dos outros módulos, com `agente: "Gestor de E-mails"`.

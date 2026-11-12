@@ -768,7 +768,9 @@ def executar(classe, nome_config, argv=None, runner=None, agora=None):
 # ---------------------------------------------------------------- módulo Investimentos (montarInvestimentos de src/Lib.gs)
 
 AGENTE = "Analista de Investimentos"
-ESTADOS_APORTE = ((r"^confirmad", "confirmado"), (r"^(nao fiz|nao feito|cancelad|desistiu)", "nao_feito"))
+# Lê o formato estrito do ledger (planejado, confirmado, nao_feito) e o antigo, com data e texto
+# ("confirmado 2026-11-14 (...)", "não fiz (...)").
+ESTADOS_APORTE = ((r"^confirmad", "confirmado"), (r"^(nao fiz|nao[ _]feito|cancelad|desistiu)", "nao_feito"))
 
 
 def id_aporte(o):
@@ -815,18 +817,28 @@ class ConsumidorInvestimentos(Consumidor):
         texto = com.get("texto", "")
         o = item["linha"]
         nome = o.get("ativo") or o.get("destino")
+        # Coluna estado só com o valor estrito do ledger (confirmado / nao_feito). Data e motivo vão no recibo e,
+        # se o Aportes.csv tiver a coluna obs (texto livre do agente), também nela.
         if d["decisao"] == "fiz_aporte":
             data = com.get("data") or dia_da_decisao(d, self.agora())
-            estado = "confirmado %s" % data + (" (%s)" % texto if texto else "")
+            estado = "confirmado"
             mud = {"estado": estado}
-            motivo = "aporte em %s confirmado em %s" % (nome, data)
+            nota = "confirmado em %s" % data
             if com.get("valor"):
                 mud["valor_brl"] = com["valor"]
-                motivo += " (R$ %s)" % com["valor"]
+                nota += " (R$ %s)" % com["valor"]
+            motivo = "aporte em %s %s" % (nome, nota)
         else:
-            estado = "não fiz" + (" (%s)" % texto if texto else "")
+            estado = "nao_feito"
             mud = {"estado": estado}
-            motivo = "aporte em %s não foi feito" % nome + (": %s" % texto if texto else "")
+            nota = "não feito"
+            motivo = "aporte em %s não foi feito" % nome
+        if texto:
+            nota += ": %s" % texto
+            motivo += ": %s" % texto
+        if "obs" in t.col:
+            atual = item["valores"][t.col["obs"]] if t.col["obs"] < len(item["valores"]) else ""
+            mud["obs"] = (trim_js(atual) + "; " + nota) if trim_js(atual) else nota
         return "aportes", [(item["indice"], t.valores_com(item["valores"], mud))], motivo, estado
 
 

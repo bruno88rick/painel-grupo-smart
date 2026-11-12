@@ -911,12 +911,14 @@ class ConsumidorFinancas(Consumidor):
         if d["tipo_item"] == "conta":
             t = tabs["contas"]
             data = com.get("data") or dia_da_decisao(d, self.agora())
-            extra = "; ".join(x for x in (("valor pago " + valor_br(com["valor"])) if com.get("valor") else "", texto) if x)
-            estado = "pago %s" % data + (" (%s)" % extra if extra else "")
+            # Coluna estado só com "pago"; a data vai em pago_em (coluna do ledger); valor pago e texto, no recibo.
+            estado = "pago"
             vals = t.valores_com(item["valores"], {"estado": estado, "pago_em": data})
             motivo = "conta %s %s paga em %s" % (item["emissor"], item["mes_ref"], data)
             if com.get("valor"):
-                motivo += " (%s)" % valor_br(com["valor"])
+                motivo += " (valor pago %s)" % valor_br(com["valor"])
+            if texto:
+                motivo += ": %s" % texto
             if item["consertada"]:
                 motivo += "; linha com valor sem aspas regravada com aspas"
             return "contas", [(item["indice"], vals)], motivo, estado

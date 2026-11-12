@@ -144,6 +144,23 @@ class Harness(unittest.TestCase):
     def tem_ledger(self):
         return os.path.exists(os.path.join(self.tmp, "ledger.json"))
 
+    def anexar(self, fid, *linhas):
+        """Acrescenta linhas (dicts por coluna) ao CSV, com aspas quando precisa e CRLF."""
+        t = self.gws.texto(fid)
+        cab = self.MOD.Tabela(t, "x").cab
+        q = lambda v: '"%s"' % v.replace('"', '""') if re.search(r'[",\r\n]', v) else v
+        t = t if t.endswith("\n") else t + "\r\n"
+        self.gws.add(fid, "x", t + "".join(",".join(q(d.get(c, "")) for c in cab) + "\r\n" for d in linhas))
+
+    def conferir_dois_formatos(self, esperado):
+        """esperado: {item_id: (estado no consumidor, aparece para decisão no painel)}."""
+        mod, pain = self.modelo(), self.itens_painel()
+        for iid, (estado, decide) in esperado.items():
+            self.assertEqual(mod[iid]["estado"] if iid in mod else None, estado, iid)
+            self.assertEqual(iid in pain, decide, iid)
+            if decide:
+                self.assertEqual((pain[iid]["estado"], pain[iid]["snapshot_hash"]), (mod[iid]["estado"], mod[iid]["snapshot_hash"]), iid)
+
     def modelo(self):
         c = self.MOD_CLASSE({}, None, None)
         tabs = {}
@@ -257,9 +274,10 @@ class TestEmails(Harness):
         self.conferir_ciclo(ids, ["mover_grupo", "recusar_grupo", "marcar_resolvida", "pedir_rascunho"])
         mov = CE.Tabela(self.gws.texto("MOV-FILE"), "m")
         estados = [o["estado"] for _, o, _ in mov.linhas() if o["conta"] == "iCloud" and o["pasta"] == "RN Sports"]
-        self.assertIn("movido 2026-11-12", estados)
-        self.assertTrue(any(e == "recusado 2026-11-12 (deixar na entrada)" for _, o, _ in mov.linhas()
-                            for e in [o["estado"]] if o["conta"] == "Google"))
+        self.assertIn("movido", estados)  # estado estrito; data e texto ficam no recibo
+        self.assertNotIn("movido 2026-11-12", estados)
+        self.assertTrue(any(e == "recusado" for _, o, _ in mov.linhas() for e in [o["estado"]] if o["conta"] == "Google"))
+        self.assertEqual(self.gws.recibo(ids[1])["motivo"], "movimentação recusada para Promoções (Google) em 2026-11-12: deixar na entrada")
         # só as linhas decididas mudaram; o resto do arquivo ficou byte a byte
         orig = CE.dividir_registros(self.base["arquivos"]["E1"])
         novo = CE.dividir_registros(self.gws.texto("MOV-FILE"))
@@ -273,9 +291,26 @@ class TestEmails(Harness):
         self.assertNotEqual(depois.get(pends[0], {}).get("estado"), "aberta")
         self.assertEqual(depois[pends[1]]["estado"], "aberta")
         pend = {o["message_id"]: o for _, o, _ in CE.Tabela(self.gws.texto("PEND-FILE"), "p").linhas()}
-        self.assertEqual(pend[pends[0][10:]]["estado"], "fechada (já respondi pelo celular)")
+        self.assertEqual(pend[pends[0][10:]]["estado"], "fechada")
+        self.assertEqual(self.gws.recibo(ids[2])["motivo"], "pendência marcada como resolvida em 2026-11-12: já respondi pelo celular")
         self.assertEqual(pend[pends[0][10:]]["fechado_em"], "2026-11-12")
         self.assertEqual(pend[pends[1][10:]]["rascunho"], "sim 2026-11-12")
+
+    def test_le_estado_antigo_e_estrito(self):
+        """O painel e o consumidor leem o estado antigo (com data e texto) e o estrito do mesmo jeito."""
+        m = lambda mid, pasta, est: {"message_id": mid, "conta": "Google", "pasta": pasta, "motivo": "teste",
+                                     "proposto_em": "2026-11-12T08:00-03:00", "estado": est}
+        self.anexar("MOV-FILE", m("t:1", "Teste A", "movido 2026-11-12"), m("t:2", "Teste B", "movido"),
+                    m("t:3", "Teste C", "recusado 2026-11-12 (deixar)"), m("t:4", "Teste D", "recusado"),
+                    m("t:5", "Teste E", "substituído 2026-11-12 (lote mais novo)"), m("t:6", "Teste F", "substituído"),
+                    m("t:7", "Teste G", "proposto"))
+        p = lambda mid, est: {"message_id": mid, "conta": "Google", "remetente": "Fulano Teste", "assunto": "oi",
+                              "chegou_em": "2026-11-12T08:00-03:00", "motivo": "teste", "estado": est}
+        self.anexar("PEND-FILE", p("t:p1", "fechada (já respondi)"), p("t:p2", "fechada"), p("t:p3", "aberta"))
+        esp = {"grupo:Google|Teste %s" % x: (None, False) for x in "ABCDEF"}
+        esp.update({"grupo:Google|Teste G": ("proposto", True), "pendencia:t:p1": ("fechada", False),
+                    "pendencia:t:p2": ("fechada", False), "pendencia:t:p3": ("aberta", True)})
+        self.conferir_dois_formatos(esp)
 
     def test_lotes_antigos_do_mesmo_destino_ficam_substituidos(self):
         t = self.gws.texto("MOV-FILE")
@@ -288,7 +323,8 @@ class TestEmails(Harness):
         self.assertEqual(self.json["acoes"][0]["lotes_antigos"], ["icloud:lote-2026-11-01t|RN Sports"])
         self.assertEqual(self.rodar("--confirmar", did), 0)
         self.assertIn("icloud:lote-2026-11-01t|RN Sports,iCloud,RN Sports,5 e-mails por regras no Mac,2026-11-01 08:00,"
-                      "substituído 2026-11-12 (lote mais novo decidido em %s)\r\n" % did, self.gws.texto("MOV-FILE"))
+                      "substituído\r\n", self.gws.texto("MOV-FILE"))
+        self.assertIn("lote mais novo decidido em %s" % did, self.gws.recibo(did)["motivo"])
         self.assertNotIn("grupo:iCloud|RN Sports", self.itens_painel())
 
     def test_teste_nao_grava_nada(self):
@@ -319,6 +355,15 @@ class TestEmails(Harness):
 # ---------------------------------------------------------------- finanças
 
 class FinancasComum(Harness):
+    def test_le_estado_antigo_e_estrito(self):
+        """Conta paga no formato antigo ("pago <data> (...)") e no estrito ("pago" + pago_em): as duas saem da lista."""
+        c = lambda emissor, est, pago: {"emissor": emissor, "mes_ref": "2026-11", "valor": "10,00", "vencimento": "2026-11-20",
+                                        "forma": "boleto", "estado": est, "pago_em": pago}
+        self.anexar("CONTAS-FILE", c("Teste A", "pago 2026-11-12 (valor pago R$ 10,00; ok)", "2026-11-12"),
+                    c("Teste B", "pago", "2026-11-12"), c("Teste C", "a pagar", ""))
+        self.conferir_dois_formatos({"conta:Teste A|2026-11": ("pago", False), "conta:Teste B|2026-11": ("pago", False),
+                                     "conta:Teste C|2026-11": ("a_pagar", True)})
+
     def conferir_dois_hashes(self, iid, decisao, h_novo, h_velho):
         self.assertEqual(self.base["itens"]["financas"][iid]["snapshot_hash"], h_novo)  # o painel grava o novo
         m = self.modelo()[iid]
@@ -383,8 +428,12 @@ class TestFinancas(FinancasComum):
         contas = CF.Tabela(self.gws.texto("CONTAS-FILE"), "c")
         m = self.modelo()
         self.assertEqual(m[seg]["estado"], "pago")
-        self.assertEqual(m[seg]["estado_texto"], "pago 2026-11-12 (valor pago R$ 171,27; pago no cartão; ok)")
-        self.assertEqual(m["conta:Energia Minas|2026-11"]["estado_texto"], "pago 2026-11-11")
+        self.assertEqual(m[seg]["estado_texto"], "pago")  # estado estrito; a data vai em pago_em
+        self.assertEqual(m["conta:Energia Minas|2026-11"]["estado_texto"], "pago")
+        pagas = {(o["emissor"], o["mes_ref"]): o for _, o, _ in contas.linhas()}
+        self.assertEqual(pagas[("Energia Minas", "2026-11")]["pago_em"], "2026-11-11")
+        self.assertEqual(self.gws.recibo(ids[0])["motivo"],
+                         "conta Seguradora Alfa seguro Hatch (renovação 2 anos, 1ª) 2026-11 paga em 2026-11-12 (valor pago R$ 171,27): pago no cartão; ok")
         self.assertIn("rateio:2026-10", m)
         self.assertEqual(m["rateio:2026-10"]["recebidos_texto"], "1/3")
         self.assertTrue(contas.linhas())
@@ -409,7 +458,8 @@ class TestFinancas(FinancasComum):
         self.assertIn("aspas", self.gws.recibo(did)["motivo"])
         linha = self.gws.texto("CONTAS-FILE").splitlines()[1]
         self.assertTrue(linha.startswith('TV Estrela (minha parte 1/4),2026-11,"136,34",2026-11-05,boleto,'
-                                         'pago 2026-11-12,'), linha)
+                                         'pago,'), linha)
+        self.assertIn(',2026-11-12,', linha)  # pago_em
         self.assertNotIn(tv, self.itens_painel())
 
 
@@ -485,18 +535,30 @@ class TestInvestimentos(Harness):
         self.assertEqual((a["acao"], a["data"], a["valor"], a["valor_planejado"]), ("confirmar_aporte", "2026-11-14", "300.00", "250.00"))
         self.conferir_ciclo([did], ["confirmar_aporte"])
         t = self.gws.texto("APORTES-FILE")
-        self.assertIn("2026-11-15,Reserva de emergência,Fora da ARCA,Tesouro Selic,300.00,pessoal,"
-                      "confirmado 2026-11-14 (Tesouro Selic 2029)\r\n", t)
-        self.assertEqual(t.replace("300.00,pessoal,confirmado 2026-11-14 (Tesouro Selic 2029)", "250.00,pessoal,planejado (primeiro aporte da reserva; aguardando o usuário)"),
+        self.assertIn("2026-11-15,Reserva de emergência,Fora da ARCA,Tesouro Selic,300.00,pessoal,confirmado\r\n", t)
+        self.assertEqual(self.gws.recibo(did)["motivo"], "aporte em Tesouro Selic confirmado em 2026-11-14 (R$ 300.00): Tesouro Selic 2029")
+        self.assertEqual(t.replace("300.00,pessoal,confirmado\r\n", "250.00,pessoal,planejado (primeiro aporte da reserva; aguardando o usuário)\r\n"),
                          self.base["arquivos"]["I5"])
         self.assertNotIn(self.ITEM, self.itens_painel())  # confirmado não é mais pendente
 
     def test_marcar_nao_feito(self):
         did, = self.decidir({"item_id": self.ITEM, "decisao": "nao_fiz", "comentario": "texto=sem saldo este mês"})
         self.conferir_ciclo([did], ["marcar_nao_feito"])
-        self.assertIn(",250.00,pessoal,não fiz (sem saldo este mês)\r\n", self.gws.texto("APORTES-FILE"))
+        self.assertIn(",250.00,pessoal,nao_feito\r\n", self.gws.texto("APORTES-FILE"))
+        self.assertEqual(self.gws.recibo(did)["motivo"], "aporte em Tesouro Selic não foi feito: sem saldo este mês")
         self.assertEqual(self.modelo()[self.ITEM]["estado"], "nao_feito")
         self.assertNotIn(self.ITEM, self.itens_painel())
+
+    def test_le_estado_antigo_e_estrito(self):
+        """Aportes: "confirmado 2026-11-14 (...)" e "confirmado"; "não fiz (...)" e "nao_feito"; só planejado pede decisão."""
+        a = lambda dia, est: {"data": "2026-11-%s" % dia, "destino": "Teste", "categoria_arca": "Caixa", "ativo": "CDB",
+                              "valor_brl": "10.00", "origem": "pessoal", "estado": est}
+        self.anexar("APORTES-FILE", a("20", "confirmado 2026-11-14 (CDB)"), a("21", "confirmado"), a("22", "não fiz (sem saldo)"),
+                    a("23", "nao_feito"), a("24", "planejado"))
+        iid = lambda dia: "aporte:2026-11-%s|Teste|pessoal" % dia
+        self.conferir_dois_formatos({iid("20"): ("confirmado", False), iid("21"): ("confirmado", False),
+                                     iid("22"): ("nao_feito", False), iid("23"): ("nao_feito", False),
+                                     iid("24"): ("pendente", True)})
 
     def test_teste_nao_grava_nada(self):
         did, = self.decidir({"item_id": self.ITEM, "decisao": "nao_fiz"})
@@ -512,6 +574,15 @@ class TestInvestimentos(Harness):
     def test_retomada_depois_de_cair_no_meio(self):
         did, = self.decidir({"item_id": self.ITEM, "decisao": "nao_fiz"})
         self.conferir_retomada(did, "APORTES-FILE")
+
+    def test_coluna_obs_recebe_data_e_motivo(self):
+        t = self.gws.texto("APORTES-FILE")
+        linhas = [l for l in t.splitlines() if l]
+        self.gws.add("APORTES-FILE", "a", "\r\n".join(l + (",obs" if i == 0 else (",já tinha" if "planejado" in l else ",")) for i, l in enumerate(linhas)) + "\r\n")
+        self.assertEqual(self.modelo()[self.ITEM]["snapshot_hash"], self.base["itens"]["investimentos"][self.ITEM]["snapshot_hash"])
+        did, = self.decidir({"item_id": self.ITEM, "decisao": "fiz_aporte", "comentario": "data=2026-11-14;texto=Tesouro Selic 2029"})
+        self.conferir_ciclo([did], ["confirmar_aporte"])
+        self.assertIn(",250.00,pessoal,confirmado,já tinha; confirmado em 2026-11-14: Tesouro Selic 2029\r\n", self.gws.texto("APORTES-FILE"))
 
     def test_colunas_extras_preservadas(self):
         t = self.gws.texto("APORTES-FILE")

@@ -29,9 +29,10 @@ O `gws` precisa estar autenticado no Drive do Bruno.
    | `pedir_rascunho` (`pedir_rascunho`) | `message_id`, `conta`, `texto` (o pedido) | prepara o rascunho no Mac e anota em `Rascunhos.csv`, como já faz |
 
 3. Confirmar cada ação feita: `python3 consumidor_emails.py --confirmar <decision_id>` (opcional `--link URL`, vai no recibo).
-   - `mover_grupo`: cada linha do grupo vira `movido <data>`. Lotes mais antigos do mesmo destino (fora do hash, ver abaixo) viram `substituído <data> (lote mais novo decidido em <decision_id>)`.
-   - `recusar_grupo`: cada linha vira `recusado <data>` ou `recusado <data> (<texto>)`.
-   - `marcar_resolvida`: `estado=fechada` (com `(<texto>)` se veio) e `fechado_em=<data>`.
+   - Desde a v3.2.0 a coluna `estado` recebe só o valor estrito; a data e o texto vão no recibo (`motivo`).
+   - `mover_grupo`: cada linha do grupo vira `movido`. Lotes mais antigos do mesmo destino (fora do hash, ver abaixo) viram `substituído` (o recibo cita a decisão).
+   - `recusar_grupo`: cada linha vira `recusado`.
+   - `marcar_resolvida`: `estado=fechada` e `fechado_em=<data>`.
    - `pedir_rascunho`: `rascunho=sim <data>`; a pendência continua `aberta`. `Rascunhos.csv` não é tocado pelo script.
 
 Sem gravar nada: acrescente `--teste` (sozinho, `--teste` faz o plano).

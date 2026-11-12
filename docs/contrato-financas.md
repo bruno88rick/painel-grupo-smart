@@ -89,8 +89,10 @@ O servidor recusa (e não grava): chave desligada, item que não existe mais, es
 
 | Decisão | No ledger |
 | --- | --- |
-| paguei | `estado=pago <data>` na conta, `pago_em` com a data (ou a da decisão), valor pago se vier; lançamento em `Lancamentos.csv` se ainda não houver |
+| paguei | `estado=pago` na conta e `pago_em` com a data (ou a da decisão); valor pago e texto vão no recibo; lançamento em `Lancamentos.csv` se ainda não houver |
 | recebi_mais_um | soma 1 em `recebidos` do rateio (ex. `1/3` → `2/3`); com `texto`, anota de quem |
+
+Desde a v3.2.0 o leitor (`consumidor/consumidor_financas.py`) grava na coluna `estado` só `pago`; a data vai na coluna `pago_em`, como o Assistente Financeiro já faz, e o valor pago e o texto, só no recibo. O painel lê os dois formatos: o antigo (`pago 2026-11-12 (valor pago R$ 10,00; <texto>)`) e o estrito (`pago`), porque classifica pelo começo do texto.
 
 Antes de aplicar, o agente recalcula o hash da conta ou do rateio. Se for diferente do `snapshot_hash`, não aplica e grava recibo `rejeitado` com motivo `versão desatualizada`. Recibo em `recibos/<decision_id>.json`, mesmo formato dos outros módulos, com `agente: "Assistente Financeiro"`.
 
