@@ -269,6 +269,15 @@ Mesmo `decisoes.csv`, com `modulo=anuncios`, `item_id` `post:<id>` ou `campanha:
 
 Contrato completo, exemplos reais e o script de hash: [docs/contrato-propostas.md](docs/contrato-propostas.md). O consumidor do Tráfego (ainda não ligado) fica em [consumidor/](consumidor/README.md).
 
+### Consumidor do Gestor de Tráfego
+
+[consumidor/consumidor_anuncios.py](consumidor/README.md) (ainda não ligado: `ANUNCIOS_INTEGRADOS = false`) segue o mesmo desenho dos outros consumidores: `--plano`, `--confirmar <decision_id> [--link URL]`, `--teste`, ledger antes do recibo, idempotente, saídas 0/1/2/3.
+
+- `--plano` imprime em JSON as ações para o agente (`programar_post`, `criar_campanha`, `pausar_campanha_meta`, `refazer_post`, `refazer_campanha`, `registrar_recusa_post`, `registrar_recusa_campanha`). Não grava recibo de ação nem mexe em `Propostas.csv`; versão velha ou decisão inválida recebe o recibo `rejeitado`.
+- `--confirmar` roda só depois que o agente executou na Meta: grava o ledger, atualiza a linha em `Propostas.csv` (as outras ficam byte a byte iguais) e grava o recibo `aplicado`.
+- `--dry-run` virou apelido de `--teste` (com aviso). `--acoes` e `acoes-anuncios.json` saíram: as ações vêm no stdout do `--plano`. Migração no [README do consumidor](consumidor/README.md#migração-do-fluxo-antigo).
+- O script nunca publica, nunca chama a Meta e nunca aumenta verba. Hash e contrato sem mudança (`consumidor/vetores_hash.json` conferido em Python e Node).
+
 ## Consumidores v3: E-mails, Finanças, Investimentos
 
 Scripts do lado dos agentes, no mesmo desenho do `consumidor_suporte.py` (Python 3, só biblioteca padrão, `--plano`, `--confirmar <decision_id>`, `--teste`, ledger antes do recibo, idempotentes, saídas 0/1/2/3):
@@ -287,6 +296,8 @@ Nenhum deles mexe nos e-mails, no banco ou na corretora: quem age é o agente; o
 npm test
 python3 -m unittest discover -s consumidor
 ```
+
+Consumidor de anúncios no padrão `--plano`/`--confirmar`: `consumidor/test_consumidor_anuncios.py` reescrito com 42 testes (eram 29); 99 testes Python no total e 93 no Node.
 
 Consumidores v3: 36 testes Python novos em `consumidor/test_consumidores_v3.py` (precisam do Node para gerar as decisões como o painel; sem Node são pulados).
 

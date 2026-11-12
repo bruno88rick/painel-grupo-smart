@@ -1,4 +1,4 @@
-"""Testes do consumidor de anúncios. Rodar: python3 -m unittest discover consumidor
+"""Testes do consumidor de anúncios (--plano, --confirmar, --teste). Rodar: python3 -m unittest discover -s consumidor
 
 O gws é simulado por FakeGws: um Drive em memória que entende os mesmos
 comandos que a camada Drive usa (get/list/update/create) e confere que
@@ -163,7 +163,7 @@ class Base(unittest.TestCase):
     def escrever_config(self, prop):
         with open(self.cfg_path, "w", encoding="utf-8") as f:
             json.dump({"decisoes_fileId": DEC_ID, "recibos_folderId": REC_ID, "propostas_fileId": prop,
-                       "pasta_trabalho": "trabalho", "ledger_path": "ledger.json", "acoes_path": "acoes.json"}, f)
+                       "pasta_trabalho": "trabalho", "ledger_path": "ledger.json"}, f)
 
     def decisoes(self, *decs):
         self.gws.add(DEC_ID, "decisoes.csv", csv_decisoes(decs))
@@ -173,7 +173,18 @@ class Base(unittest.TestCase):
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             rc = C.main(["--config", self.cfg_path] + list(extra), runner=self.gws, agora=AGORA)
         self.saida = out.getvalue() + err.getvalue()
+        self.stderr = err.getvalue()
+        try:
+            self.res = json.loads(out.getvalue()) if out.getvalue().strip() else None
+        except ValueError:
+            self.res = None
         return rc
+
+    def plano(self, *extra):
+        return self.rodar("--plano", *extra)
+
+    def confirmar(self, did, *extra):
+        return self.rodar("--confirmar", did, *extra)
 
     def linha(self, pid):
         return C.Propostas(self.gws.texto(PROP_ID)).buscar(pid)[0]
@@ -182,9 +193,12 @@ class Base(unittest.TestCase):
         with open(os.path.join(self.tmp, "ledger.json"), encoding="utf-8") as f:
             return json.load(f)["decisoes"]
 
-    def acoes(self):
-        with open(os.path.join(self.tmp, "acoes.json"), encoding="utf-8") as f:
-            return json.load(f)["acoes"]
+    def tem_ledger(self):
+        return os.path.exists(os.path.join(self.tmp, "ledger.json"))
+
+    def escrever_ledger(self, decisoes):
+        with open(os.path.join(self.tmp, "ledger.json"), "w", encoding="utf-8") as f:
+            json.dump({"versao": 1, "decisoes": decisoes}, f)
 
     def outras_linhas_intactas(self, pid):
         orig = C.dividir_registros(ler_fixture())
@@ -266,240 +280,230 @@ class TestComentario(unittest.TestCase):
         self.ruim("texto=x", "post", "pausar")
 
 
-class TestFluxo(Base):
-    def test_decisao_valida_aplica_e_cria_recibo(self):
-        self.decisoes(dec("D-1", "post:P-20261111-01", "aprovar", "legenda=1;texto=ok"))
+class TestPlano(Base):
+    def test_plano_lista_acoes_sem_recibo_nem_update(self):
+        self.decisoes(dec("D-1", "post:P-20261111-01", "aprovar", "legenda=1;texto=ok"),
+                      dec("D-2", "campanha:C02", "aprovar", "verba=8.50;texto=começar menor"),
+                      dec("D-3", "campanha:M-52562345108818", "pausar", "texto=gasto sem retorno"))
+        self.assertEqual(self.plano(), 0)
+        self.assertEqual(self.gws.contar("update") + self.gws.contar("create"), 0)
+        self.assertEqual(self.gws.texto(PROP_ID), ler_fixture())
+        self.assertEqual(self.gws.recibos(), [])
+        self.assertEqual(self.res["modo"], "plano")
+        a = {x["decision_id"]: x for x in self.res["acoes"]}
+        self.assertEqual(a["D-1"]["acao"], "programar_post")
+        self.assertTrue(a["D-1"]["legenda"].startswith("Mesa posta de Natal"))
+        self.assertEqual(a["D-1"]["snapshot_hash"], VETORES["P-20261111-01"])
+        self.assertEqual((a["D-2"]["acao"], a["D-2"]["verba_diaria"], a["D-2"]["versao"]), ("criar_campanha", "8.5", "2"))
+        self.assertEqual((a["D-3"]["acao"], a["D-3"]["campanha_id"]), ("pausar_campanha_meta", "M-52562345108818"))
+        led = self.ledger()
+        self.assertEqual({k: v["fase"] for k, v in led.items()}, {"D-1": "planejada", "D-2": "planejada", "D-3": "planejada"})
+        # segunda vez: mesmas ações, marcadas como já planejadas, ledger não cresce
+        self.assertEqual(self.plano(), 0)
+        self.assertTrue(all(x.get("ja_planejada") for x in self.res["acoes"]))
+        self.assertEqual(len(self.ledger()["D-1"]["historico"]), 1)
+
+    def test_sem_flag_e_plano(self):
+        self.decisoes(dec("D-1", "campanha:C02", "aprovar"))
         self.assertEqual(self.rodar(), 0)
+        self.assertEqual(self.res["modo"], "plano")
+        self.assertEqual(self.gws.recibos(), [])
+
+    def test_carrossel_10_midias_legenda_2_novo_horario(self):
+        self.decisoes(dec("D-1", "post:P-20261112-CAT", "aprovar", "legenda=2;horario=2026-11-16 19:00"))
+        self.plano()
+        a = self.res["acoes"][0]
+        self.assertEqual(len(a["midia_fileIds"].split(";")), 10)
+        self.assertEqual(a["midia_fileIds"].split(";")[0], "1zkK0EmOdR57ZzABlTMhQyf4PcNEdEsMZ")
+        self.assertTrue(a["legenda"].startswith("Natal chegando"))
+        self.assertEqual((a["horario"], a["versao"]), ("2026-11-16 19:00", "2"))
+
+    def test_rejeicoes_recebem_recibo_e_propostas_intacto(self):
+        d = dec("D-6", "post:P-20261111-01", "aprovar", "legenda=1")
+        self.decisoes(dec("D-1", "post:P-20261111-01", "aprovar", "legenda=1", hash_="a" * 64),
+                      dec("D-2", "campanha:C02", "aprovar", "verba=12"),
+                      dec("D-3", "campanha:C02", "pausar"),
+                      dec("D-4", "post:P-20261111-01", "pausar"),
+                      dec("D-5", "post:P-20261112-CAT", "refazer", "trocar a foto"),
+                      dict(d, item_id="post:NAO-EXISTE"),
+                      dict(dec("D-7", "campanha:C02", "aprovar"), tipo_item="post", item_id="post:C02"))
+        self.assertEqual(self.plano(), 0)
+        self.assertEqual(self.res["acoes"], [])
+        mot = {did: self.gws.recibo(did)["motivo"] for did in ("D-1", "D-2", "D-3", "D-4", "D-5", "D-6", "D-7")}
+        self.assertEqual(mot["D-1"], "versão desatualizada")
+        self.assertEqual(mot["D-2"], "verba acima da proposta")
+        self.assertIn("não aceita", mot["D-3"])
+        self.assertIn("não vale", mot["D-4"])
+        self.assertTrue(mot["D-5"].startswith("comentario inválido"))
+        self.assertIn("não existe", mot["D-6"])
+        self.assertIn("tipo_item", mot["D-7"])
+        for did in mot:
+            self.assertEqual(self.gws.recibo(did)["resultado"], "rejeitado")
+        self.assertEqual(self.gws.texto(PROP_ID), ler_fixture())
+        self.assertEqual(self.gws.contar("update"), 0)
+        self.assertEqual(self.ledger()["D-1"]["fase"], "recibo_criado")
+
+    def test_duplicada_mesmo_item_hash_e_mesmo_id(self):
+        d1 = dec("D-1", "campanha:C02", "aprovar")
+        self.decisoes(d1, dict(d1, comentario="verba=9"), dec("D-2", "campanha:C02", "aprovar", "verba=5"))
+        self.plano()
+        self.assertEqual([x["decision_id"] for x in self.res["acoes"]], ["D-1"])
+        self.assertIn("duplicada", self.gws.recibo("D-2")["motivo"])
+        self.assertEqual(self.res["ignoradas"], [{"decision_id": "D-1", "motivo": "id repetido em decisoes.csv"}])
+        self.assertIn("id repetido", self.saida)
+
+    def test_rejeitada_nao_bloqueia_nova_decisao(self):
+        self.decisoes(dec("D-1", "campanha:C02", "aprovar", "verba=12"))
+        self.plano()
+        self.decisoes(dec("D-1", "campanha:C02", "aprovar", "verba=12"), dec("D-2", "campanha:C02", "aprovar"))
+        self.plano()
+        self.assertEqual([x["decision_id"] for x in self.res["acoes"]], ["D-2"])
+
+    def test_outros_modulos_ignorados(self):
+        self.decisoes(dec("D-1", "post:P-20261111-01", "aprovar", "legenda=1", modulo="design"))
+        self.assertEqual(self.plano(), 0)
+        self.assertEqual(self.res["acoes"], [])
+        self.assertEqual(self.gws.recibos(), [])
+
+    def test_propostas_nao_configurado(self):
+        self.escrever_config("PREENCHER")
+        self.decisoes(dec("D-1", "campanha:C02", "aprovar"))
+        self.assertEqual(self.plano(), 0)
+        self.assertTrue(self.res["sem_propostas"])
+        self.assertIn("não configurado", self.saida)
+        self.assertEqual(self.gws.recibos(), [])
+
+    def test_recibo_existente_conta_e_nao_planeja(self):
+        self.decisoes(dec("D-1", "campanha:C02", "aprovar"))
+        self.gws.add("r1", "D-1.json", "{}", [REC_ID])
+        self.gws.add("r2", "D-1.json", "{}", [REC_ID])
+        self.assertEqual(self.plano(), 0)
+        self.assertEqual((self.res["ja_com_recibo"], self.res["acoes"]), (1, []))
+        self.assertIn("recibo duplicado", self.saida)
+        self.assertEqual(self.gws.contar("create"), 0)
+
+
+class TestTeste(Base):
+    def test_teste_sem_escrita(self):
+        self.decisoes(dec("D-1", "campanha:C02", "aprovar"), dec("D-2", "post:P-20261111-01", "aprovar", "legenda=9"))
+        self.assertEqual(self.rodar("--teste"), 0)
+        self.assertEqual(self.gws.contar("update") + self.gws.contar("create"), 0)
+        self.assertFalse(self.tem_ledger())
+        self.assertTrue(self.res["teste"])
+        self.assertEqual([x["decision_id"] for x in self.res["acoes"]], ["D-1"])
+        self.assertEqual([x["decision_id"] for x in self.res["rejeitadas"]], ["D-2"])
+        self.assertEqual(self.gws.texto(PROP_ID), ler_fixture())
+
+    def test_plano_teste_sem_escrita(self):
+        self.decisoes(dec("D-1", "campanha:C02", "aprovar"))
+        self.assertEqual(self.plano("--teste"), 0)
+        self.assertEqual(self.gws.contar("update") + self.gws.contar("create"), 0)
+        self.assertFalse(self.tem_ledger())
+
+    def test_confirmar_teste_sem_escrita(self):
+        self.decisoes(dec("D-1", "campanha:C02", "aprovar", "verba=8"))
+        self.assertEqual(self.confirmar("D-1", "--teste"), 0)
+        self.assertEqual(self.res["resultado"], "aplicado (teste, nada gravado)")
+        self.assertEqual((self.res["estado_novo"], self.res["versao_nova"]), ("aprovado", "2"))
+        self.assertEqual(self.gws.contar("update") + self.gws.contar("create"), 0)
+        self.assertFalse(self.tem_ledger())
+        self.assertEqual(self.gws.texto(PROP_ID), ler_fixture())
+
+    def test_dry_run_e_apelido_de_teste(self):
+        self.decisoes(dec("D-1", "campanha:C02", "aprovar"), dec("D-2", "post:P-20261111-01", "aprovar", "legenda=9"))
+        self.assertEqual(self.rodar("--dry-run"), 0)
+        self.assertIn("--dry-run está obsoleto", self.stderr)
+        self.assertTrue(self.res["teste"])
+        self.assertEqual(self.gws.contar("update") + self.gws.contar("create"), 0)
+        self.assertFalse(self.tem_ledger())
+        self.assertEqual([x["decision_id"] for x in self.res["acoes"]], ["D-1"])
+
+
+class TestConfirmar(Base):
+    def test_confirmar_post_grava_ledger_antes_do_recibo(self):
+        self.decisoes(dec("D-1", "post:P-20261111-01", "aprovar", "legenda=1;texto=ok"))
+        self.plano()
+        self.assertEqual(self.confirmar("D-1", "--link", "https://business.facebook.com/x"), 0)
+        self.assertEqual(self.res["resultado"], "aplicado")
         l = self.linha("P-20261111-01")
         self.assertEqual((l["estado"], l["legenda_escolhida"], l["versao"], l["horario"]),
                          ("aprovado", "1", "1", "2026-11-13 18:30"))
         self.assertEqual(l["atualizado_em"], "2026-11-12T15:00:00-03:00")
         self.outras_linhas_intactas("P-20261111-01")
         r = self.gws.recibo("D-1")
-        self.assertEqual(r["resultado"], "aplicado")
-        self.assertEqual(r["snapshot_hash"], VETORES["P-20261111-01"])
-        self.assertEqual(r["agente"], "Gestor de Tráfego")
-        self.assertEqual(r["processado_em"], "2026-11-12T15:00:00-03:00")
+        self.assertEqual((r["resultado"], r["snapshot_hash"], r["agente"], r["link"]),
+                         ("aplicado", VETORES["P-20261111-01"], "Gestor de Tráfego", "https://business.facebook.com/x"))
         e = self.ledger()["D-1"]
-        self.assertEqual([h["fase"] for h in e["historico"]], ["recebida", "propostas_atualizada", "recibo_criado"])
+        self.assertEqual([h["fase"] for h in e["historico"]],
+                         ["planejada", "confirmando", "propostas_atualizada", "recibo_criado"])
         self.assertEqual(e["hash_depois"], C.hash_snapshot(l))
-        a = self.acoes()
-        self.assertEqual(a[0]["acao"], "programar_post")
-        self.assertTrue(a[0]["legenda"].startswith("Mesa posta de Natal"))
         self.assertEqual(self.gws.contar("update"), 1)
-        # segunda execução: nada a fazer
-        self.assertEqual(self.rodar(), 0)
-        self.assertEqual(self.gws.contar("update"), 1)
-        self.assertEqual(self.gws.recibos(), ["D-1.json"])
 
-    def test_hash_velho_rejeita_e_propostas_intacto(self):
-        self.decisoes(dec("D-1", "post:P-20261111-01", "aprovar", "legenda=1", hash_="a" * 64))
-        self.assertEqual(self.rodar(), 0)
-        self.assertEqual(self.gws.texto(PROP_ID), ler_fixture())
-        self.assertEqual(self.gws.contar("update"), 0)
-        r = self.gws.recibo("D-1")
-        self.assertEqual((r["resultado"], r["motivo"]), ("rejeitado", "versão desatualizada"))
-
-    def test_duplicada_mesmo_item_hash_e_mesmo_id(self):
-        d1 = dec("D-1", "campanha:C02", "aprovar")
-        d2 = dec("D-2", "campanha:C02", "aprovar", "verba=5")
-        d1b = dict(d1, comentario="verba=9")
-        self.decisoes(d1, d1b, d2)
-        self.assertEqual(self.rodar(), 0)
-        self.assertEqual(self.gws.recibo("D-1")["resultado"], "aplicado")
-        r2 = self.gws.recibo("D-2")
-        self.assertEqual(r2["resultado"], "rejeitado")
-        self.assertIn("duplicada", r2["motivo"])
-        self.assertEqual(self.gws.recibos(), ["D-1.json", "D-2.json"])
-        self.assertIn("id repetido", self.saida)
-        l = self.linha("C02")
-        self.assertEqual((l["estado"], l["verba_diaria"], l["versao"]), ("aprovado", "10", "1"))
-
-    def test_duplicada_em_execucao_posterior_pelo_ledger(self):
-        self.decisoes(dec("D-1", "campanha:C02", "aprovar"))
-        self.rodar()
-        self.decisoes(dec("D-1", "campanha:C02", "aprovar"), dec("D-2", "campanha:C02", "aprovar"))
-        self.rodar()
-        self.assertIn("duplicada", self.gws.recibo("D-2")["motivo"])
-
-    def test_verba_acima_rejeita(self):
-        self.decisoes(dec("D-1", "campanha:C02", "aprovar", "verba=12"))
-        self.rodar()
-        r = self.gws.recibo("D-1")
-        self.assertEqual((r["resultado"], r["motivo"]), ("rejeitado", "verba acima da proposta"))
-        self.assertEqual(self.gws.texto(PROP_ID), ler_fixture())
-
-    def test_verba_menor_sobe_versao(self):
-        self.decisoes(dec("D-1", "campanha:C02", "aprovar", "verba=8.50;texto=começar menor"))
-        self.rodar()
+    def test_confirmar_campanha_verba_menor_sobe_versao(self):
+        self.decisoes(dec("D-1", "campanha:C02", "aprovar", "verba=8.50"))
+        self.assertEqual(self.confirmar("D-1"), 0)
         l = self.linha("C02")
         self.assertEqual((l["estado"], l["verba_diaria"], l["versao"]), ("aprovado", "8.5", "2"))
-        a = self.acoes()[0]
-        self.assertEqual((a["acao"], a["verba_diaria"]), ("criar_campanha", "8.5"))
+        self.assertIn("versao 2", self.gws.recibo("D-1")["motivo"])
+        self.assertNotIn("link", self.gws.recibo("D-1"))
         self.outras_linhas_intactas("C02")
 
-    def test_pausar_campanha_ativa(self):
-        self.decisoes(dec("D-1", "campanha:M-52562345108818", "pausar", "texto=gasto sem retorno"))
-        self.rodar()
+    def test_confirmar_pausar_refazer_recusar(self):
+        self.decisoes(dec("D-1", "campanha:M-52562345108818", "pausar", "texto=gasto sem retorno"),
+                      dec("D-2", "post:P-20261112-CAT", "refazer", "texto=trocar a capa"),
+                      dec("D-3", "campanha:C02", "recusar"))
+        for did in ("D-1", "D-2", "D-3"):
+            self.assertEqual(self.confirmar(did), 0)
         self.assertEqual(self.linha("M-52562345108818")["estado"], "pausado")
-        a = self.acoes()[0]
-        self.assertEqual((a["acao"], a["campanha_id"]), ("pausar_campanha_meta", "M-52562345108818"))
-        self.assertEqual(self.gws.recibo("D-1")["resultado"], "aplicado")
+        self.assertEqual(self.linha("P-20261112-CAT")["estado"], "ajuste")
+        self.assertEqual(self.linha("C02")["estado"], "encerrado")
+        self.assertEqual(self.gws.recibo("D-3")["motivo"], "recusada pelo Bruno")
 
-    def test_carrossel_10_midias_legenda_2_novo_horario(self):
-        self.decisoes(dec("D-1", "post:P-20261112-CAT", "aprovar", "legenda=2;horario=2026-11-16 19:00"))
-        self.rodar()
-        l = self.linha("P-20261112-CAT")
-        self.assertEqual((l["estado"], l["legenda_escolhida"], l["horario"], l["versao"]),
-                         ("aprovado", "2", "2026-11-16 19:00", "2"))
-        self.assertEqual(len(l["midia_fileIds"].split(";")), 10)
-        a = self.acoes()[0]
-        self.assertEqual(a["midia_fileIds"].split(";")[0], "1zkK0EmOdR57ZzABlTMhQyf4PcNEdEsMZ")
-        self.assertTrue(a["legenda"].startswith("Natal chegando"))
-        self.assertIn("versao 2", self.gws.recibo("D-1")["motivo"])
-        self.outras_linhas_intactas("P-20261112-CAT")
-
-    def test_comentario_invalido(self):
-        self.decisoes(dec("D-1", "post:P-20261111-01", "aprovar", "texto=sem legenda"),
-                      dec("D-2", "post:P-20261112-CAT", "refazer", "trocar a foto"))
-        self.rodar()
-        for did in ("D-1", "D-2"):
-            r = self.gws.recibo(did)
-            self.assertEqual(r["resultado"], "rejeitado")
-            self.assertTrue(r["motivo"].startswith("comentario inválido"))
-        self.assertEqual(self.gws.texto(PROP_ID), ler_fixture())
-
-    def test_estado_nao_decidivel(self):
-        self.decisoes(dec("D-1", "campanha:C02", "pausar"),
-                      dec("D-2", "campanha:M-52562345108818", "aprovar"),
-                      dec("D-3", "post:P-20261111-01", "pausar"))
-        self.rodar()
-        self.assertIn("não aceita", self.gws.recibo("D-1")["motivo"])
-        self.assertIn("não aceita", self.gws.recibo("D-2")["motivo"])
-        self.assertIn("não vale", self.gws.recibo("D-3")["motivo"])
-        self.assertEqual(self.gws.texto(PROP_ID), ler_fixture())
-
-    def test_item_inexistente_e_tipo_errado(self):
-        d = dec("D-1", "post:P-20261111-01", "aprovar", "legenda=1")
-        self.decisoes(dict(d, item_id="post:NAO-EXISTE"), dict(dec("D-2", "campanha:C02", "aprovar"), tipo_item="post",
-                                                               item_id="post:C02"))
-        self.rodar()
-        self.assertIn("não existe", self.gws.recibo("D-1")["motivo"])
-        self.assertIn("tipo_item", self.gws.recibo("D-2")["motivo"])
-
-    def test_outros_modulos_ignorados(self):
-        self.decisoes(dec("D-1", "post:P-20261111-01", "aprovar", "legenda=1", modulo="design"))
-        self.assertEqual(self.rodar(), 0)
-        self.assertEqual(self.gws.recibos(), [])
-        self.assertEqual(self.gws.contar("update"), 0)
-
-    def test_retomada_apos_falha_entre_update_e_recibo(self):
-        self.decisoes(dec("D-1", "post:P-20261111-01", "aprovar", "legenda=1"))
-        self.gws.falhas["create"] = ["morte_antes"]
-        with self.assertRaises(Morte):
-            self.rodar()
-        self.assertEqual(self.ledger()["D-1"]["fase"], "propostas_atualizada")
-        self.assertEqual(self.gws.recibos(), [])
-        apos_update = self.gws.texto(PROP_ID)
-        self.assertEqual(self.rodar(), 0)
-        self.assertEqual(self.gws.contar("update"), 1)
-        self.assertEqual(self.gws.texto(PROP_ID), apos_update)
-        self.assertEqual(self.gws.recibo("D-1")["resultado"], "aplicado")
-        self.assertEqual(self.ledger()["D-1"]["fase"], "recibo_criado")
-        self.assertEqual(self.acoes()[0]["acao"], "programar_post")
-
-    def test_retomada_quando_update_chegou_mas_ledger_nao_registrou(self):
-        self.decisoes(dec("D-1", "campanha:C02", "aprovar", "verba=8"))
-        self.gws.falhas["update"] = ["morte_depois"]
-        with self.assertRaises(Morte):
-            self.rodar()
-        self.assertEqual(self.ledger()["D-1"]["fase"], "recebida")
-        self.assertEqual(self.linha("C02")["verba_diaria"], "8")
-        self.assertEqual(self.rodar(), 0)
-        self.assertEqual(self.gws.contar("update"), 1)
-        self.assertEqual(self.linha("C02")["versao"], "2")
-        self.assertEqual(self.gws.recibo("D-1")["resultado"], "aplicado")
-
-    def test_create_ambiguo_recibo_existe(self):
+    def test_idempotencia_confirmar_duas_vezes(self):
         self.decisoes(dec("D-1", "campanha:C02", "aprovar"))
-        self.gws.falhas["create"] = ["ambiguo"]
-        self.assertEqual(self.rodar(), 0)
-        self.assertEqual(self.gws.recibos(), ["D-1.json"])
+        self.assertEqual(self.confirmar("D-1"), 0)
+        depois = self.gws.texto(PROP_ID)
+        self.assertEqual(self.confirmar("D-1"), 0)
+        self.assertEqual(self.res["resultado"], "ja_existia")
+        self.assertEqual(self.gws.contar("update"), 1)
         self.assertEqual(self.gws.contar("create"), 1)
-        self.assertEqual(self.ledger()["D-1"]["fase"], "recibo_criado")
+        self.assertEqual(self.gws.texto(PROP_ID), depois)
+        # e o plano não lista de novo
+        self.plano()
+        self.assertEqual((self.res["acoes"], self.res["ja_com_recibo"]), ([], 1))
 
-    def test_create_falhou_sem_recibo_fica_pendente(self):
-        self.decisoes(dec("D-1", "campanha:C02", "aprovar"))
-        self.gws.falhas["create"] = ["erro"]
-        self.assertEqual(self.rodar(), 1)
-        self.assertEqual(self.gws.recibos(), [])
-        self.assertEqual(self.ledger()["D-1"]["fase"], "propostas_atualizada")
-        self.assertEqual(self.rodar(), 0)
-        self.assertEqual(self.gws.recibos(), ["D-1.json"])
-        self.assertEqual(self.gws.contar("update"), 1)
-
-    def test_recibo_duplicado_nao_cria_outro(self):
-        self.decisoes(dec("D-1", "campanha:C02", "aprovar"))
-        self.gws.add("r1", "D-1.json", "{}", [REC_ID])
-        self.gws.add("r2", "D-1.json", "{}", [REC_ID])
-        self.assertEqual(self.rodar(), 0)
-        self.assertEqual(self.gws.contar("create"), 0)
-        self.assertIn("recibo duplicado", self.saida)
-
-    def test_recibo_duplicado_na_retomada(self):
-        self.decisoes(dec("D-1", "campanha:C02", "aprovar"))
-        self.gws.falhas["create"] = ["morte_antes"]
-        with self.assertRaises(Morte):
-            self.rodar()
-        # outro processo criou dois recibos e a listagem inicial ainda não os vê
-        listar_orig = C.Drive.listar
-        estado = {"n": 0}
-
-        def listar(self_, folder, nome=None):
-            estado["n"] += 1
-            if nome is None:
-                return []
-            return [{"id": "x1", "name": nome}, {"id": "x2", "name": nome}]
-        C.Drive.listar = listar
-        try:
-            self.assertEqual(self.rodar(), 0)
-        finally:
-            C.Drive.listar = listar_orig
-        self.assertEqual(self.gws.contar("create"), 1)  # só a tentativa que morreu
-        self.assertIn("recibo duplicado", self.saida)
-
-    def test_erro_auth_para_tudo(self):
-        self.decisoes(dec("D-1", "campanha:C02", "aprovar"))
-        self.gws.falhas["list"] = ["auth"]
-        self.assertEqual(self.rodar(), 2)
-        self.assertIn("AUTENTICAÇÃO", self.saida)
+    def test_versao_velha_nao_grava(self):
+        self.decisoes(dec("D-1", "post:P-20261111-01", "aprovar", "legenda=1", hash_="b" * 64))
+        self.assertEqual(self.confirmar("D-1"), 3)
+        self.assertIn("versão desatualizada", self.saida)
         self.assertEqual(self.gws.contar("update") + self.gws.contar("create"), 0)
-        self.assertEqual(self.gws.texto(PROP_ID), ler_fixture())
+        self.assertFalse(self.tem_ledger())
 
-    def test_erro_auth_no_meio_para_as_proximas(self):
-        self.decisoes(dec("D-1", "campanha:C02", "aprovar"), dec("D-2", "campanha:M-52562345108818", "pausar"))
-        self.gws.falhas["update"] = ["auth"]
-        self.assertEqual(self.rodar(), 2)
-        self.assertEqual(self.gws.contar("update"), 1)
-        self.assertEqual(self.gws.contar("create"), 0)
-        self.assertEqual(self.gws.recibos(), [])
-        self.assertEqual(self.gws.texto(PROP_ID), ler_fixture())
+    def test_proposta_mudou_entre_plano_e_confirmar(self):
+        self.decisoes(dec("D-1", "campanha:C02", "aprovar"))
+        self.plano()
+        self.gws.add(PROP_ID, "Propostas.csv", ler_fixture().replace(",C02,10,", ",C02,9,"))
+        self.assertEqual(self.confirmar("D-1"), 3)
+        self.assertIn("versão desatualizada", self.saida)
+        self.assertEqual(self.gws.contar("update") + self.gws.contar("create"), 0)
 
-    def test_propostas_nao_configurado(self):
+    def test_confirmar_rejeitada_no_plano(self):
+        self.decisoes(dec("D-1", "campanha:C02", "aprovar", "verba=12"))
+        self.gws.falhas["create"] = ["erro"]
+        self.assertEqual(self.plano(), 1)  # recibo rejeitado não saiu
+        self.assertEqual(self.confirmar("D-1"), 3)
+        self.assertIn("rejeitada no plano", self.saida)
+
+    def test_decisao_inexistente_e_link_invalido(self):
+        self.decisoes(dec("D-1", "campanha:C02", "aprovar"))
+        self.assertEqual(self.confirmar("D-9"), 3)
+        self.assertEqual(self.confirmar("D-1", "--link", "ftp://x"), 3)
+        self.assertEqual(self.gws.contar("update") + self.gws.contar("create"), 0)
+
+    def test_propostas_nao_configurado_no_confirmar(self):
         self.escrever_config("PREENCHER")
         self.decisoes(dec("D-1", "campanha:C02", "aprovar"))
-        self.assertEqual(self.rodar(), 0)
-        self.assertIn("não configurado", self.saida)
-        self.assertEqual(self.gws.recibos(), [])
-
-    def test_dry_run_nao_grava(self):
-        self.decisoes(dec("D-1", "campanha:C02", "aprovar"), dec("D-2", "post:P-20261111-01", "aprovar", "legenda=9"))
-        self.assertEqual(self.rodar("--dry-run"), 0)
-        self.assertEqual(self.gws.contar("update") + self.gws.contar("create"), 0)
-        self.assertFalse(os.path.exists(os.path.join(self.tmp, "ledger.json")))
-        self.assertFalse(os.path.exists(os.path.join(self.tmp, "acoes.json")))
-        self.assertIn("aplicada D-1", self.saida)
-        self.assertIn("rejeitada D-2", self.saida)
+        self.assertEqual(self.confirmar("D-1"), 3)
 
     def test_propostas_mudou_no_drive_durante_execucao(self):
         self.decisoes(dec("D-1", "campanha:C02", "aprovar"))
@@ -511,11 +515,171 @@ class TestFluxo(Base):
             return orig(self_, args, cwd)
         FakeGws.__call__ = chamada
         try:
-            self.assertEqual(self.rodar(), 1)
+            self.assertEqual(self.confirmar("D-1"), 1)
         finally:
             FakeGws.__call__ = orig
         self.assertEqual(self.gws.contar("update"), 0)
         self.assertIn("mudou no Drive", self.saida)
+
+
+class TestRetomada(Base):
+    def test_queda_entre_update_e_recibo(self):
+        self.decisoes(dec("D-1", "post:P-20261111-01", "aprovar", "legenda=1"))
+        self.gws.falhas["create"] = ["morte_antes"]
+        with self.assertRaises(Morte):
+            self.confirmar("D-1")
+        self.assertEqual(self.ledger()["D-1"]["fase"], "propostas_atualizada")
+        self.assertEqual(self.gws.recibos(), [])
+        apos = self.gws.texto(PROP_ID)
+        self.plano()
+        self.assertEqual(self.res["pendentes"][0]["decision_id"], "D-1")
+        self.assertEqual(self.confirmar("D-1"), 0)
+        self.assertTrue(self.res["retomada"])
+        self.assertEqual(self.gws.contar("update"), 1)
+        self.assertEqual(self.gws.texto(PROP_ID), apos)
+        self.assertEqual(self.gws.recibo("D-1")["resultado"], "aplicado")
+        self.assertEqual(self.ledger()["D-1"]["fase"], "recibo_criado")
+
+    def test_update_chegou_mas_ledger_nao_registrou(self):
+        self.decisoes(dec("D-1", "campanha:C02", "aprovar", "verba=8"))
+        self.gws.falhas["update"] = ["morte_depois"]
+        with self.assertRaises(Morte):
+            self.confirmar("D-1")
+        self.assertEqual(self.ledger()["D-1"]["fase"], "confirmando")
+        self.assertEqual(self.linha("C02")["verba_diaria"], "8")
+        self.assertEqual(self.confirmar("D-1"), 0)
+        self.assertTrue(self.res["retomada"])
+        self.assertEqual(self.gws.contar("update"), 1)
+        self.assertEqual(self.linha("C02")["versao"], "2")
+        self.assertEqual(self.gws.recibo("D-1")["resultado"], "aplicado")
+
+    def test_queda_antes_do_update_refaz_do_zero(self):
+        self.decisoes(dec("D-1", "campanha:C02", "aprovar", "verba=8"))
+        self.gws.falhas["update"] = ["morte_antes"]
+        with self.assertRaises(Morte):
+            self.confirmar("D-1")
+        self.assertEqual(self.gws.texto(PROP_ID), ler_fixture())
+        self.assertEqual(self.confirmar("D-1"), 0)
+        self.assertEqual(self.linha("C02")["verba_diaria"], "8")
+        self.assertEqual(self.gws.recibos(), ["D-1.json"])
+
+    def test_create_ambiguo_recibo_existe(self):
+        self.decisoes(dec("D-1", "campanha:C02", "aprovar"))
+        self.gws.falhas["create"] = ["ambiguo"]
+        self.assertEqual(self.confirmar("D-1"), 0)
+        self.assertEqual(self.gws.recibos(), ["D-1.json"])
+        self.assertEqual(self.gws.contar("create"), 1)
+        self.assertEqual(self.ledger()["D-1"]["fase"], "recibo_criado")
+
+    def test_create_falhou_sem_recibo_fica_pendente(self):
+        self.decisoes(dec("D-1", "campanha:C02", "aprovar"))
+        self.gws.falhas["create"] = ["erro"]
+        self.assertEqual(self.confirmar("D-1"), 1)
+        self.assertEqual(self.gws.recibos(), [])
+        self.assertEqual(self.ledger()["D-1"]["fase"], "propostas_atualizada")
+        self.assertEqual(self.confirmar("D-1"), 0)
+        self.assertEqual(self.gws.recibos(), ["D-1.json"])
+        self.assertEqual(self.gws.contar("update"), 1)
+
+    def test_falha_no_update_fica_pendente(self):
+        self.decisoes(dec("D-1", "campanha:C02", "aprovar"))
+        self.gws.falhas["update"] = ["erro"]
+        self.assertEqual(self.confirmar("D-1"), 1)
+        self.assertEqual(self.gws.recibos(), [])
+        self.assertEqual(self.confirmar("D-1"), 0)
+        self.assertEqual(self.gws.recibo("D-1")["resultado"], "aplicado")
+
+    def test_recibo_duplicado_na_retomada(self):
+        self.decisoes(dec("D-1", "campanha:C02", "aprovar"))
+        self.gws.falhas["create"] = ["morte_antes"]
+        with self.assertRaises(Morte):
+            self.confirmar("D-1")
+        listar_orig = C.Drive.listar
+        estado = {"n": 0}
+
+        def listar(self_, folder, nome=None):
+            estado["n"] += 1
+            if estado["n"] == 1:
+                return []  # listagem atrasada do Drive na primeira consulta
+            return [{"id": "x1", "name": nome}, {"id": "x2", "name": nome}]
+        C.Drive.listar = listar
+        try:
+            self.assertEqual(self.confirmar("D-1"), 0)
+        finally:
+            C.Drive.listar = listar_orig
+        self.assertEqual(self.gws.contar("create"), 1)  # só a tentativa que morreu
+        self.assertIn("recibo duplicado", self.saida)
+
+    def test_ledger_do_fluxo_antigo(self):
+        # entrada antiga (fase "recebida") com o upload já feito: vira recibo e devolve as ações antigas
+        self.decisoes(dec("D-1", "campanha:C02", "aprovar", "verba=8"), dec("D-2", "campanha:C02", "aprovar", "verba=99"))
+        self.gws.falhas["update"] = ["morte_depois"]
+        with self.assertRaises(Morte):
+            self.confirmar("D-1")
+        e = self.ledger()["D-1"]
+        recibo_rej = {"decision_id": "D-2", "snapshot_hash": VETORES["C02"], "resultado": "rejeitado",
+                      "motivo": "verba acima da proposta", "processado_em": "2026-11-12T14:00:00-03:00",
+                      "agente": "Gestor de Tráfego"}
+        self.escrever_ledger({
+            "D-1": {"decision_id": "D-1", "fase": "recebida", "resultado": "aplicado", "item_id": "campanha:C02",
+                    "pid": "C02", "snapshot_hash": VETORES["C02"], "hash_depois": e["hash_depois"],
+                    "recibo": e["recibo"], "acoes": [{"acao": "criar_campanha", "item_id": "campanha:C02"}]},
+            "D-2": {"decision_id": "D-2", "fase": "recebida", "resultado": "rejeitado", "item_id": "campanha:C02",
+                    "snapshot_hash": VETORES["C02"], "recibo": recibo_rej}})
+        self.assertEqual(self.plano(), 0)
+        self.assertEqual(self.gws.recibos(), ["D-1.json", "D-2.json"])
+        self.assertEqual(self.res["acoes"], [{"acao": "criar_campanha", "item_id": "campanha:C02", "legado": True}])
+        self.assertEqual(self.gws.recibo("D-2")["resultado"], "rejeitado")
+        self.assertEqual(self.gws.contar("update"), 1)
+
+
+class TestCodigos(Base):
+    def test_auth_no_plano_para_tudo(self):
+        self.decisoes(dec("D-1", "campanha:C02", "aprovar"))
+        self.gws.falhas["list"] = ["auth"]
+        self.assertEqual(self.plano(), 2)
+        self.assertIn("AUTENTICAÇÃO", self.saida)
+        self.assertEqual(self.gws.contar("update") + self.gws.contar("create"), 0)
+
+    def test_auth_exit2_do_gws(self):
+        self.decisoes(dec("D-1", "campanha:C02", "aprovar"))
+        orig = FakeGws.__call__
+        FakeGws.__call__ = lambda self_, args, cwd: (2, "", "falha")
+        try:
+            self.assertEqual(self.plano(), 2)
+        finally:
+            FakeGws.__call__ = orig
+
+    def test_auth_no_update_do_confirmar(self):
+        self.decisoes(dec("D-1", "campanha:C02", "aprovar"))
+        self.gws.falhas["update"] = ["auth"]
+        self.assertEqual(self.confirmar("D-1"), 2)
+        self.assertEqual(self.gws.contar("create"), 0)
+        self.assertEqual(self.gws.recibos(), [])
+        self.assertEqual(self.gws.texto(PROP_ID), ler_fixture())
+
+    def test_contrato_3(self):
+        self.gws.add(DEC_ID, "decisoes.csv", "id,quando,modulo\r\nD-1,x,anuncios\r\n")
+        self.assertEqual(self.plano(), 3)
+        self.decisoes(dec("D-1", "campanha:C02", "aprovar"))
+        self.gws.add(PROP_ID, "Propostas.csv", "id,tipo\r\nC02,campanha\r\n")
+        self.assertEqual(self.plano(), 3)
+        self.assertIn("cabeçalho de Propostas.csv", self.saida)
+        self.assertEqual(self.gws.contar("update") + self.gws.contar("create"), 0)
+
+    def test_config_e_argumentos_3(self):
+        with open(self.cfg_path, "w", encoding="utf-8") as f:
+            json.dump({"decisoes_fileId": "PREENCHER", "recibos_folderId": REC_ID}, f)
+        self.assertEqual(self.plano(), 3)
+        self.escrever_config(PROP_ID)
+        self.decisoes(dec("D-1", "campanha:C02", "aprovar"))
+        self.assertEqual(self.rodar("--acoes", "x.json"), 3)
+        self.assertIn("--acoes foi removido", self.saida)
+        self.assertEqual(self.rodar("--plano", "--link", "https://x"), 3)
+        with self.assertRaises(SystemExit) as cm:
+            self.rodar("--plano", "--confirmar", "D-1")
+        self.assertEqual(cm.exception.code, 3)
+        self.assertEqual(self.gws.contar("update") + self.gws.contar("create"), 0)
 
 
 if __name__ == "__main__":

@@ -4,7 +4,6 @@
   "propostas_fileId": "PREENCHER",
   "pasta_trabalho": "trabalho",
   "ledger_path": "ledger-anuncios.json",
-  "acoes_path": "acoes-anuncios.json",
   "gws_bin": "gws",
   "agente": "Gestor de Tráfego"
 }
