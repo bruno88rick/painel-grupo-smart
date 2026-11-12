@@ -27,14 +27,14 @@ Copie `config.financas.example.json` para `config.financas.json` e troque os `PR
    | `registrar_rateio_recebido` (`recebi_mais_um` em `rateio:<mes_ref>`) | `mes_ref`, `emissor`, `nome` (o texto do Bruno), `recebidos`, `de` | confere o recebimento |
 
 3. Confirmar: `python3 consumidor_financas.py --confirmar <decision_id>` (opcional `--link URL`).
-   - Conta: `estado=pago <data>` (com `(valor pago R$ x,xx; <texto>)` quando vierem) e `pago_em=<data>`. A coluna `valor` (valor da conta) não muda. Linha do formato atual quebrada pela vírgula do valor é regravada consertada, com aspas.
+   - Conta: `estado=pago` (só o valor estrito, desde a v3.2.0) e `pago_em=<data>`; valor pago e texto vão no recibo. A coluna `valor` (valor da conta) não muda. Linha do formato atual quebrada pela vírgula do valor é regravada consertada, com aspas.
    - Rateio: `recebidos` `x/y` vira `x+1/y` (o resto do texto fica). No formato novo, com `nome`, o nome entra em `pagaram` (ou `pagantes`) separado por `; `. No formato atual o nome fica só no recibo.
 
 Sem gravar nada: acrescente `--teste`.
 
 ## Hash
 
-Igual ao que o painel publicado grava hoje. Observação: o servidor (`Code.gs`, `lerCsv_`) passa para a Lib só as linhas, sem o cabeçalho; por isso o conserto de linha do formato atual não roda no servidor e o rateio no formato novo usa só os 5 campos do formato atual. O consumidor usa esse hash e também aceita o hash "da Lib com cabeçalho" (linha consertada; rateio com `emissor` e `pagaram`), para não quebrar se o painel passar a mandar o cabeçalho.
+Igual ao que o painel grava desde a v3.2.0 (implantação 9), que segue o `docs/contrato-financas.md`: o servidor (`Code.gs`, `lerCsv_`) passa o cabeçalho à Lib, então a linha do formato atual quebrada pela vírgula do valor é consertada antes do hash e o rateio no formato novo usa também `emissor` e `pagaram`. O consumidor aceita ainda o hash que o painel gravava até a v3.1.0 (linha crua; rateio com só os 5 campos do formato atual), para decisões feitas antes da troca de implantação.
 
 ## Códigos de saída
 

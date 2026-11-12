@@ -74,7 +74,9 @@ test('financas: estado livre classificado pelo começo do texto; vencida "a paga
 });
 
 test('financas: contas, códigos, PDFs, mês por categoria, rateio e contagem do Início', () => {
-  const s = montar();
+  L.CHAVES.FINANCAS_INTEGRADO = false; // v3.2.0: ligada por padrão; aqui desligada de propósito
+  let s;
+  try { s = montar(); } finally { L.CHAVES.FINANCAS_INTEGRADO = true; }
   assert.equal(s.integrado, false);
   assert.equal(s.contas.total, 25);
   assert.equal(s.contas.abertas, 20);
@@ -150,6 +152,7 @@ test('financas: hash canônico de conta e de rateio (vetores do contrato)', () =
 
 test('financas no servidor: chave false recusa gravar e não toca no decisoes.csv', () => {
   const e = ambiente(arquivosBase());
+  e.PainelLib.CHAVES.FINANCAS_INTEGRADO = false; // v3.2.0: ligada por padrão; aqui desligada de propósito
   const d = e.obterDados(true);
   const fs8 = d.fontes.filter((f) => /Finanças/.test(f.rotulo));
   assert.ok(fs8.length === 8 && fs8.every((f) => f.ok), JSON.stringify(fs8));
@@ -194,7 +197,7 @@ test('financas no servidor: chave true grava "paguei" (data e valor opcionais) e
     assert.equal(e.PainelLib.csvParaObjetos(e.arquivos.DEC.texto).linhas.length, 3);
     const d2 = e.obterDados(true);
     assert.equal(d2.v3.financas.itens.find((i) => i.item_id === c.item_id).decisao_pendente.decisao, 'paguei');
-  } finally { e.PainelLib.CHAVES.FINANCAS_INTEGRADO = false; }
+  } finally { e.PainelLib.CHAVES.FINANCAS_INTEGRADO = true; }
 });
 
 test('telas v3: os scripts dos módulos compilam (pega aspas quebradas antes da captura)', () => {

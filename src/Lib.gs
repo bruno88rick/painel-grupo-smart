@@ -427,7 +427,7 @@ var PainelLib = (function () {
    * Chave da integração com o Gestor de Tráfego. Enquanto false, os botões de decisão de
    * Posts e anúncios ficam desabilitados e o servidor não grava nada. Só o Builder liga.
    */
-  var CHAVES = { ANUNCIOS_INTEGRADOS: false, SUPORTE_INTEGRADO: true, EMAILS_INTEGRADO: false, FINANCAS_INTEGRADO: false, INVESTIMENTOS_INTEGRADO: false };
+  var CHAVES = { ANUNCIOS_INTEGRADOS: true, SUPORTE_INTEGRADO: true, EMAILS_INTEGRADO: true, FINANCAS_INTEGRADO: true, INVESTIMENTOS_INTEGRADO: true };
   var DECISOES_ANUNCIOS = {
     post: { aprovar: ['rascunho', 'aguardando_aprovo'], refazer: ['rascunho', 'aguardando_aprovo'], recusar: ['rascunho', 'aguardando_aprovo'] },
     campanha: { aprovar: ['plano', 'ajuste'], refazer: ['plano', 'ajuste'], recusar: ['plano', 'ajuste'], pausar: ['ativo'] }
@@ -1441,7 +1441,8 @@ var PainelLib = (function () {
   /** Número com ponto decimal e qualquer casa ("0.00531465", "5.5056") ou no formato BR (numBr). */
   function numDec(t) { var x = String(t === null || t === undefined ? '' : t).trim(); return /^-?\d+\.\d+$/.test(x) || /^-?\d+$/.test(x) ? +x : numBr(x); }
 
-  var ESTADOS_APORTE = [[/^confirmad/, 'confirmado'], [/^(nao fiz|nao feito|cancelad|desistiu)/, 'nao_feito']];
+  // v3.2.0: lê o estado estrito do ledger (planejado, confirmado, nao_feito) e o antigo, com data e texto.
+  var ESTADOS_APORTE = [[/^confirmad/, 'confirmado'], [/^(nao fiz|nao[ _]feito|cancelad|desistiu)/, 'nao_feito']];
 
   /**
    * Hora da cotação em horário de Brasília: "2026-11-06 16:17 BRT", "2026-11-06 16:00 NY" (NY = BRT - 2 h
@@ -1804,7 +1805,7 @@ var PainelLib = (function () {
   }
 
   /** Versão exibida no topo do painel. Atualize a cada implantação. */
-  var VERSAO_PAINEL = '3.1.0';
+  var VERSAO_PAINEL = '3.2.0';
   var POSTS_INTEGRADOS = false;
   var ESTADOS_DECIDIVEIS = { design: ['entregue'], post: ['rascunho', 'aguardando_aprovo'] };
 

@@ -12,7 +12,7 @@ Enquanto `INVESTIMENTOS_INTEGRADO` estiver `false` em `src/Lib.gs` (`CHAVES`), o
 | `Posicoes.csv` | `ativo,plataforma,categoria_arca,quantidade,preco_medio,moeda,custo_total,data,notas,estado`. Linhas com `quantidade` viram posições: valor em reais ao último preço (BTC em USD usa `BTCUSD` e o dólar do `USDBRL`; AAPL usa o dólar) e ganho % contra o `preco_medio` na moeda da própria posição. Linhas sem quantidade (previdência, reserva) dão a nota do cartão da reserva |
 | `Metas_ARCA.csv` | `data,categoria,valor_brl,peso_pct,meta_pct`. Vale a `data` mais recente. Meta numérica = categoria da ARCA (barra de peso com traço da meta, diferença em pontos e quanto falta em reais para a meta). Meta em texto (ex. `provisório 01/11`) = "Fora da ARCA", mostrada como texto. A tela também mostra o valor de cada categoria ao último preço das posições |
 | `Recomendacoes.csv` | `data,ativo,preco,sinal,score,motivo,resultado_30d`. A última por ativo em cartão; histórico recolhido (12 mais recentes). `resultado_30d` vazio mostra "em aberto até `data + 30 dias`". "desde então" = último preço contra o `preco` da recomendação (BTC em USD) |
-| `Aportes.csv` | `data,destino,categoria_arca,ativo,valor_brl,origem,estado`. `estado` é texto livre, classificado pelo começo: `confirmad...` = confirmado; `nao fiz`/`não fiz`/`nao feito`/`cancelad...`/`desistiu` = não feito; o resto (ex. `planejado`, vazio) = pendente, que pede decisão. Lista do mês corrente e soma dos confirmados em reais. Aporte sem `valor_brl` (ex. `pessoal (US$ 19,69)`) mostra a origem |
+| `Aportes.csv` | `data,destino,categoria_arca,ativo,valor_brl,origem,estado`. `estado` com os valores estritos `planejado`, `confirmado` e `nao_feito` (formato do ledger do agente) ou no formato antigo, texto livre classificado pelo começo: `confirmad...` = confirmado; `nao_feito`/`nao fiz`/`não fiz`/`nao feito`/`cancelad...`/`desistiu` = não feito; o resto (ex. `planejado`, vazio) = pendente, que pede decisão. Lista do mês corrente e soma dos confirmados em reais. Aporte sem `valor_brl` (ex. `pessoal (US$ 19,69)`) mostra a origem |
 | `Previdencia.csv` | `data_ref,saldo_oficial,aporte_pessoal,aporte_empresa,rendimento,rentabilidade_pct`. Última linha e a anterior (diferença). `data_ref` como `2026-11-01 (provisório; ...)` vira referência `2026-11-01` + observação e selo **Provisório** |
 | `Reserva.csv` | `data,saldo,aporte,produto`. Última linha pela maior `data` (empate: a de baixo) |
 | `Alerts.csv` | os 10 mais recentes, todos os tiers. Vazio: "Nenhum alerta." |
@@ -48,8 +48,10 @@ O servidor recusa (e não grava): chave desligada, item que não existe mais, es
 
 | Decisão | No ledger |
 | --- | --- |
-| fiz_aporte | `estado=confirmado <data>` no aporte (data da decisão se não vier), `valor_brl` com o valor se vier; atualiza `Posicoes`/`Reserva`/`Metas_ARCA` como já faz |
-| nao_fiz | `estado=não fiz` (com o motivo, se vier) |
+| fiz_aporte | `estado=confirmado` no aporte, `valor_brl` com o valor se vier; atualiza `Posicoes`/`Reserva`/`Metas_ARCA` como já faz |
+| nao_fiz | `estado=nao_feito` |
+
+Desde a v3.2.0 o leitor (`consumidor/consumidor_investimentos.py`) grava na coluna `estado` só o valor estrito (`confirmado`, `nao_feito`). A data do aporte (a da decisão, se não vier) e o motivo vão no recibo. O `Aportes.csv` não tem coluna para isso hoje; se o agente acrescentar uma coluna `obs` no fim (texto livre, como já faz em `Previdencia`, `Metas_ARCA` e `Reserva`), o leitor escreve nela também (`confirmado em <data> (R$ <valor>): <texto>` ou `não feito: <texto>`, somado ao que já houver com `; `). Linhas antigas, gravadas antes da v3.2.0 (`confirmado 2026-11-14 (...)`, `não fiz (...)`), ficam como estão e o painel as lê igual.
 
 Antes de aplicar, o agente recalcula o hash do aporte. Se for diferente do `snapshot_hash`, não aplica e grava recibo `rejeitado` com motivo `versão desatualizada`. Recibo em `recibos/<decision_id>.json`, mesmo formato dos outros módulos, com `agente: "Analista de Investimentos"`.
 

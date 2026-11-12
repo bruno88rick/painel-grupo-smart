@@ -45,9 +45,8 @@ test('suporte: estado livre classificado pelo começo do texto, texto inteiro pr
   assert.deepEqual(x.decisoes_possiveis, ['aprovar', 'refazer', 'recusar']);
 });
 
-test('v3.1.0: SUPORTE_INTEGRADO ligada por padrão; as outras chaves continuam desligadas', () => {
-  assert.equal(L.CHAVES.SUPORTE_INTEGRADO, true);
-  for (const k of ['ANUNCIOS_INTEGRADOS', 'EMAILS_INTEGRADO', 'FINANCAS_INTEGRADO', 'INVESTIMENTOS_INTEGRADO']) assert.equal(L.CHAVES[k], false, k);
+test('v3.2.0: chaves padrão: todos os módulos ligados; só POSTS_INTEGRADOS continua desligada', () => {
+  assert.deepEqual(L.CHAVES, { ANUNCIOS_INTEGRADOS: true, SUPORTE_INTEGRADO: true, EMAILS_INTEGRADO: true, FINANCAS_INTEGRADO: true, INVESTIMENTOS_INTEGRADO: true });
   assert.match(fs.readFileSync(path.join(__dirname, '../src/Lib.gs'), 'utf8'), /var POSTS_INTEGRADOS = false;/);
   assert.equal(montar().integrado, true);
 });

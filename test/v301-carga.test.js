@@ -95,7 +95,7 @@ test('v3.0.1 decisão gravada limpa o cache do Início e do módulo; o módulo m
     assert.equal(r.do_cache, false);
     assert.equal(r.modulo.itens.find((i) => i.item_id === g.item_id).decisao_pendente.decisao, 'recusar');
     assert.ok(e.chamadas['pasta.getFiles'] >= 1); // agora há linha de E-mails: os recibos são lidos
-  } finally { e.PainelLib.CHAVES.EMAILS_INTEGRADO = false; }
+  } finally { e.PainelLib.CHAVES.EMAILS_INTEGRADO = true; }
 });
 
 test('v3.0.1 Início mais leve: pasta de criativos listada uma vez, menos chamadas ao Drive que a carga completa', () => {

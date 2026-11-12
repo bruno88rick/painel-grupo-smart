@@ -833,9 +833,9 @@ class ConsumidorFinancas(Consumidor):
             recebidas.append({"codigo": r.get("codigo_ou_pix", ""), "tipo": tipo_codigo(r.get("codigo_ou_pix")),
                               "pdf": r.get("pdf_fileId", ""), "mid": r.get("message_id", "")})
         t = tabs["contas"]
-        # O painel publicado (Code.gs/lerCsv_) entrega a Lib só as linhas, sem o cabeçalho: consertarLinha não roda
-        # e o hash vem da linha crua. O hash com a linha consertada (o que src/Lib.gs faria com o cabeçalho)
-        # também é aceito, para o consumidor não quebrar se o painel passar a mandar o cabeçalho.
+        # Desde a v3.2.0 o servidor passa o cabeçalho à Lib: a linha do formato atual quebrada pela vírgula do valor
+        # é consertada antes do hash (consertarLinha). Decisões gravadas pelo painel até a v3.1.0 usavam o hash da
+        # linha crua; esse hash continua aceito (hashes_alternativos).
         def hash_conta(x):
             texto = (x.get("link") or "") + " " + (x.get("estado") or "")
             mid, rec = x.get("message_id", ""), None
@@ -855,16 +855,19 @@ class ConsumidorFinancas(Consumidor):
             return sha256(canonico("conta", [x["emissor"], x.get("mes_ref"), x.get("valor"), x.get("vencimento"), x.get("forma"),
                                              x.get("estado"), x.get("link"), dia_iso(pago) if pago else "", codigo, pdf]))
 
-        linhas = [y for y in t.linhas() if y[1].get("emissor")]
-        for i, x, v in ultima_por(linhas, lambda y: y[1]["emissor"] + "|" + y[1].get("mes_ref", "")):
-            x2, v2, cons = consertar(x, v, t.cab)
+        linhas = []
+        for i, o, v in t.linhas():
+            o2, v2, cons = consertar(o, v, t.cab)
+            if o2.get("emissor"):
+                linhas.append((i, o2, v2, cons, o))
+        for i, x, v, cons, cru in ultima_por(linhas, lambda y: y[1]["emissor"] + "|" + y[1].get("mes_ref", "")):
             h = hash_conta(x)
-            alt = [hash_conta(x2)] if cons and x2.get("emissor") else []
+            alt = [hash_conta(cru)] if cons and cru.get("emissor") else []
             k = x["emissor"] + "|" + x.get("mes_ref", "")
             modelo["conta:" + k] = {
                 "tipo_item": "conta", "estado": classificar(x.get("estado"), ESTADOS_CONTA), "estado_texto": x.get("estado", ""),
-                "indice": i, "valores": v2, "consertada": cons, "emissor": x["emissor"], "mes_ref": x.get("mes_ref", ""),
-                "valor": x2.get("valor", ""), "vencimento": x2.get("vencimento", ""), "forma": x2.get("forma", ""),
+                "indice": i, "valores": v, "consertada": cons, "emissor": x["emissor"], "mes_ref": x.get("mes_ref", ""),
+                "valor": x.get("valor", ""), "vencimento": x.get("vencimento", ""), "forma": x.get("forma", ""),
                 "snapshot_hash": h, "hashes_alternativos": [a for a in alt if a != h],
             }
         tr = tabs.get("rateios")
@@ -878,10 +881,11 @@ class ConsumidorFinancas(Consumidor):
             rec = max(int(m.group(1)), len(pagaram)) if m else len(pagaram)
             de = int(m.group(2)) if m else None
             enviado = re.match(r"^s", r.get("enviado", ""), re.I) is not None
-            campos = [r.get(c) for c in ("mes_ref", "total", "por_pessoa", "enviado", "recebidos")]
-            # Mesmo caso das contas: sem o cabeçalho, o painel publicado sempre usa os 5 campos; os 7 do formato
-            # novo (src/Lib.gs com cabeçalho) ficam como hash alternativo aceito.
-            alt = [sha256(canonico("rateio", campos + [r.get("emissor"), r.get(col_nomes) if col_nomes else ""]))] if novo else []
+            campos5 = [r.get(c) for c in ("mes_ref", "total", "por_pessoa", "enviado", "recebidos")]
+            # Formato novo: o hash leva emissor e pagaram (docs/contrato-financas.md; servidor desde a v3.2.0).
+            # O de 5 campos, que o painel gravava até a v3.1.0 no formato novo, continua aceito.
+            campos = campos5 + [r.get("emissor"), r.get(col_nomes) if col_nomes else ""] if novo else campos5
+            alt = [sha256(canonico("rateio", campos5))] if novo else []
             modelo["rateio:" + r["mes_ref"]] = {
                 "tipo_item": "rateio", "estado": "nao_enviado" if not enviado else ("completo" if de is not None and rec >= de else "aberto"),
                 "indice": i, "valores": v, "mes_ref": r["mes_ref"], "recebidos": rec, "de": de, "match": m,
@@ -907,12 +911,14 @@ class ConsumidorFinancas(Consumidor):
         if d["tipo_item"] == "conta":
             t = tabs["contas"]
             data = com.get("data") or dia_da_decisao(d, self.agora())
-            extra = "; ".join(x for x in (("valor pago " + valor_br(com["valor"])) if com.get("valor") else "", texto) if x)
-            estado = "pago %s" % data + (" (%s)" % extra if extra else "")
+            # Coluna estado só com "pago"; a data vai em pago_em (coluna do ledger); valor pago e texto, no recibo.
+            estado = "pago"
             vals = t.valores_com(item["valores"], {"estado": estado, "pago_em": data})
             motivo = "conta %s %s paga em %s" % (item["emissor"], item["mes_ref"], data)
             if com.get("valor"):
-                motivo += " (%s)" % valor_br(com["valor"])
+                motivo += " (valor pago %s)" % valor_br(com["valor"])
+            if texto:
+                motivo += ": %s" % texto
             if item["consertada"]:
                 motivo += "; linha com valor sem aspas regravada com aspas"
             return "contas", [(item["indice"], vals)], motivo, estado

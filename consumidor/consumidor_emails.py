@@ -869,26 +869,27 @@ class ConsumidorEmails(Consumidor):
         texto = com.get("texto", "")
         if d["tipo_item"] == "grupo":
             t = tabs["movimentos"]
+            # Coluna estado só com o valor estrito (movido / recusado / substituído); data e motivo vão no recibo.
             if d["decisao"] == "aprovar":
-                estado = "movido %s" % dia
-                motivo = "%d e-mail(s) movidos para %s (%s)" % (sum(emails_da_linha(o) for _, o, _ in item["linhas"]),
-                                                               item["pasta"], item["conta"])
+                estado = "movido"
+                motivo = "%d e-mail(s) movidos para %s (%s) em %s" % (sum(emails_da_linha(o) for _, o, _ in item["linhas"]),
+                                                                     item["pasta"], item["conta"], dia)
             else:
-                estado = "recusado %s" % dia + (" (%s)" % texto if texto else "")
-                motivo = "movimentação recusada para %s (%s)" % (item["pasta"], item["conta"]) + (": %s" % texto if texto else "")
+                estado = "recusado"
+                motivo = "movimentação recusada para %s (%s) em %s" % (item["pasta"], item["conta"], dia) + (": %s" % texto if texto else "")
             mud = [(i, t.valores_com(v, {"estado": estado})) for i, _, v in item["linhas"]]
             # lotes antigos do mesmo destino ficaram fora do hash; sem isto voltariam como grupo novo
-            sub = "substituído %s (lote mais novo decidido em %s)" % (dia, d["id"])
+            sub = "substituído"
             mud += [(i, t.valores_com(v, {"estado": sub})) for i, _, v in item["antigos"]]
             if item["antigos"]:
-                motivo += "; %d lote(s) antigo(s) marcados como substituídos" % len(item["antigos"])
+                motivo += "; %d lote(s) antigo(s) marcados como substituídos (lote mais novo decidido em %s)" % (len(item["antigos"]), d["id"])
             return "movimentos", mud, motivo, estado
         t = tabs["pendencias"]
         i, o, v = item["linha"]
         if d["decisao"] == "resolvida":
-            estado = "fechada" + (" (%s)" % texto if texto else "")
+            estado = "fechada"  # a data vai em fechado_em; o texto, no recibo
             return "pendencias", [(i, t.valores_com(v, {"estado": estado, "fechado_em": dia}))], \
-                "pendência marcada como resolvida" + (": %s" % texto if texto else ""), estado
+                "pendência marcada como resolvida em %s" % dia + (": %s" % texto if texto else ""), estado
         rasc = "sim %s" % dia
         return "pendencias", [(i, t.valores_com(v, {"rascunho": rasc}))], \
             "rascunho preparado no Mac" + (" (pedido: %s)" % texto if texto else ""), o["estado"]
