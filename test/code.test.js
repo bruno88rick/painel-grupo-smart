@@ -5,12 +5,15 @@ const fs = require('fs'), path = require('path');
 const src = (n) => fs.readFileSync(path.join(__dirname, '..', 'src', n), 'utf8');
 const fx = (n) => fs.readFileSync(path.join(__dirname, 'fixtures', n), 'utf8');
 
+// Como no Drive: conteúdo mudou, data de alteração muda.
+function versaoDoTexto(t) { let h = 0; for (const ch of String(t)) h = (h * 31 + ch.codePointAt(0)) % 1000003; return h; }
+
 function ambiente(arquivos) {
-  const props = {}, cache = {}; let uuid = 0;
+  const props = {}, cache = {}, scache = {}, leituras = {}; let uuid = 0;
   const arquivo = (id) => {
     const a = arquivos[id]; if (!a) throw new Error('Arquivo não encontrado: ' + id);
-    return { getId: () => id, getName: () => a.nome, isTrashed: () => false, getLastUpdated: () => new Date('2026-11-11T12:00:00Z'),
-      getBlob: () => ({ getDataAsString: () => a.texto }), setContent: (t) => { a.texto = t; } };
+    return { getId: () => id, getName: () => a.nome, isTrashed: () => false, getLastUpdated: () => new Date(a.atualizado || (Date.parse('2026-11-11T12:00:00Z') + versaoDoTexto(a.texto) * 1000)),
+      getBlob: () => ({ getDataAsString: () => { leituras[id] = (leituras[id] || 0) + 1; return a.texto; } }), setContent: (t) => { a.texto = t; } };
   };
   const iter = (lista) => { let i = 0; return { hasNext: () => i < lista.length, next: () => lista[i++] }; };
   const g = {
@@ -23,14 +26,15 @@ function ambiente(arquivos) {
         getFiles: () => iter(Object.keys(arquivos).filter((id) => arquivos[id].pasta === fid).map(arquivo))
       })
     },
-    CacheService: { getUserCache: () => ({ get: (k) => cache[k] || null, getAll: (ks) => { const o = {}; ks.forEach((k) => { if (k in cache) o[k] = cache[k]; }); return o; }, putAll: (o) => Object.assign(cache, o), put: (k, v) => { cache[k] = v; }, remove: (k) => { delete cache[k]; } }) },
+    CacheService: { getUserCache: () => ({ get: (k) => cache[k] || null, getAll: (ks) => { const o = {}; ks.forEach((k) => { if (k in cache) o[k] = cache[k]; }); return o; }, putAll: (o) => Object.assign(cache, o), put: (k, v) => { cache[k] = v; }, remove: (k) => { delete cache[k]; } }),
+      getScriptCache: () => ({ get: (k) => (k in scache ? scache[k] : null), put: (k, v) => { scache[k] = v; }, remove: (k) => { delete scache[k]; } }) },
     LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => {} }) },
     Utilities: { formatDate: (d, tz, f) => f === 'yyyy-MM-dd HH:mm:ss' ? '2026-11-11 15:00:00' : f.indexOf('yyyy-MM-dd') === 0 ? '2026-11-11T15:00:00-03:00' : '20261111-150000', getUuid: () => 'abcdef12-0000-4000-8000-' + String(++uuid).padStart(12, '0') }
   };
   const m = { exports: {} };
   const nomes = Object.keys(g);
   const corpo = src('Lib.gs') + '\n' + src('Code.gs') + '\nreturn { obterDados, salvarDecisao, PainelLib };';
-  return Object.assign(new Function('module', ...nomes, corpo)(m, ...nomes.map((k) => g[k])), { arquivos, cache });
+  return Object.assign(new Function('module', ...nomes, corpo)(m, ...nomes.map((k) => g[k])), { arquivos, cache, scache, leituras });
 }
 
 function arquivosBase(cfgExtra) {
@@ -226,8 +230,52 @@ test('anuncios: verba maior que a proposta e comentário fora do formato são re
   assert.throws(() => e.salvarDecisao({ modulo: 'anuncios', item_id: 'post:P-20261111-01', decisao: 'aprovar', comentario: 'texto=sem legenda', snapshot_hash: p1.snapshot_hash }), /legenda 1 ou 2/);
   assert.throws(() => e.salvarDecisao({ modulo: 'anuncios', item_id: 'post:P-20261111-01', decisao: 'refazer', comentario: 'trocar a foto', snapshot_hash: p1.snapshot_hash }), /chave=valor/);
   // publicação do ledger (sem Propostas) não aceita decisão
-  const org = d.anuncios.posts.find((x) => x.id === 'ORG-20261112-01');
-  assert.throws(() => e.salvarDecisao({ modulo: 'anuncios', item_id: 'post:ORG-20261112-01', decisao: 'aprovar', comentario: 'legenda=1', snapshot_hash: 'a'.repeat(64) }), /não está em Propostas/);
+  const org = d.anuncios.posts.find((x) => x.id === 'ORG-20261111-03');
+  assert.ok(org);
+  assert.throws(() => e.salvarDecisao({ modulo: 'anuncios', item_id: 'post:ORG-20261111-03', decisao: 'aprovar', comentario: 'legenda=1', snapshot_hash: 'a'.repeat(64) }), /não está em Propostas/);
+  // programação juntada a uma proposta não existe como item próprio
+  assert.throws(() => e.salvarDecisao({ modulo: 'anuncios', item_id: 'post:ORG-20261112-01', decisao: 'aprovar', comentario: 'legenda=1', snapshot_hash: 'a'.repeat(64) }), /não existe mais/);
   assert.equal(e.PainelLib.csvParaObjetos(a.DEC.texto).linhas.length, 0);
   e.PainelLib.CHAVES.ANUNCIOS_INTEGRADOS = false;
+});
+
+test('v2.0.1 cache: tela anterior sai na hora marcada como desatualizada; leitura forçada traz a nova', () => {
+  const e = ambiente(arquivosBase());
+  const d1 = e.obterDados(false);
+  assert.equal(d1.desatualizado, false);
+  // expira o cache de 5 min (fica só a cópia de 6 h)
+  delete e.cache['painel_v2_dados_n'];
+  const d2 = e.obterDados(false);
+  assert.equal(d2.do_cache, true);
+  assert.equal(d2.desatualizado, true);
+  const d3 = e.obterDados(true);
+  assert.equal(d3.do_cache, false);
+  assert.equal(d3.desatualizado, false);
+  assert.equal(e.obterDados(false).desatualizado, false);
+});
+
+test('v2.0.1 cache: texto do arquivo vem do cache até o arquivo mudar no Drive', () => {
+  const e = ambiente(arquivosBase());
+  e.obterDados(true);
+  const antes = e.leituras.TC;
+  assert.ok(antes >= 1);
+  e.obterDados(true);
+  assert.equal(e.leituras.TC, antes, 'Campanhas.csv relido sem ter mudado');
+  // o Tráfego altera Campanhas.csv: data nova, texto novo
+  e.arquivos.TC.texto = e.arquivos.TC.texto.replace('C02,BD 3D', 'C02,BD 3D NOVO');
+  e.arquivos.TC.atualizado = '2026-11-12T18:00:00Z';
+  const d = e.obterDados(true);
+  assert.equal(e.leituras.TC, antes + 1);
+  assert.equal(d.anuncios.campanhas.find((x) => x.id === 'C02').empresa !== undefined, true);
+  assert.ok(JSON.stringify(d.anuncios.campanhas).includes('BD 3D NOVO'));
+});
+
+test('v2.0.1 cache: decisão gravada limpa a tela anterior também', () => {
+  const e = ambiente(arquivosBase());
+  const d = e.obterDados(false);
+  const item = d.designs.find((x) => x.estado === 'entregue');
+  e.salvarDecisao({ modulo: 'design', item_id: item.id, decisao: 'aprovar', snapshot_hash: item.snapshot_hash });
+  const depois = e.obterDados(false);
+  assert.equal(depois.do_cache, false);
+  assert.ok(depois.designs.find((x) => x.id === item.id).decisao_pendente);
 });

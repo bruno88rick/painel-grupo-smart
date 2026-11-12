@@ -91,16 +91,22 @@
     var b = $('#btn-atualizar'); b.disabled = true; b.classList.add('girando');
     $('#status-atualizacao').textContent = forcar ? 'Atualizando…' : 'Carregando…';
     if (!estado.dados) mostrarEsqueleto();
+    var releer = false;
     return chamar('obterDados', !!forcar).then(function (d) {
       estado.dados = d;
-      $('#status-atualizacao').textContent = 'Atualizado ' + quandoRel(d.gerado_em) + (d.do_cache ? ' (cache de 5 min)' : '');
+      $('#status-atualizacao').textContent = 'Atualizado ' + quandoRel(d.gerado_em) + (d.desatualizado ? ' · lendo o Drive…' : (d.do_cache ? ' (cache de 5 min)' : ''));
       desenhar();
+      releer = !!d.desatualizado;
       if (forcar && !silencioso) toast('Dados atualizados do Drive');
     }).catch(function (e) {
       $('#status-atualizacao').textContent = 'Erro ao carregar';
       $('#avisos').innerHTML = '<div class="aviso">Não consegui ler o Drive: ' + esc(e.message) + '</div>';
       if (!estado.dados) $('#aba-inicio').innerHTML = '';
-    }).then(function () { b.disabled = false; b.classList.remove('girando'); });
+    }).then(function () {
+      b.disabled = false; b.classList.remove('girando');
+      // Tela anterior mostrada na hora: busca a nova em segundo plano.
+      if (releer) return carregar(true, true);
+    });
   }
   function mostrarEsqueleto() {
     var h = '<div class="esqueleto" style="height:34px;width:60%;margin-bottom:16px"></div><div class="contadores">';
@@ -353,12 +359,30 @@
     var info = [];
     if (p.horario) info.push((p.estado === 'publicado' ? 'Publicado ' : 'Horário ') + dataBr(p.horario));
     if (p.contas_rotulo.length) info.push(p.contas_rotulo.join(' + '));
+    var progs = programacoesVisiveis(p);
     var leg = p.legenda_escolhida === '2' ? p.legenda_2 : (p.legenda_1 || p.legenda_2);
     return '<button class="post" data-anpost="' + esc(p.item_id) + '">' + miniatura(primeira(p.midia_fileIds), { video: p.formato === 'reels', tam: 400, alt: p.titulo, extra: n > 1 ? '<span class="tag-qtd">1/' + n + '</span>' : '' }) +
       '<div><div class="cartao-empresa">' + esc(p.empresa) + ' · ' + esc(p.formato || 'post') + (p.versao ? ' v' + esc(p.versao) : '') + ' · ' + esc(p.id) + '</div><div class="cartao-titulo">' + esc(p.titulo) + '</div>' +
       '<div style="margin-top:4px">' + selo(p.estado, ROTULO_AN[p.estado]) + (p.link ? ' <span class="post-info">com link</span>' : '') + (p.decisao_pendente ? ' ' + selo('enviado', 'Decisão enviada') : '') + '</div>' +
       (leg ? '<div class="post-legenda">' + esc(leg) + '</div>' : (p.resumo ? '<div class="post-legenda">' + esc(p.resumo) + '</div>' : '')) +
-      '<div class="post-info">' + info.map(esc).join(' · ') + '</div></div></button>';
+      '<div class="post-info">' + info.map(esc).join(' · ') + '</div>' +
+      (progs.length ? '<div class="post-info">Programado: ' + progs.map(function (g) { return esc(rotuloFormato(g.formato)) + ' ' + esc(g.horario ? dataBr(g.horario) : '-'); }).join(' · ') + '</div>' : '') +
+      '</div></button>';
+  }
+  /** Linhas de programação (feed, story) juntadas ao cartão. Publicação solta com uma linha só: nada a mostrar. */
+  function programacoesVisiveis(p) {
+    var l = p.programacoes || [];
+    return (p.origem === 'propostas' || l.length > 1) ? l : [];
+  }
+  function rotuloFormato(f) { return ({ feed: 'Feed', story: 'Story', reels: 'Reels', carrossel: 'Carrossel' })[f] || (f || 'Post'); }
+  function listaProgramacoes(p) {
+    var l = programacoesVisiveis(p);
+    if (!l.length) return '';
+    return '<dt>Programações</dt><dd><ul class="lista-prog">' + l.map(function (g) {
+      return '<li>' + esc(rotuloFormato(g.formato)) + ' · ' + esc(g.horario ? dataBr(g.horario) : '-') + ' · ' + esc(ROTULO_AN[g.estado] || g.estado) +
+        (g.link ? ' · <a href="' + esc(g.link) + '" target="_blank" rel="noopener">ver publicação</a>' : (g.onde ? ' · ' + esc(g.onde) : '')) +
+        ' <span class="mudo">(' + esc(g.id) + ')</span></li>';
+    }).join('') + '</ul></dd>';
   }
 
   function desenharPostsAnuncios() {
@@ -433,7 +457,7 @@
       '<dt>Horário</dt><dd>' + (p.horario ? dataBr(p.horario) : '-') + '</dd>' +
       (p.pedido_id ? '<dt>Pedido</dt><dd>' + esc(p.pedido_id) + '</dd>' : '') +
       (p.link ? '<dt>Link</dt><dd><a href="' + esc(p.link) + '" target="_blank" rel="noopener">ver publicação</a></dd>' : (p.onde ? '<dt>Onde</dt><dd>' + esc(p.onde) + ' (sem link ainda)</dd>' : '')) +
-      (p.edicao_do_bruno ? '<dt>Seu pedido</dt><dd>' + esc(p.edicao_do_bruno) + '</dd>' : '') + '</dl>' +
+      (p.edicao_do_bruno ? '<dt>Seu pedido</dt><dd>' + esc(p.edicao_do_bruno) + '</dd>' : '') + listaProgramacoes(p) + '</dl>' +
       (p.estado === 'aguardando_confirmacao' ? '<p class="intro aviso-integracao">O horário passou e o agente ainda não registrou o link. O painel não considera publicado só pelo relógio.</p>' : '') +
       '</div></div>' +
       '<div class="legendas">' + leg('1', p.legenda_1) + leg('2', p.legenda_2) + '</div>' +
