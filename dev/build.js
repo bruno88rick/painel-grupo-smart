@@ -19,7 +19,7 @@ else {
   // v2: 12/11 19:00 com o módulo Posts e anúncios
   const mod = require('./modelo');
   const v201 = process.argv.includes('--v201');
-  const V3 = ['suporte', 'emails', 'financas', 'investimentos'];
+  const V3 = ['suporte', 'emails', 'financas', 'investimentos', 'estudos'];
   if (process.argv.includes('--integrado-v3')) V3.forEach((id) => { const def = require('./modelo')().L.MODULOS_V3[id]; if (def.chave) require('./modelo')().L.CHAVES[def.chave] = true; });
   const r = mod(v201 ? new Date(2026, 10, 12, 15, 30) : new Date(2026, 10, 12, 19), [], {}, { anuncios: true, semPropostas: process.argv.includes('--sem-propostas'), v201, v3: process.argv.includes('--sem-v3') ? [] : V3 });
   if (process.argv.includes('--integrado')) { r.L.CHAVES.ANUNCIOS_INTEGRADOS = true; modelo = mod(new Date(2026, 10, 12, 19), [], {}, { anuncios: true, v3: V3 }).modelo; }
