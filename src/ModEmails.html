@@ -1,0 +1,82 @@
+<script>
+/* Tela do módulo E-mails (v3). Lê Movimentos.csv, Pendencias.csv, Alerts.csv e Rascunhos.csv.
+   Privacidade: só conta, pasta, motivo, remetente, assunto, chegou_em e estado. Nunca corpo nem anexos. */
+(function () {
+  'use strict';
+  var EST_MOV = { proposto: 'Esperando seu sim', movido: 'Movidos', recusado: 'Recusados', fora: 'Já fora da entrada', substituido: 'Substituídos', outro: 'Outros' };
+  var EST_PEND = { aberta: 'Abertas', fechada: 'Fechadas', duplicado: 'Duplicadas', saiu: 'Saíram da entrada', outro: 'Outros' };
+  function dias(n) { if (n === null || n === undefined) return ''; return n === 0 ? 'chegou hoje' : n === 1 ? 'há 1 dia' : 'há ' + n + ' dias'; }
+
+  function cartaoGrupo(x, U, V3) {
+    var e = U.esc;
+    x.titulo_curto = x.conta + ' → ' + x.pasta + ' (' + x.emails + (x.emails === 1 ? ' e-mail' : ' e-mails') + ')';
+    var linhas = x.linhas.map(function (l) {
+      return '<li><span>' + (l.lote ? '<b>Lote do Mac:</b> ' : '') + e(l.motivo || '(sem motivo)') + (/^propost/i.test(l.estado_texto) ? '' : ' <span class="mudo">(' + e(l.estado_texto) + ')</span>') + '</span><span class="quando">' + U.dataBr(l.proposto_em) + '</span></li>';
+    });
+    var lista = linhas.length > 4
+      ? '<ul class="lista-motivos">' + linhas.slice(0, 3).join('') + '</ul><details class="mais-motivos"><summary>Ver mais ' + (linhas.length - 3) + '</summary><ul class="lista-motivos">' + linhas.slice(3).join('') + '</ul></details>'
+      : '<ul class="lista-motivos">' + linhas.join('') + '</ul>';
+    return '<article class="cartao-v3">' +
+      '<div class="v3-topo"><span class="cartao-empresa">' + e(x.conta) + '</span>' + U.selo('aguardando_aprovo', x.emails + (x.emails === 1 ? ' e-mail' : ' e-mails')) + '</div>' +
+      '<div class="cartao-titulo">Mover para ' + e(x.pasta) + '</div>' +
+      (x.linhas.length > 1 ? '<p class="mudo legenda-rot">' + x.linhas.length + ' propostas neste grupo</p>' : '') + lista +
+      x.lotes_antigos.map(function (l) {
+        var n = (String(l.motivo).match(/^\s*(\d+)\s+e-?mails?/i) || [])[1];
+        return '<p class="mudo ajuda">Lote anterior de ' + U.dataBr(String(l.proposto_em).slice(0, 10)) + (n ? ' (' + n + (n === '1' ? ' e-mail' : ' e-mails') + ')' : '') + ' foi substituído por este.</p>';
+      }).join('') +
+      V3.botoes('emails', x, { aprovar: 'Aprovar o grupo', recusar: 'Recusar' }) +
+      '</article>';
+  }
+
+  function cartaoPendencia(x, U, V3) {
+    var e = U.esc;
+    x.titulo_curto = x.remetente + ' · ' + x.assunto;
+    var extra = String(x.estado_texto || '').trim().toLowerCase() !== 'aberta' ? x.estado_texto : '';
+    return '<article class="cartao-v3' + (x.precisa_resposta ? ' urgente' : '') + '">' +
+      '<div class="v3-topo"><span class="cartao-empresa">' + e(x.conta) + ' · ' + e(dias(x.dias)) + '</span>' + (x.precisa_resposta ? U.selo('refazer', 'Precisa de resposta') : U.selo('entregue', 'Sem resposta')) + '</div>' +
+      '<div class="cartao-titulo">' + e(x.remetente || 'Remetente não informado') + '</div>' +
+      '<p class="v3-assunto">' + e(x.assunto || '(sem assunto)') + '</p>' +
+      (x.motivo ? '<p class="v3-resumo"><b>Por que está aqui:</b> ' + e(x.motivo) + '</p>' : '') +
+      (x.rascunho && !/^n[aã]o$/i.test(x.rascunho.trim()) ? '<p class="mudo ajuda">Rascunho: ' + e(x.rascunho) + '</p>' : '') +
+      (extra ? '<p class="mudo ajuda">Estado no arquivo: ' + e(extra) + '</p>' : '') +
+      '<p class="mudo ajuda">Chegou em ' + U.dataBr(x.chegou_em) + '. O conteúdo do e-mail fica só no Mac.</p>' +
+      V3.botoes('emails', x, { resolvida: 'Marcar como resolvida', pedir_rascunho: 'Pedir rascunho' }) +
+      '</article>';
+  }
+
+  PainelV3.registrar('emails', {
+    desenhar: function (m, U, V3) {
+      var e = U.esc;
+      var grupos = m.itens.filter(function (x) { return x.tipo_item === 'grupo'; });
+      var abertas = m.abertas.map(function (id) { return V3.item('emails', id); }).filter(Boolean);
+      var h = '<h1>E-mails</h1><p class="intro">Movimentações e pendências do Gestor de E-mails nas contas iCloud, Exchange e Google. O painel mostra só conta, pasta, motivo, remetente, assunto, data e estado; o conteúdo dos e-mails fica no Mac.</p>' +
+        V3.avisoChave(m);
+      h += '<div class="contadores">' +
+        '<div class="contador-card' + (grupos.length ? ' destaque' : ' zero') + '"><div class="num">' + grupos.length + '</div><div class="rot">Grupos para mover</div></div>' +
+        '<div class="contador-card' + (m.emails_propostos ? '' : ' zero') + '"><div class="num">' + m.emails_propostos + '</div><div class="rot">E-mails nesses grupos</div></div>' +
+        '<div class="contador-card' + (abertas.length ? ' destaque' : ' zero') + '"><div class="num">' + abertas.length + '</div><div class="rot">Pendências abertas</div></div>' +
+        '<div class="contador-card' + (m.alertas_semana.total ? '' : ' zero') + '"><div class="num">' + m.alertas_semana.total + '</div><div class="rot">Alertas em 7 dias</div></div></div>';
+
+      h += '<h2 id="eml-mov">Movimentações propostas <span class="qtd">' + grupos.length + '</span></h2>' +
+        (grupos.length ? '<p class="intro">Agrupadas por conta e pasta de destino. Aprovar vale para o grupo inteiro.</p><div class="lista-v3">' + grupos.map(function (x) { return cartaoGrupo(x, U, V3); }).join('') + '</div>' : '<div class="vazio">Nenhuma movimentação esperando seu sim.</div>');
+
+      h += '<h2 id="eml-pend">Pendências abertas <span class="qtd">' + abertas.length + '</span></h2>' +
+        (abertas.length ? '<div class="lista-v3">' + abertas.map(function (x) { return cartaoPendencia(x, U, V3); }).join('') + '</div>' : '<div class="vazio">Nenhuma pendência aberta.</div>');
+
+      h += '<h2>Alertas recentes <span class="qtd">' + m.alertas.length + '</span></h2>' + (m.alertas.length ? '<div class="fontes">' + m.alertas.map(function (a) {
+        var cls = /now/i.test(a.tier) ? 'refazer' : /today/i.test(a.tier) ? 'aguardando_aprovo' : 'entregue';
+        return '<div class="fonte"><span>' + U.selo(cls, a.tier || 'sem tier') + ' <b>' + e(a.assunto) + '</b><br><span class="mudo">' + e(a.sinais) + (a.motivo ? ' · ' + e(a.motivo) : '') + (/^sim/i.test(a.enviado) ? ' · enviado a você' : '') + '</span></span><span class="quando">' + U.dataBr(a.quando) + '</span></div>';
+      }).join('') + '</div>' : '<div class="vazio">Nenhum alerta.</div>');
+
+      h += '<h2>Rascunhos <span class="qtd">' + m.rascunhos.length + '</span></h2>' + (m.rascunhos.length ? '<div class="fontes">' + m.rascunhos.map(function (r) {
+        return '<div class="fonte"><span><b>' + e(r.remetente || r.conta || 'Rascunho') + '</b>' + (r.assunto ? ' · ' + e(r.assunto) : '') + '<br><span class="mudo">' + e(r.estado) + (r.resultado ? ' · ' + e(r.resultado) : '') + '</span></span><span class="quando">' + U.dataBr(r.criado_em) + '</span></div>';
+      }).join('') + '</div>' : '<div class="vazio">Nenhum rascunho por enquanto. Quando o agente preparar respostas, elas aparecem aqui (o texto continua no Mac).</div>');
+
+      h += '<div class="duas-colunas"><div><h2>Movimentos por estado <span class="qtd">' + m.movimentos.unicos + '</span></h2>' + V3.contagem(m.movimentos.por_estado.map(function (x) { return { nome: EST_MOV[x.nome] || x.nome, n: x.n }; })) +
+        (m.movimentos.linhas !== m.movimentos.unicos ? '<p class="mudo ajuda">' + (m.movimentos.linhas - m.movimentos.unicos) + ' linhas repetidas do mesmo e-mail: vale a última.</p>' : '') + '</div>' +
+        '<div><h2>Pendências por estado <span class="qtd">' + m.pendencias.total + '</span></h2>' + V3.contagem(m.pendencias.por_estado.map(function (x) { return { nome: EST_PEND[x.nome] || x.nome, n: x.n }; })) + '</div></div>';
+      return h;
+    }
+  });
+})();
+</script>

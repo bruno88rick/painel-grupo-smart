@@ -427,7 +427,7 @@ var PainelLib = (function () {
    * Chave da integração com o Gestor de Tráfego. Enquanto false, os botões de decisão de
    * Posts e anúncios ficam desabilitados e o servidor não grava nada. Só o Builder liga.
    */
-  var CHAVES = { ANUNCIOS_INTEGRADOS: false, SUPORTE_INTEGRADO: false };
+  var CHAVES = { ANUNCIOS_INTEGRADOS: false, SUPORTE_INTEGRADO: false, EMAILS_INTEGRADO: false };
   var DECISOES_ANUNCIOS = {
     post: { aprovar: ['rascunho', 'aguardando_aprovo'], refazer: ['rascunho', 'aguardando_aprovo'], recusar: ['rascunho', 'aguardando_aprovo'] },
     campanha: { aprovar: ['plano', 'ajuste'], refazer: ['plano', 'ajuste'], recusar: ['plano', 'ajuste'], pausar: ['ativo'] }
@@ -1082,10 +1082,142 @@ var PainelLib = (function () {
       resposta: {
         aprovar: { rotulo: 'Aprovar e enviar como está', estados: ['aguardando_aprovo'], campos: [], primario: true },
         refazer: { rotulo: 'Pedir ajuste', estados: ['aguardando_aprovo'], campos: [{ k: 'texto', obrigatorio: true, rotulo: 'O que precisa mudar no rascunho?' }] },
-        recusar: { rotulo: 'Recusar', estados: ['aguardando_aprovo'], campos: [{ k: 'texto', obrigatorio: false, rotulo: 'Motivo (opcional)' }] }
+        recusar: { rotulo: 'Recusar', estados: ['aguardando_aprovo'], campos: [{ k: 'texto', obrigatorio: false, rotulo: 'Motivo' }] }
       }
     },
     montar: montarSuporte
+  });
+
+  /* ================= v3: E-mails ================= */
+  /*
+   * Privacidade: o painel mostra só o que já está no Drive (conta, pasta, motivo, remetente,
+   * assunto, chegou_em, estado). Nunca corpo nem anexos. Contrato em docs/contrato-emails.md.
+   */
+  var ESTADOS_MOVIMENTO = [[/^propost/, 'proposto'], [/^aguardando novo sim/, 'proposto'], [/^movid/, 'movido'], [/^recusad/, 'recusado'], [/^(fora da entrada|ja fora da entrada)/, 'fora'], [/^substituid/, 'substituido']];
+  var ESTADOS_PENDENCIA = [[/^aberta/, 'aberta'], [/^fechada/, 'fechada'], [/^duplicad/, 'duplicado'], [/^saiu da entrada/, 'saiu']];
+
+  /** Última linha por chave (linhas repetidas: vale a mais abaixo no arquivo). */
+  function ultimaPor(linhas, campo) {
+    var ordem = [], m = {};
+    linhas.forEach(function (x) {
+      var k = String(x[campo] || '').trim(); if (!k) return;
+      if (!(k in m)) ordem.push(k);
+      m[k] = x;
+    });
+    return ordem.map(function (k) { return m[k]; });
+  }
+  function ehLote(id) { return /^[a-z]+:lote-/i.test(String(id || '').trim()); }
+  /** Quantos e-mails a linha representa: lote "13 e-mails por regras no Mac" = 13; e-mail avulso = 1. */
+  function emailsDaLinha(x) {
+    if (!ehLote(x.message_id)) return 1;
+    var m = String(x.motivo || '').match(/^\s*(\d+)\s+e-?mails?/i);
+    return m ? +m[1] : 1;
+  }
+  function canonicoGrupoEmails(conta, pasta, linhas) {
+    var campos = [conta, pasta];
+    linhas.slice().sort(function (a, b) { return String(a.message_id).trim() < String(b.message_id).trim() ? -1 : 1; })
+      .forEach(function (x) { campos.push(x.message_id, x.motivo, x.proposto_em, x.estado); });
+    return canonicoV3('grupo', campos);
+  }
+  function canonicoPendencia(x) {
+    return canonicoV3('pendencia', [x.message_id, x.conta, x.remetente, x.assunto, x.chegou_em, x.motivo, x.precisa_resposta, x.rascunho, x.estado, x.fechado_em]);
+  }
+
+  function montarEmails(f, dm, agora) {
+    var L = function (k) { return (f[k] && f[k].linhas) || []; };
+    var movs = ultimaPor(L('movimentos'), 'message_id');
+    movs.forEach(function (x) { x._estado = classificarComeco(x.estado, ESTADOS_MOVIMENTO); });
+
+    // Movimentações propostas, agrupadas por conta + pasta
+    var grupos = {}, ordemG = [];
+    movs.filter(function (x) { return x._estado === 'proposto'; }).forEach(function (x) {
+      var conta = String(x.conta || '').trim(), pasta = String(x.pasta || '').trim();
+      var k = conta + '|' + pasta;
+      if (!grupos[k]) { grupos[k] = { conta: conta, pasta: pasta, linhas: [], lotes: [] }; ordemG.push(k); }
+      (ehLote(x.message_id) ? grupos[k].lotes : grupos[k].linhas).push(x);
+    });
+    var itens = [];
+    ordemG.forEach(function (k) {
+      var g = grupos[k];
+      // Vários lotes do mesmo destino: vale o mais recente; os antigos aparecem como observação e ficam fora do hash.
+      g.lotes.sort(function (a, b) { return (parseData(b.proposto_em) || 0) - (parseData(a.proposto_em) || 0); });
+      var validas = g.linhas.concat(g.lotes.slice(0, 1)), antigos = g.lotes.slice(1);
+      var ultimo = validas.reduce(function (m, x) { var d = parseData(x.proposto_em); return d && (!m || d > m) ? d : m; }, null);
+      itens.push({
+        item_id: 'grupo:' + k, tipo_item: 'grupo', versao: '', proposto_em: ultimo ? dataIso(ultimo) : '', estado: 'proposto',
+        conta: g.conta, pasta: g.pasta,
+        emails: validas.reduce(function (s, x) { return s + emailsDaLinha(x); }, 0),
+        linhas: validas.map(function (x) { return { message_id: String(x.message_id).trim(), motivo: x.motivo || '', proposto_em: x.proposto_em || '', estado_texto: x.estado || '', lote: ehLote(x.message_id), emails: emailsDaLinha(x) }; }),
+        lotes_antigos: antigos.map(function (x) { return { message_id: String(x.message_id).trim(), motivo: x.motivo || '', proposto_em: x.proposto_em || '', estado_texto: x.estado || '' }; }),
+        snapshot_hash: sha256(canonicoGrupoEmails(g.conta, g.pasta, validas))
+      });
+    });
+    itens.sort(function (a, b) { return b.emails - a.emails || a.conta.localeCompare(b.conta) || a.pasta.localeCompare(b.pasta); });
+
+    // Pendências
+    var pends = ultimaPor(L('pendencias'), 'message_id').map(function (x) {
+      var d = parseData(x.chegou_em);
+      return {
+        item_id: 'pendencia:' + String(x.message_id).trim(), tipo_item: 'pendencia', versao: '', message_id: String(x.message_id).trim(),
+        estado: classificarComeco(x.estado, ESTADOS_PENDENCIA), estado_texto: x.estado || '',
+        conta: x.conta || '', remetente: x.remetente || '', assunto: x.assunto || '', chegou_em: x.chegou_em || '',
+        motivo: x.motivo || '', precisa_resposta: /^s/i.test(String(x.precisa_resposta || '').trim()), rascunho: x.rascunho || '', fechado_em: x.fechado_em || '',
+        dias: d ? Math.max(0, Math.floor((soDia(agora) - soDia(d)) / DIA_MS)) : null,
+        snapshot_hash: sha256(canonicoPendencia(x))
+      };
+    });
+    var abertas = pends.filter(function (x) { return x.estado === 'aberta'; }).sort(function (a, b) {
+      return (b.precisa_resposta - a.precisa_resposta) || ((b.dias || 0) - (a.dias || 0)) || a.remetente.localeCompare(b.remetente);
+    });
+    itens = itens.concat(abertas);
+
+    // Alertas recentes (todos os tiers, os mais novos primeiro)
+    var alertas = L('alertas').filter(function (a) { return String(a.alert_id || a.subject || '').trim(); }).map(function (a, i) {
+      return { id: a.alert_id || '', i: i, quando: a.created_at || '', tier: String(a.tier || '').trim(), assunto: a.subject || '', sinais: a.signals || '', score: a.score || '', enviado: a.sent || '', motivo: a.reason || '', resultado: a.outcome || '' };
+    }).sort(function (a, b) { return ((parseData(b.quando) || 0) - (parseData(a.quando) || 0)) || b.i - a.i; });
+    var semana = new Date(soDia(agora).getTime() - 6 * DIA_MS);
+    var daSemana = alertas.filter(function (a) { var d = parseData(a.quando); return d && d >= semana; });
+
+    // Rascunhos (quando houver), com remetente e assunto da pendência do mesmo message_id
+    var porMsg = {}; pends.forEach(function (x) { porMsg[x.message_id] = x; });
+    var rascunhos = L('rascunhos').filter(function (r) { return String(r.draft_id || r.message_id || '').trim(); }).map(function (r) {
+      var p = porMsg[String(r.message_id || '').trim()] || {};
+      return { draft_id: r.draft_id || '', message_id: r.message_id || '', conta: r.conta || p.conta || '', criado_em: r.criado_em || '', chegou_em: r.chegou_em || '', estado: r.estado || '', resultado: r.resultado || '', remetente: p.remetente || '', assunto: p.assunto || '' };
+    });
+
+    var precisa = [{ rotulo: 'grupos de movimentação para aprovar', n: ordemG.length }, { rotulo: 'pendências abertas', n: abertas.length }];
+    var pc = contarPor(movs.map(function (x) { return { e: x._estado }; }), 'e');
+    return {
+      itens: itens,
+      grupos: ordemG.length, emails_propostos: itens.filter(function (x) { return x.tipo_item === 'grupo'; }).reduce(function (s, x) { return s + x.emails; }, 0),
+      abertas: abertas.map(function (x) { return x.item_id; }),
+      pendencias: { total: pends.length, abertas: abertas.length, precisam_resposta: abertas.filter(function (x) { return x.precisa_resposta; }).length, por_estado: contarPor(pends, 'estado') },
+      movimentos: { linhas: L('movimentos').length, unicos: movs.length, por_estado: pc },
+      alertas: alertas.slice(0, 10), alertas_semana: { total: daSemana.length, por_tier: contarPor(daSemana, 'tier') },
+      rascunhos: rascunhos,
+      precisa: { total: precisa.reduce(function (s, p) { return s + p.n; }, 0), partes: precisa }
+    };
+  }
+
+  registrarModuloV3({
+    id: 'emails', rotulo: 'E-mails', agente: 'Gestor de E-mails', chave: 'EMAILS_INTEGRADO',
+    fontes: {
+      movimentos: { arquivo: 'Movimentos.csv', rotulo: 'Movimentos (E-mails)', obrigatorias: ['message_id', 'conta', 'pasta', 'motivo', 'proposto_em', 'estado'] },
+      pendencias: { arquivo: 'Pendencias.csv', rotulo: 'Pendências (E-mails)', obrigatorias: ['message_id', 'conta', 'remetente', 'assunto', 'estado'] },
+      alertas: { arquivo: 'Alerts.csv', rotulo: 'Alertas (E-mails)', obrigatorias: ['tier'], opcional: true },
+      rascunhos: { arquivo: 'Rascunhos.csv', rotulo: 'Rascunhos (E-mails)', obrigatorias: ['message_id', 'estado'], opcional: true }
+    },
+    decisoes: {
+      grupo: {
+        aprovar: { rotulo: 'Aprovar o grupo', estados: ['proposto'], campos: [{ k: 'texto', obrigatorio: false, rotulo: 'Comentário' }], primario: true },
+        recusar: { rotulo: 'Recusar', estados: ['proposto'], campos: [{ k: 'texto', obrigatorio: false, rotulo: 'Motivo' }] }
+      },
+      pendencia: {
+        resolvida: { rotulo: 'Marcar como resolvida', estados: ['aberta'], campos: [{ k: 'texto', obrigatorio: false, rotulo: 'Comentário' }], primario: true },
+        pedir_rascunho: { rotulo: 'Pedir rascunho', estados: ['aberta'], campos: [{ k: 'texto', obrigatorio: false, rotulo: 'O que a resposta deve dizer?' }] }
+      }
+    },
+    montar: montarEmails
   });
 
   /** Todas as decisões que os módulos v3 aceitam. */
@@ -1099,7 +1231,9 @@ var PainelLib = (function () {
   function validarDecisao(d) {
     if (!d || typeof d !== 'object') throw new Error('decisão vazia');
     if (['aprovar', 'refazer', 'recusar', 'pausar'].indexOf(d.decisao) < 0 && decisoesV3().indexOf(d.decisao) < 0) throw new Error('decisão inválida');
-    if (!d.item_id || !/^[\w:.\-]{1,80}$/.test(d.item_id)) throw new Error('item inválido');
+    // módulos v3: item_id carrega message_id e pasta ("=", "@", "|", espaço, acento); o item ainda precisa existir no modelo
+    var reItem = MODULOS_V3[d.modulo] ? /^[a-z_]+:[^\u0000-\u001f\u007f]{1,200}$/ : /^[\w:.\-]{1,80}$/;
+    if (!d.item_id || !reItem.test(d.item_id)) throw new Error('item inválido');
     if (!d.modulo || !/^[a-z_]{1,30}$/.test(d.modulo)) throw new Error('módulo inválido');
     var c = String(d.comentario || '').trim();
     if (d.modulo === 'anuncios' || MODULOS_V3[d.modulo]) c = c.replace(/[\r\n]+/g, ' ');
@@ -1110,7 +1244,7 @@ var PainelLib = (function () {
   }
 
   /** Versão exibida no topo do painel. Atualize a cada implantação. */
-  var VERSAO_PAINEL = '3.0.0-suporte';
+  var VERSAO_PAINEL = '3.0.0-emails';
   var POSTS_INTEGRADOS = false;
   var ESTADOS_DECIDIVEIS = { design: ['entregue'], post: ['rascunho', 'aguardando_aprovo'] };
 
@@ -1186,6 +1320,10 @@ var PainelLib = (function () {
     ORDEM_V3: ORDEM_V3,
     AVISO_CHAVE_V3: AVISO_CHAVE_V3,
     canonicoV3: canonicoV3,
+    canonicoGrupoEmails: canonicoGrupoEmails,
+    canonicoPendencia: canonicoPendencia,
+    ESTADOS_MOVIMENTO: ESTADOS_MOVIMENTO,
+    ESTADOS_PENDENCIA: ESTADOS_PENDENCIA,
     decisoesComRecibos: decisoesComRecibos,
     montarModulosV3: montarModulosV3,
     conferirDecisaoV3: conferirDecisaoV3,

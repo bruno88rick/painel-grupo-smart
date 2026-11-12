@@ -44,6 +44,7 @@ function arquivosBase(cfgExtra) {
   an.ledger.folderId = 'TRAF'; an.criativos.folderId = 'CRIAT';
   const sup = cfg.modulos.find((m) => m.id === 'suporte').fontes;
   sup.ledger.folderId = 'SUP';
+  cfg.modulos.find((m) => m.id === 'emails').fontes.ledger.folderId = 'EML';
   Object.assign(cfg, cfgExtra || {});
   return {
     CFG: { nome: 'painel-fontes.json', texto: JSON.stringify(cfg) },
@@ -66,7 +67,11 @@ function arquivosBase(cfgExtra) {
     S1: { nome: 'Chamados.csv', pasta: 'SUP', texto: fx('suporte/Chamados.csv') },
     S2: { nome: 'Respostas.csv', pasta: 'SUP', texto: fx('suporte/Respostas.csv') },
     S3: { nome: 'Alerts.csv', pasta: 'SUP', texto: fx('suporte/Alerts.csv') },
-    S4: { nome: 'Rascunhos-painel.csv', pasta: 'SUP', texto: fx('suporte/Rascunhos-painel.csv') }
+    S4: { nome: 'Rascunhos-painel.csv', pasta: 'SUP', texto: fx('suporte/Rascunhos-painel.csv') },
+    E1: { nome: 'Movimentos.csv', pasta: 'EML', texto: fx('emails/Movimentos.csv') },
+    E2: { nome: 'Pendencias.csv', pasta: 'EML', texto: fx('emails/Pendencias.csv') },
+    E3: { nome: 'Alerts.csv', pasta: 'EML', texto: fx('emails/Alerts.csv') },
+    E4: { nome: 'Rascunhos.csv', pasta: 'EML', texto: fx('emails/Rascunhos.csv') }
   };
 }
 

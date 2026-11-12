@@ -7,6 +7,7 @@ URL = 'http://127.0.0.1:8765/index.html'
 MOD = sys.argv[1] if len(sys.argv) > 1 else 'suporte'
 FASE = sys.argv[2] if len(sys.argv) > 2 else 'base'
 DEC = sys.argv[3] if len(sys.argv) > 3 else 'refazer'
+TXT = sys.argv[4] if len(sys.argv) > 4 else 'Trocar o prazo de reembolso para 10 dias úteis; manter o resto.'
 OUT = os.path.join(os.path.dirname(__file__), 'shots', 'v3', MOD)
 os.makedirs(OUT, exist_ok=True)
 
@@ -41,10 +42,11 @@ async def main():
                     await btn.evaluate('e=>e.scrollIntoView({block:"center"})')
                     await btn.click(); await pg.wait_for_timeout(400)
                     await pg.screenshot(path=f'{pre}-dialogo.png')
-                    await pg.click('#v3-enviar'); await pg.wait_for_timeout(300)
-                    await pg.screenshot(path=f'{pre}-dialogo-erro.png')
+                    if await pg.locator('#v3-campos [required]').count():
+                        await pg.click('#v3-enviar'); await pg.wait_for_timeout(300)
+                        await pg.screenshot(path=f'{pre}-dialogo-erro.png')
                     f = pg.locator('#v3-campos textarea, #v3-campos input').first
-                    if await f.count(): await f.fill('Trocar o prazo de reembolso para 10 dias úteis; manter o resto.')
+                    if await f.count(): await f.fill(TXT)
                     await pg.click('#v3-enviar'); await pg.wait_for_timeout(700)
                     el = pg.locator('#aba-mod .enviado-v3').first
                     if await el.count(): await el.evaluate('e=>e.scrollIntoView({block:"center"})')
