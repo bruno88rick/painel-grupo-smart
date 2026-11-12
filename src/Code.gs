@@ -6,6 +6,8 @@
 
 var CONFIG_NOME = 'painel-fontes.json';
 var CACHE_PREFIXO = 'painel_v2_';
+var CACHE_ARQUIVO_SEG = 6 * 60 * 60;   // texto por versão do arquivo (seguro: muda a chave quando o arquivo muda)
+var CACHE_ULTIMO_SEG = 6 * 60 * 60;    // última tela montada, mostrada na hora enquanto a nova é lida
 
 function doGet() {
   var t = HtmlService.createTemplateFromFile('Index');
@@ -42,16 +44,31 @@ function lerConfig_() {
 
 /* ---------- Leitura das fontes ---------- */
 
-function lerArquivoTexto_(fileId) {
+/**
+ * Texto de um arquivo com cache por versão: a chave leva o fileId e a data da última alteração.
+ * Arquivo alterado no Drive = chave nova, então o cache nunca devolve conteúdo velho.
+ * Arquivos acima de 90 KB não entram no cache.
+ */
+function textoDoArquivo_(f, semCache) {
+  if (semCache) return f.getBlob().getDataAsString('UTF-8');
+  var chave = CACHE_PREFIXO + 'txt_' + f.getId() + '_' + f.getLastUpdated().getTime();
+  var c = null;
+  try { c = CacheService.getScriptCache(); var hit = c.get(chave); if (hit !== null && hit !== undefined) return hit; } catch (e) { c = null; }
+  var texto = f.getBlob().getDataAsString('UTF-8');
+  if (c && texto.length < 90000) { try { c.put(chave, texto, CACHE_ARQUIVO_SEG); } catch (e) {} }
+  return texto;
+}
+
+function lerArquivoTexto_(fileId, semCache) {
   var f = DriveApp.getFileById(fileId);
-  return { texto: f.getBlob().getDataAsString('UTF-8'), atualizado: f.getLastUpdated().toISOString(), nome: f.getName(), fileId: fileId };
+  return { texto: textoDoArquivo_(f, semCache), atualizado: f.getLastUpdated().toISOString(), nome: f.getName(), fileId: fileId };
 }
 
 /** Lê um CSV por fileId. Nunca lança: devolve {ok, linhas, erro}. */
-function lerCsv_(rotulo, fileId, obrigatorias) {
+function lerCsv_(rotulo, fileId, obrigatorias, semCache) {
   var r = { rotulo: rotulo, fileId: fileId, ok: false, linhas: [], erro: '', avisos: [], atualizado: '' };
   try {
-    var a = lerArquivoTexto_(fileId);
+    var a = lerArquivoTexto_(fileId, semCache);
     r.atualizado = a.atualizado; r.nome = a.nome;
     var o = PainelLib.csvParaObjetos(a.texto, obrigatorias);
     r.linhas = o.linhas; r.avisos = o.avisos; r.ok = true;
@@ -63,8 +80,21 @@ function lerCsv_(rotulo, fileId, obrigatorias) {
 
 /** Acha um arquivo pelo nome dentro de uma pasta. */
 function acharNaPasta_(folderId, nome) {
+  var chave = CACHE_PREFIXO + 'id_' + folderId + '_' + nome;
+  var c = null;
+  try {
+    c = CacheService.getScriptCache();
+    var id = c.get(chave);
+    if (id) {
+      var f0 = DriveApp.getFileById(id);
+      if (!f0.isTrashed() && f0.getName() === nome) return id;
+    }
+  } catch (e) { /* cache velho ou arquivo sumiu: procura de novo */ }
   var it = DriveApp.getFolderById(folderId).getFilesByName(nome);
-  while (it.hasNext()) { var f = it.next(); if (!f.isTrashed()) return f.getId(); }
+  while (it.hasNext()) {
+    var f = it.next();
+    if (!f.isTrashed()) { if (c) { try { c.put(chave, f.getId(), CACHE_ARQUIVO_SEG); } catch (e) {} } return f.getId(); }
+  }
   return null;
 }
 
@@ -91,7 +121,7 @@ function lerRascunhos_(rotulo, folderId, padrao) {
       if (f.isTrashed() || !re.test(f.getName())) continue;
       var t = f.getLastUpdated().getTime();
       if (t > maisRecente) maisRecente = t;
-      r.itens.push({ nome: f.getName(), fileId: f.getId(), texto: f.getBlob().getDataAsString('UTF-8'), atualizado: f.getLastUpdated().toISOString() });
+      r.itens.push({ nome: f.getName(), fileId: f.getId(), texto: textoDoArquivo_(f), atualizado: f.getLastUpdated().toISOString() });
     }
     r.ok = true;
     r.atualizado = maisRecente ? new Date(maisRecente).toISOString() : '';
@@ -103,7 +133,8 @@ function lerRascunhos_(rotulo, folderId, padrao) {
 
 function lerDecisoes_(cfg) {
   if (!cfg.decisoes || !cfg.decisoes.fileId) return { ok: false, linhas: [], erro: 'decisoes.csv não configurado', rotulo: 'Decisões do painel' };
-  return lerCsv_('Decisões do painel', cfg.decisoes.fileId, PainelLib.CABECALHO_DECISOES);
+  // decisoes.csv sempre direto do Drive: é a base da conferência antes de gravar.
+  return lerCsv_('Decisões do painel', cfg.decisoes.fileId, PainelLib.CABECALHO_DECISOES, true);
 }
 
 /**
@@ -120,7 +151,7 @@ function lerRecibos_(cfg) {
       var f = it.next();
       if (f.isTrashed() || !/^D-[\w-]+\.json$/.test(f.getName())) continue;
       try {
-        var rec = PainelLib.parseRecibo(f.getBlob().getDataAsString('UTF-8'), f.getName());
+        var rec = PainelLib.parseRecibo(textoDoArquivo_(f), f.getName());
         if (r.mapa[rec.decision_id]) { r.avisos.push('recibo duplicado: ' + f.getName()); continue; }
         r.mapa[rec.decision_id] = rec;
       } catch (e) {
@@ -249,18 +280,28 @@ function cacheLimpar_(chave) {
   try { CacheService.getUserCache().remove(chave + '_n'); } catch (e) {}
 }
 
-/** Chamado pela tela. forcar = botão "Atualizar agora". */
+/**
+ * Chamado pela tela. forcar = botão "Atualizar agora" (ou a releitura automática).
+ * 1. Tela montada há menos de 5 min: devolve do cache.
+ * 2. Senão, se há uma tela anterior (até 6 h): devolve na hora com desatualizado=true;
+ *    a tela mostra e pede a leitura nova em segundo plano.
+ * 3. Sem nada no cache: lê o Drive.
+ */
 function obterDados(forcar) {
   var chave = CACHE_PREFIXO + 'dados';
   if (!forcar) {
     var s = cacheGet_(chave);
-    if (s) { var o = JSON.parse(s); o.do_cache = true; return o; }
+    if (s) { var o = JSON.parse(s); o.do_cache = true; o.desatualizado = false; return o; }
+    var u = cacheGet_(chave + '_ult');
+    if (u) { var v = JSON.parse(u); v.do_cache = true; v.desatualizado = true; return v; }
   }
   var cfg = lerConfig_();
-  var dados = montarDados_();
+  var dados = montarDados_(cfg);
   var txt = JSON.stringify(dados);
   cachePut_(chave, txt, (cfg.cache_minutos || 5) * 60);
+  cachePut_(chave + '_ult', txt, CACHE_ULTIMO_SEG);
   dados.do_cache = false;
+  dados.desatualizado = false;
   return dados;
 }
 
@@ -312,6 +353,7 @@ function salvarDecisao(entrada) {
     if (PainelLib.csvParaObjetos(texto, PainelLib.CABECALHO_DECISOES).linhas.length !== antes + 1) throw new Error('falha ao montar a nova linha; nada foi gravado');
     arq.setContent(texto);
     cacheLimpar_(CACHE_PREFIXO + 'dados');
+    cacheLimpar_(CACHE_PREFIXO + 'dados_ult');
     return { ok: true, id: id, quando: quando, versao: vinculo.versao, snapshot_hash: vinculo.snapshot_hash };
   } finally {
     lock.releaseLock();

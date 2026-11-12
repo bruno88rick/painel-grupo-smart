@@ -2,9 +2,17 @@
 
 Painel visual, privado e mobile-first, para o Bruno ver e aprovar as artes e os posts criados pelos agentes do Grupo Smart (RN Sports, BD 3D, Smart Produtora, Include Systems). É a fonte única da verdade em cima dos arquivos que os agentes já mantêm no Google Drive: o painel lê esses arquivos e não copia nada para outro banco.
 
-**Status:** v1 publicada em 11/11/2026 como Web App do Google Apps Script, acesso só do dono. v2.0.0 acrescenta o módulo **Posts e anúncios** (Gestor de Tráfego). Módulos ativos: **Design** (Agente de Design) e **Posts e anúncios**. Os outros já têm lugar reservado.
+**Status:** v1 publicada em 11/11/2026 como Web App do Google Apps Script, acesso só do dono. v2.0.0 acrescentou o módulo **Posts e anúncios** (Gestor de Tráfego); v2.0.1 corrige o que apareceu na produção. Módulos ativos: **Design** (Agente de Design) e **Posts e anúncios**. Os outros já têm lugar reservado.
 
 ![Início no celular](docs/screenshots/390-claro-inicio.jpg)
+
+## Produção e main
+
+A produção (Web App, implantação **versão 5 = v2.0.0**, de 12/11/2026) está atrás da `main`. Decisão do Bruno em 12/11: os próximos módulos (Finanças, Investimentos e Suporte) entram na `main` por PR, com testes, **sem reimplantar**. Tudo vai para a produção de uma vez quando esses módulos estiverem prontos.
+
+Falta implantar:
+
+- **v2.0.1:** período da campanha vem do ledger quando a proposta não tem datas; campanha cruzada com ou sem `M-`; um cartão por post com as programações (feed, story); cache por arquivo e tela anterior na hora (primeira carga mais rápida).
 
 ## Sumário
 
@@ -89,6 +97,12 @@ O estado **aprovado** é um acréscimo à lista original: separa o que você já
 | ![Carrossel 10/10](docs/screenshots/v2/carrossel-390-10.jpg) | ![Carrossel em grade](docs/screenshots/v2/carrossel-desktop.jpg) |
 | ![Campanha ativa](docs/screenshots/v2/campanha-ativa-390.jpg) | ![Campanhas](docs/screenshots/v2/campanhas-desktop-escuro.jpg) |
 
+### v2.0.1: correções da produção
+
+| Posts (celular) | Programações do post (celular) | Campanhas (desktop) |
+|---|---|---|
+| ![Posts](docs/screenshots/v2.0.1/390-posts.jpg) | ![Programações](docs/screenshots/v2.0.1/390-post-detalhe.jpg) | ![Campanhas](docs/screenshots/v2.0.1/desktop-campanhas.jpg) |
+
 ## Decisões e agentes
 
 1. Você toca em **Aprovar v<N>** ou **Pedir ajuste** (com comentário) num cartão `entregue` (designs) ou `rascunho`/`aguardando_aprovo` (posts). O detalhe só oferece Aprovar na versão mais recente.
@@ -166,6 +180,9 @@ Lê o ledger do Gestor de Tráfego (`Anuncios.csv`, `Campanhas.csv`, `Resultados
 - **Posts:** linha do tempo `rascunho` > `aguardando_aprovo` > `aprovado` > `programado` > `aguardando_confirmacao` > `publicado` (só com link), mais `recusado`. Filtro por empresa e conta. O cartão mostra a mídia, as duas legendas lado a lado, hashtags, contas, horário e link.
 - **Carrossel:** `midia_fileIds` (e `arte_fileId` nos designs) aceita vários ids separados por `;`. No celular arrasta com contador (1/10); no desktop vira grade.
 - **Campanhas:** cartões com estado, objetivo, verba, período, gasto acumulado e dos últimos 7 dias, impressões, cliques, contatos e custo por contato (só com contatos > 0), gráfico de gasto diário e o plano `.md` no detalhe. Leituras de período (30d) aparecem separadas do diário. Resultados da semana por empresa e a última leitura de cada canal.
+- **Um cartão por post:** quando o post está no `Propostas.csv`, as linhas do `Anuncios.csv` do mesmo post (feed, story) viram **Programações** dentro do cartão da proposta. A ligação é pelo pedido citado no texto (`P-aaaammdd-n`) ou pela mídia + horário (ou mídia + dia, só para propostas). Duas linhas do ledger com a mesma mídia e o mesmo horário também viram um cartão só.
+- **Campanha cruzada pelo id:** `campanha_id` do `Propostas.csv` com ou sem o prefixo `M-`/`G-`, ou o id da plataforma, cai na mesma campanha do `Campanhas.csv`.
+- **Campos vazios na proposta:** verba, início e fim vazios usam o valor do `Campanhas.csv` (por exemplo "após aprovação a 18/12").
 - **Sem `Propostas.csv`:** nada quebra. Aparece o aviso "Propostas estruturadas ainda não ativadas" e os itens ficam só para consulta.
 
 ### Decisões de anúncios
@@ -187,7 +204,7 @@ npm test
 python3 -m unittest discover consumidor
 ```
 
-v2.0.0: 35 testes no Node e 29 no consumidor Python. Os vetores de hash do `Propostas.csv` são conferidos nos dois lados.
+v2.0.1: 43 testes no Node e 29 no consumidor Python. v2.0.0: 35 e 29. Os vetores de hash do `Propostas.csv` são conferidos nos dois lados.
 
 22 testes: CSV com BOM, CRLF, aspas e quebra de linha; CSV quebrado; colunas ausentes; leitura dos CSVs reais; marcas `post:`; rascunho `post-*.md`; o modelo das telas; decisões, hash, versão velha, decisão repetida, estado inválido, recibos, cabeçalho antigo e a regra do relógio; a versão do painel; e o `Code.gs` com os serviços do Google simulados (cache, fonte quebrada, gravação em `decisoes.csv`).
 
@@ -241,6 +258,7 @@ O Drive criou o projeto com o fuso da conta. O código não depende disso: `agor
 - **Aviso vermelho numa fonte**: o CSV está ausente ou quebrado (aspas sem fechar, colunas faltando). O resto do painel funciona; corrija o arquivo e toque em **Atualizar agora**.
 - **Miniatura não aparece**: o painel tenta de novo pelo servidor. Se ainda falhar, o cartão mostra "Prévia indisponível" e o link do Drive continua funcionando.
 - **Dados desatualizados**: o cache dura 5 minutos. Use **Atualizar agora**.
+- **Primeira carga lenta** (v2.0.1): o painel mostra na hora a última tela montada (até 6 h) com "lendo o Drive…" e busca a nova em segundo plano. O texto de cada arquivo fica em cache pela data de alteração (muda o arquivo, muda a chave) e o id das abas do ledger também. `decisoes.csv` é sempre lido direto do Drive.
 - **Mudei o código e nada mudou**: falta criar uma nova versão da implantação (veja acima).
 
 ## Segurança

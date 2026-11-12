@@ -18,7 +18,8 @@ if (cenario) {
 else {
   // v2: 12/11 19:00 com o módulo Posts e anúncios
   const mod = require('./modelo');
-  const r = mod(new Date(2026, 10, 12, 19), [], {}, { anuncios: true, semPropostas: process.argv.includes('--sem-propostas') });
+  const v201 = process.argv.includes('--v201');
+  const r = mod(v201 ? new Date(2026, 10, 12, 15, 30) : new Date(2026, 10, 12, 19), [], {}, { anuncios: true, semPropostas: process.argv.includes('--sem-propostas'), v201 });
   if (process.argv.includes('--integrado')) { r.L.CHAVES.ANUNCIOS_INTEGRADOS = true; modelo = mod(new Date(2026, 10, 12, 19), [], {}, { anuncios: true }).modelo; }
   else modelo = r.modelo;
 }

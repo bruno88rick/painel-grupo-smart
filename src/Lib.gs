@@ -584,6 +584,15 @@ var PainelLib = (function () {
 
     var posts = [];
     var pedidosCobertos = {};
+    // Índice para juntar o mesmo post: pedido/id da proposta, mídia+horário e mídia+dia.
+    var postPorChave = {};
+    function chavesPost(fileId, horario) {
+      var h = String(horario || '').trim().replace('T', ' ').slice(0, 16);
+      return fileId ? ['f:' + fileId + '|' + h, 'd:' + fileId + '|' + h.slice(0, 10)] : [];
+    }
+    function indexar(item, ids) {
+      ids.concat(chavesPost(midias(item.midia_fileIds)[0], item.horario)).forEach(function (k) { if (k && !postPorChave[k]) postPorChave[k] = item; });
+    }
     // 1) Propostas estruturadas (decidíveis)
     props.filter(function (r) { return r.tipo === 'post'; }).forEach(function (r) {
       var exib = estadoPublicacao(r.estado, r.plataforma_link, r.horario, agora);
@@ -595,10 +604,11 @@ var PainelLib = (function () {
         contas: midias(r.contas), horario: r.horario || '', midias: midias(r.midia_fileIds), midia_fileIds: r.midia_fileIds || '',
         legenda_1: r.legenda_1 || '', legenda_2: r.legenda_2 || '', legenda_escolhida: r.legenda_escolhida || '',
         hashtags: r.hashtags || '', link: ehLink(r.plataforma_link) ? r.plataforma_link : '', campanha_id: r.campanha_id || '',
-        atualizado_em: r.atualizado_em || '', snapshot_hash: sha256(canonicoPostV2(r))
+        atualizado_em: r.atualizado_em || '', snapshot_hash: sha256(canonicoPostV2(r)), programacoes: []
       };
       item.decisoes_possiveis = Object.keys(DECISOES_ANUNCIOS.post).filter(function (k) { return DECISOES_ANUNCIOS.post[k].indexOf(String(r.estado).trim()) >= 0; });
       posts.push(item);
+      indexar(item, ['p:' + r.id].concat(r.pedido_id ? ['p:' + r.pedido_id] : []));
       if (r.pedido_id) pedidosCobertos[r.pedido_id] = true;
     });
     // 2) Publicações do ledger do Tráfego (Anuncios.csv)
@@ -609,7 +619,24 @@ var PainelLib = (function () {
       var link = ehLink(a.plataforma_id) ? a.plataforma_id : '';
       var legV = (String(a.texto_resumo || '').match(/legenda v(\d)/i) || [])[1] || '';
       var contas = contasDoTexto(a.texto_resumo);
-      posts.push({
+      var prog = {
+        id: a.id, formato: formatoDe(a.versao) || formatoDe(a.texto_resumo), horario: a.ativo_em || '',
+        estado: estadoPublicacao(a.estado, link, a.ativo_em, agora), link: link, onde: link ? '' : (a.plataforma_id || ''),
+        canal: a.canal || '', edicao_do_bruno: a.edicao_do_bruno || ''
+      };
+      // Mesmo post já na tela (proposta, ou outra linha com a mesma mídia e horário): vira programação dentro do cartão.
+      var cand = (ped ? ['p:' + ped] : []).concat(chavesPost(midias(a.arte_fileId)[0], a.ativo_em));
+      var alvo = null;
+      for (var i = 0; i < cand.length && !alvo; i++) {
+        var x = postPorChave[cand[i]];
+        if (x && (cand[i].charAt(0) !== 'd' || x.origem === 'propostas')) alvo = x;
+      }
+      if (alvo) {
+        alvo.programacoes.push(prog);
+        if (ped) pedidosCobertos[ped] = true;
+        return;
+      }
+      var item = {
         id: a.id, item_id: 'post:' + a.id, origem: 'publicacao', empresa: a.empresa, pedido_id: ped,
         titulo: String(a.texto_resumo || '').split(/\s*\(/)[0].trim() || a.id,
         resumo: a.texto_resumo || '', formato: formatoDe(a.versao) || formatoDe(a.texto_resumo), versao: (String(a.versao || '').match(/v(\d+)/) || [])[1] || '',
@@ -618,8 +645,10 @@ var PainelLib = (function () {
         legenda_1: md && md.legendas[0] ? md.legendas[0].texto : '', legenda_2: md && md.legendas[1] ? md.legendas[1].texto : '',
         legenda_escolhida: legV, hashtags: md ? md.hashtags : '', link: link, onde: link ? '' : (a.plataforma_id || ''),
         canal: a.canal || '', edicao_do_bruno: a.edicao_do_bruno || '', campanha_id: a.campanha_id || '',
-        rascunho_fileId: md ? md.fileId : '', decisoes_possiveis: []
-      });
+        rascunho_fileId: md ? md.fileId : '', decisoes_possiveis: [], programacoes: [prog]
+      };
+      posts.push(item);
+      indexar(item, []);
       if (ped) pedidosCobertos[ped] = true;
     });
     // 3) Rascunhos .md sem proposta nem publicação
@@ -634,7 +663,7 @@ var PainelLib = (function () {
         contas: contasDoTexto(md.contas), horario: md.horario || '', midias: midias(d.arte_fileId || md.arte_fileId), midia_fileIds: d.arte_fileId || md.arte_fileId || '',
         legenda_1: md.legendas[0] ? md.legendas[0].texto : '', legenda_2: md.legendas[1] ? md.legendas[1].texto : '',
         legenda_escolhida: (md.legendas[1] && /aprovad/i.test(md.legendas[1].titulo)) ? '2' : (md.aprovado ? '1' : ''),
-        hashtags: md.hashtags || '', link: '', rascunho_fileId: md.fileId, decisoes_possiveis: []
+        hashtags: md.hashtags || '', link: '', rascunho_fileId: md.fileId, decisoes_possiveis: [], programacoes: []
       });
     });
     posts.forEach(function (p) {
@@ -642,6 +671,7 @@ var PainelLib = (function () {
       if (p.decisao_pendente) p.decisao_pendente.obsoleta = !!p.snapshot_hash && p.decisao_pendente.snapshot_hash !== p.snapshot_hash;
       p.ultimo_recibo = ultimoRecibo[p.item_id] || null;
       p.contas_rotulo = p.contas.map(rotuloConta);
+      p.programacoes.sort(function (a, b) { return String(a.horario).localeCompare(String(b.horario)); });
     });
     posts.sort(function (a, b) { return String(b.horario).localeCompare(String(a.horario)) || String(b.id).localeCompare(String(a.id)); });
 
@@ -665,10 +695,18 @@ var PainelLib = (function () {
     }
 
     // Campanhas: Campanhas.csv + Propostas (proposta manda nos campos decididos)
-    var porId = {}, ordem = [];
-    linhas('campanhas').forEach(function (c) { if (!c.id) return; porId[c.id] = { base: c, prop: null }; ordem.push(c.id); });
+    var porId = {}, ordem = [], apelido = {};
+    function semPrefixo(x) { return String(x || '').trim().replace(/^[MG]-/i, ''); }
+    linhas('campanhas').forEach(function (c) {
+      if (!c.id) return; porId[c.id] = { base: c, prop: null }; ordem.push(c.id);
+      [c.id, semPrefixo(c.id), semPrefixo(c.plataforma_id)].forEach(function (k) { if (k && !apelido[k]) apelido[k] = c.id; });
+    });
     props.filter(function (r) { return r.tipo === 'campanha'; }).forEach(function (r) {
-      var id = r.campanha_id || r.id;
+      // campanha_id com ou sem o prefixo M-/G-, ou o id da plataforma: a mesma campanha do ledger.
+      var cands = [r.campanha_id, r.id].map(function (x) { return String(x || '').trim(); }).filter(Boolean);
+      var id = null;
+      cands.forEach(function (k) { if (!id) id = porId[k] ? k : (apelido[k] || apelido[semPrefixo(k)] || null); });
+      id = id || cands[0];
       if (!porId[id]) { porId[id] = { base: null, prop: null }; ordem.push(id); }
       porId[id].prop = r;
     });
@@ -679,7 +717,8 @@ var PainelLib = (function () {
         id: id, item_id: 'campanha:' + (r ? r.id : id), origem: r ? 'propostas' : 'ledger',
         empresa: (r && r.empresa) || b.empresa || '', canal: b.canal || '', objetivo: b.objetivo || '',
         plataforma_id: b.plataforma_id || '', estado: String((r ? r.estado : b.estado) || '').trim(),
-        verba_diaria: (r ? r.verba_diaria : b.verba_diaria) || '', inicio: (r ? r.inicio : b.inicio) || '', fim: (r ? r.fim : b.fim) || '',
+        // Proposta manda; campo vazio na proposta usa o valor do ledger.
+        verba_diaria: (r && r.verba_diaria) || b.verba_diaria || '', inicio: (r && r.inicio) || b.inicio || '', fim: (r && r.fim) || b.fim || '',
         publico_resumo: r ? r.publico_resumo || '' : '', plano_fileId: r ? r.plano_fileId || '' : '', versao: r ? r.versao || '' : '',
         aprovado_em: b.aprovado_em || '', link: r && ehLink(r.plataforma_link) ? r.plataforma_link : ''
       };
@@ -785,7 +824,7 @@ var PainelLib = (function () {
   }
 
   /** Versão exibida no topo do painel. Atualize a cada implantação. */
-  var VERSAO_PAINEL = '2.0.0';
+  var VERSAO_PAINEL = '2.0.1';
   var POSTS_INTEGRADOS = false;
   var ESTADOS_DECIDIVEIS = { design: ['entregue'], post: ['rascunho', 'aguardando_aprovo'] };
 
