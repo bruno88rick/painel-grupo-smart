@@ -114,9 +114,16 @@
     {
       "id": "investimentos",
       "rotulo": "Investimentos",
-      "ativo": false,
+      "ativo": true,
       "agente": "Analista de Investimentos",
-      "fontes": {}
+      "fontes": {
+        "ledger": {
+          "folderId": "ID_DA_PASTA_ledger_investimentos"
+        },
+        "arquivos": {
+          "_comentario": "Opcional: fileId por arquivo (posicoes, precos, metas, recomendacoes, aportes, previdencia, reserva, alertas). Sem fileId, o painel procura pelo nome na pasta do ledger: Posicoes.csv, Precos.csv, Metas_ARCA.csv, Recomendacoes.csv, Aportes.csv, Previdencia.csv, Reserva.csv, Alerts.csv."
+        }
+      }
     },
     {
       "id": "estudos",

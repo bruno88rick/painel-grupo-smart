@@ -427,7 +427,7 @@ var PainelLib = (function () {
    * Chave da integração com o Gestor de Tráfego. Enquanto false, os botões de decisão de
    * Posts e anúncios ficam desabilitados e o servidor não grava nada. Só o Builder liga.
    */
-  var CHAVES = { ANUNCIOS_INTEGRADOS: false, SUPORTE_INTEGRADO: false, EMAILS_INTEGRADO: false, FINANCAS_INTEGRADO: false };
+  var CHAVES = { ANUNCIOS_INTEGRADOS: false, SUPORTE_INTEGRADO: false, EMAILS_INTEGRADO: false, FINANCAS_INTEGRADO: false, INVESTIMENTOS_INTEGRADO: false };
   var DECISOES_ANUNCIOS = {
     post: { aprovar: ['rascunho', 'aguardando_aprovo'], refazer: ['rascunho', 'aguardando_aprovo'], recusar: ['rascunho', 'aguardando_aprovo'] },
     campanha: { aprovar: ['plano', 'ajuste'], refazer: ['plano', 'ajuste'], recusar: ['plano', 'ajuste'], pausar: ['ativo'] }
@@ -1437,6 +1437,189 @@ var PainelLib = (function () {
     montar: montarFinancas
   });
 
+  /* ---------- v3: Investimentos (Analista de Investimentos) ---------- */
+  /** Número com ponto decimal e qualquer casa ("0.00531465", "5.5056") ou no formato BR (numBr). */
+  function numDec(t) { var x = String(t === null || t === undefined ? '' : t).trim(); return /^-?\d+\.\d+$/.test(x) || /^-?\d+$/.test(x) ? +x : numBr(x); }
+
+  var ESTADOS_APORTE = [[/^confirmad/, 'confirmado'], [/^(nao fiz|nao feito|cancelad|desistiu)/, 'nao_feito']];
+
+  /**
+   * Hora da cotação em horário de Brasília: "2026-11-06 16:17 BRT", "2026-11-06 16:00 NY" (NY = BRT - 2 h
+   * no horário de inverno de lá) ou só a data (ação dos EUA: fechamento às 18:00 BRT; outros: 00:00).
+   */
+  function quandoPreco(txt, moeda) {
+    var s = String(txt || '').trim();
+    var m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:\s+(\d{1,2}):(\d{2}))?\s*([A-Za-z]+)?/);
+    if (!m) return null;
+    var h = m[4] ? +m[4] : (moeda === 'USD' ? 18 : 0), mi = m[5] ? +m[5] : 0;
+    if (m[4] && /^NY$/i.test(m[6] || '')) h += 2;
+    return new Date(+m[1], +m[2] - 1, +m[3], h, mi);
+  }
+
+  function canonicoAporte(a) { return canonicoV3('aporte', [a.data, a.destino, a.categoria_arca, a.ativo, a.valor_brl, a.origem, a.estado_texto]); }
+
+  /** Série de preços por ativo, em ordem de hora; pontos intradiários ("não é fechamento") ficam marcados. */
+  function seriesPrecos(linhas) {
+    var s = {};
+    linhas.forEach(function (x, i) {
+      var ativo = String(x.ativo || '').trim(), v = numDec(x.fechamento), moeda = String(x.moeda || '').trim();
+      var q = quandoPreco(x.data, moeda);
+      if (!ativo || v === null || !q) return;
+      (s[ativo] = s[ativo] || []).push({ quando: dataIso(q), t: q.getTime(), i: i, valor: v, moeda: moeda, fonte: String(x.fonte || '').trim(),
+        intradiario: /intradi|nao e fechamento/.test(semAcento(x.fonte)) });
+    });
+    Object.keys(s).forEach(function (k) {
+      // mesma hora repetida: vale a última linha do arquivo
+      var por = {};
+      s[k].forEach(function (p) { por[p.t] = p; });
+      s[k] = Object.keys(por).map(function (t) { return por[t]; }).sort(function (a, b) { return a.t - b.t || a.i - b.i; });
+    });
+    return s;
+  }
+
+  function resumoAtivo(serie, nome) {
+    var pts = (serie || []).filter(function (p) { return !p.intradiario; });
+    if (!pts.length) return null;
+    var ult = pts[pts.length - 1], ant = pts.length > 1 ? pts[pts.length - 2] : null, pri = pts[0];
+    var pct = function (a, b) { return b ? arred((a / b - 1) * 100) : null; };
+    return { ativo: nome, ultimo: ult.valor, moeda: ult.moeda, quando: ult.quando, fonte: ult.fonte,
+      anterior: ant ? ant.valor : null, anterior_quando: ant ? ant.quando : '', var_pct: ant ? pct(ult.valor, ant.valor) : null,
+      inicio: pri.valor, inicio_quando: pri.quando, var_periodo_pct: pts.length > 1 ? pct(ult.valor, pri.valor) : null,
+      pontos: pts.slice(-30).map(function (p) { return { quando: p.quando, valor: p.valor }; }),
+      intradiarios_fora: (serie || []).length - pts.length };
+  }
+
+  function montarInvestimentos(f, dm, agora) {
+    var L = function (k) { return (f[k] && f[k].linhas) || []; };
+    var hoje = soDia(agora), mesHoje = diaIso(agora).slice(0, 7);
+    var series = seriesPrecos(L('precos'));
+    var ultimo = function (a) { var s = series[a]; return s && s.length ? s[s.length - 1].valor : null; };
+    var usdbrl = ultimo('USDBRL');
+    var btc = resumoAtivo(series.BTCBRL, 'BTC'), btcUsd = resumoAtivo(series.BTCUSD, 'BTCUSD'), aapl = resumoAtivo(series.AAPL, 'AAPL');
+    var precoAgora = function (ativo, moeda) {
+      if (ativo === 'BTC') return moeda === 'USD' ? ultimo('BTCUSD') : ultimo('BTCBRL');
+      return ultimo(ativo);
+    };
+
+    // Posições: valor ao último preço, em reais
+    var posicoes = L('posicoes').filter(function (x) { return String(x.ativo || '').trim(); }).map(function (x) {
+      var qtd = numDec(x.quantidade), moeda = String(x.moeda || '').trim() || 'BRL', pm = numDec(x.preco_medio);
+      var p = qtd !== null ? precoAgora(String(x.ativo).trim(), moeda) : null;
+      var pBrl = p === null ? null : moeda === 'USD' ? (usdbrl ? p * usdbrl : null) : p;
+      return { ativo: String(x.ativo).trim(), plataforma: String(x.plataforma || '').trim(), categoria: String(x.categoria_arca || '').trim(),
+        quantidade: qtd, quantidade_texto: String(x.quantidade || '').trim(), preco_medio: pm, moeda: moeda, custo_total: numDec(x.custo_total),
+        preco_atual: p, valor_brl: qtd !== null && pBrl !== null ? arred(qtd * pBrl) : null,
+        ganho_pct: p !== null && pm ? arred((p / pm - 1) * 100) : null,
+        data: String(x.data || '').trim(), notas: String(x.notas || '').trim(), estado: String(x.estado || '').trim() };
+    });
+
+    // Carteira ARCA: linhas da data mais recente de Metas_ARCA
+    var metas = L('metas').filter(function (x) { return /^\d{4}-\d{2}-\d{2}/.test(String(x.data || '').trim()); });
+    var dataMeta = metas.reduce(function (d, x) { var t = String(x.data).trim().slice(0, 10); return t > d ? t : d; }, '');
+    var daData = metas.filter(function (x) { return String(x.data).trim().slice(0, 10) === dataMeta; });
+    var arca = [], fora = [];
+    daData.forEach(function (x) {
+      var meta = numDec(x.meta_pct), o = { categoria: String(x.categoria || '').trim(), valor: numDec(x.valor_brl), valor_texto: String(x.valor_brl || '').trim(),
+        peso_pct: numDec(x.peso_pct), meta_pct: meta, meta_texto: String(x.meta_pct || '').trim() };
+      (meta !== null ? arca : fora).push(o);
+    });
+    var totalArca = arred(arca.reduce(function (s, x) { return s + (x.valor || 0); }, 0));
+    arca.forEach(function (x) {
+      x.peso_pct = x.peso_pct !== null ? x.peso_pct : (totalArca ? arred(x.valor / totalArca * 100) : 0);
+      x.dif_pp = arred(x.peso_pct - x.meta_pct);
+      x.falta_brl = totalArca ? arred(x.meta_pct / 100 * totalArca - (x.valor || 0)) : null;
+    });
+    var somaMeta = arca.reduce(function (s, x) { return s + x.meta_pct; }, 0);
+    // Valor das posições ARCA ao último preço, por categoria (comparação com o Metas_ARCA do agente)
+    var hojePorCat = {};
+    posicoes.forEach(function (p) { if (p.valor_brl !== null) hojePorCat[p.categoria] = arred((hojePorCat[p.categoria] || 0) + p.valor_brl); });
+
+    // Recomendações: mais recentes primeiro
+    var recs = L('recomendacoes').filter(function (x) { return String(x.ativo || '').trim() && /^\d{4}-\d{2}-\d{2}/.test(String(x.data || '').trim()); }).map(function (x, i) {
+      var d = parseData(x.data), ativo = String(x.ativo).trim(), preco = numDec(x.preco);
+      var agoraP = ativo === 'BTC' ? ultimo('BTCUSD') : ultimo(ativo);
+      var vence = d ? new Date(d.getTime() + 30 * DIA_MS) : null;
+      return { i: i, data: String(x.data).trim().slice(0, 10), ativo: ativo, preco: preco, sinal: String(x.sinal || '').trim().toUpperCase(), score: String(x.score || '').trim(),
+        motivo: String(x.motivo || '').trim(), resultado_30d: String(x.resultado_30d || '').trim(), vence_30d: vence ? diaIso(vence) : '',
+        desde_pct: preco && agoraP !== null ? arred((agoraP / preco - 1) * 100) : null };
+    }).sort(function (a, b) { return b.data.localeCompare(a.data) || b.i - a.i; });
+    var ultimaRec = {};
+    recs.forEach(function (r) { if (!ultimaRec[r.ativo]) ultimaRec[r.ativo] = r; });
+
+    // Previdência: última linha; anterior para comparar
+    var prev = L('previdencia').filter(function (x) { return String(x.data_ref || '').trim(); }).map(function (x) {
+      var ref = String(x.data_ref).trim(), m = ref.match(/^(\d{4}-\d{2}(?:-\d{2})?)\s*(?:\((.*)\))?/);
+      return { ref: m ? m[1] : ref, obs: m && m[2] ? m[2].trim() : '', ref_texto: ref, saldo: numDec(x.saldo_oficial), aporte_pessoal: numDec(x.aporte_pessoal),
+        aporte_empresa: numDec(x.aporte_empresa), rendimento: numDec(x.rendimento), rentabilidade_pct: String(x.rentabilidade_pct || '').trim() };
+    });
+    var previdencia = prev.length ? Object.assign({}, prev[prev.length - 1], { anterior: prev.length > 1 ? prev[prev.length - 2] : null, linhas: prev.length }) : null;
+
+    // Reserva: última linha (a de data maior; empate = a mais abaixo no arquivo)
+    var res = L('reserva').filter(function (x) { return String(x.data || '').trim(); }).map(function (x, i) {
+      return { i: i, data: String(x.data).trim(), saldo: numDec(x.saldo), aporte: numDec(x.aporte), produto: String(x.produto || '').trim() };
+    }).sort(function (a, b) { return a.data.localeCompare(b.data) || a.i - b.i; });
+    var notaReserva = '';
+    posicoes.forEach(function (p) { if (/reserva/i.test(p.ativo)) notaReserva = p.notas; });
+    var reserva = res.length ? Object.assign({}, res[res.length - 1], { nota: notaReserva }) : null;
+
+    // Aportes: os do mês e os que esperam confirmação (aceitam decisão)
+    var aportes = L('aportes').filter(function (x) { return String(x.data || '').trim() && String(x.destino || x.ativo || '').trim(); }).map(function (x, i) {
+      var et = String(x.estado || '').trim();
+      var a = { i: i, data: String(x.data).trim(), destino: String(x.destino || '').trim(), categoria_arca: String(x.categoria_arca || '').trim(), ativo: String(x.ativo || '').trim(),
+        valor_brl: String(x.valor_brl || '').trim(), valor: numDec(x.valor_brl), origem: String(x.origem || '').trim(), estado_texto: et, estado: classificarComeco(et, ESTADOS_APORTE, 'pendente') };
+      a.item_id = 'aporte:' + a.data + '|' + a.destino + '|' + a.origem;
+      a.tipo_item = 'aporte'; a.versao = '';
+      a.snapshot_hash = sha256(canonicoAporte(a));
+      return a;
+    });
+    aportes = ultimaPor(aportes, 'item_id');
+    var pendentes = aportes.filter(function (a) { return a.estado === 'pendente'; }).sort(function (a, b) { return a.data.localeCompare(b.data); });
+    var doMes = aportes.filter(function (a) { return a.data.slice(0, 7) === mesHoje; }).sort(function (a, b) { return b.data.localeCompare(a.data) || b.i - a.i; });
+    var somaMes = arred(doMes.reduce(function (s, a) { return s + (a.estado === 'confirmado' && a.valor ? a.valor : 0); }, 0));
+
+    var alertas = L('alertas').filter(function (a) { return String(a.alert_id || a.item_link || '').trim(); }).map(function (a, i) {
+      return { id: a.alert_id || '', i: i, quando: a.created_at || '', tier: String(a.tier || '').trim(), assunto: a.item_link || '', objeto: a.object_id || '', sinais: a.signals || '', resultado: String(a.outcome || '').trim() };
+    }).sort(function (a, b) { return ((parseData(b.quando) || 0) - (parseData(a.quando) || 0)) || b.i - a.i; });
+    var nowPend = alertas.filter(function (a) { return /^now/i.test(a.tier) && (!a.resultado || /^pending/i.test(a.resultado)); }).length;
+
+    var precisa = [
+      { rotulo: pendentes.length === 1 ? 'aporte esperando confirmação' : 'aportes esperando confirmação', n: pendentes.length },
+      { rotulo: nowPend === 1 ? 'alerta Now pendente' : 'alertas Now pendentes', n: nowPend }
+    ];
+    return {
+      itens: pendentes,
+      precos: { btc: btc, btc_usd: btcUsd, aapl: aapl, usdbrl: usdbrl, aapl_brl: aapl && usdbrl ? arred(aapl.ultimo * usdbrl) : null },
+      posicoes: posicoes,
+      carteira: { data: dataMeta, arca: arca, fora: fora, total_arca: totalArca, soma_meta: somaMeta, hoje_por_categoria: hojePorCat },
+      recomendacoes: recs.slice(0, 12), ultima_por_ativo: Object.keys(ultimaRec).sort().map(function (k) { return ultimaRec[k]; }), recomendacoes_total: recs.length,
+      previdencia: previdencia, reserva: reserva,
+      aportes: { pendentes: pendentes.map(function (a) { return a.item_id; }), mes: mesHoje, do_mes: doMes, soma_mes: somaMes },
+      alertas: alertas.slice(0, 10),
+      precisa: { total: precisa.reduce(function (s, p) { return s + p.n; }, 0), partes: precisa }
+    };
+  }
+
+  registrarModuloV3({
+    id: 'investimentos', rotulo: 'Investimentos', agente: 'Analista de Investimentos', chave: 'INVESTIMENTOS_INTEGRADO',
+    fontes: {
+      posicoes: { arquivo: 'Posicoes.csv', rotulo: 'Posições (Investimentos)', obrigatorias: ['ativo', 'categoria_arca', 'quantidade', 'moeda'] },
+      precos: { arquivo: 'Precos.csv', rotulo: 'Preços (Investimentos)', obrigatorias: ['data', 'ativo', 'fechamento'] },
+      metas: { arquivo: 'Metas_ARCA.csv', rotulo: 'Metas ARCA (Investimentos)', obrigatorias: ['data', 'categoria', 'valor_brl', 'meta_pct'] },
+      recomendacoes: { arquivo: 'Recomendacoes.csv', rotulo: 'Recomendações (Investimentos)', obrigatorias: ['data', 'ativo', 'sinal'], opcional: true },
+      aportes: { arquivo: 'Aportes.csv', rotulo: 'Aportes (Investimentos)', obrigatorias: ['data', 'destino', 'valor_brl', 'estado'] },
+      previdencia: { arquivo: 'Previdencia.csv', rotulo: 'Previdência (Investimentos)', obrigatorias: ['data_ref', 'saldo_oficial'], opcional: true },
+      reserva: { arquivo: 'Reserva.csv', rotulo: 'Reserva (Investimentos)', obrigatorias: ['data', 'saldo'], opcional: true },
+      alertas: { arquivo: 'Alerts.csv', rotulo: 'Alertas (Investimentos)', obrigatorias: ['tier'], opcional: true }
+    },
+    decisoes: {
+      aporte: {
+        fiz_aporte: { rotulo: 'Fiz o aporte', estados: ['pendente'], campos: [{ k: 'data', obrigatorio: false, rotulo: 'Data do aporte' }, { k: 'valor', obrigatorio: false, rotulo: 'Valor (R$)' }, { k: 'texto', obrigatorio: false, rotulo: 'Comentário' }], primario: true },
+        nao_fiz: { rotulo: 'Não fiz', estados: ['pendente'], campos: [{ k: 'texto', obrigatorio: false, rotulo: 'Motivo' }] }
+      }
+    },
+    montar: montarInvestimentos
+  });
+
   /** Todas as decisões que os módulos v3 aceitam. */
   function decisoesV3() {
     var r = [];
@@ -1461,7 +1644,7 @@ var PainelLib = (function () {
   }
 
   /** Versão exibida no topo do painel. Atualize a cada implantação. */
-  var VERSAO_PAINEL = '3.0.0-financas';
+  var VERSAO_PAINEL = '3.0.0-investimentos';
   var POSTS_INTEGRADOS = false;
   var ESTADOS_DECIDIVEIS = { design: ['entregue'], post: ['rascunho', 'aguardando_aprovo'] };
 
@@ -1544,7 +1727,7 @@ var PainelLib = (function () {
     decisoesComRecibos: decisoesComRecibos,
     montarModulosV3: montarModulosV3,
     conferirDecisaoV3: conferirDecisaoV3,
-    numBr: numBr, tipoCodigo: tipoCodigo, consertarLinha: consertarLinha, canonicoConta: canonicoConta, canonicoRateio: canonicoRateio, limparTokens: limparTokens, ESTADOS_CONTA: ESTADOS_CONTA,
+    numBr: numBr, tipoCodigo: tipoCodigo, consertarLinha: consertarLinha, canonicoConta: canonicoConta, canonicoRateio: canonicoRateio, limparTokens: limparTokens, quandoPreco: quandoPreco, numDec: numDec, seriesPrecos: seriesPrecos, canonicoAporte: canonicoAporte, ESTADOS_APORTE: ESTADOS_APORTE, ESTADOS_CONTA: ESTADOS_CONTA,
     parseComentarioV3: parseComentarioV3,
     montarComentarioV3: montarComentarioV3,
     classificarComeco: classificarComeco,

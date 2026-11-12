@@ -1,0 +1,8 @@
+data,ativo,preco,sinal,score,motivo,resultado_30d
+2026-11-06,AAPL,344.17,MANTER,+1,Acima de MA50 e MA90 (+2); RSI 53 caindo (-1); MACD negativo mas subindo (0),
+2026-11-06,BTC,75614.93,VENDER,-3,"Abaixo de MA50 e MA90 (-2); histograma MACD negativo e caindo (-1); RSI 38 fora de 40-60; perto do suporte de 30 dias",
+2026-11-06,AAPL,342.37,MANTER,0,"Acima de MA50 e MA90 (+2); histograma MACD negativo e caindo (-1); RSI 51 caindo (-1)",
+2026-11-09,BTC,74734.40,VENDER,-2,"Abaixo de MA50 (81.613) e MA90 (78.878) (-2); histograma MACD negativo mas subindo (0); RSI 35,8 estável, fora de 40-60 (0); 1,7% acima do suporte de 30 dias (73.477)",
+2026-11-09,AAPL,350.45,COMPRAR,+3,"Acima de MA50 (336,63) e MA90 (327,96) (+2); RSI 57,4 subindo (+1); histograma MACD negativo mas subindo (0)",
+2026-11-10,AAPL,348.64,MANTER,+1,"Acima de MA50 (337,27) e MA90 (328,36) (+2); RSI 55,7 caindo (-1); histograma MACD negativo mas subindo (0)",
+2026-11-11,AAPL,355.63,COMPRAR,+3,"Acima de MA50 (337,88) e MA90 (328,86) (+2); histograma MACD virou positivo e subindo (+1); RSI 60,4 subindo, fora da faixa 40-60 (0)",

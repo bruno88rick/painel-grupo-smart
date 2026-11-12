@@ -1,0 +1,6 @@
+ativo,plataforma,categoria_arca,quantidade,preco_medio,moeda,custo_total,data,notas,estado
+AAPL,não informada,Alternativos,0.0636,309.52,USD,19.69,2026-11-02,Taxas desconhecidas; orçamento Apple indefinido,confirmado
+BTC,Corretora Alfa,Alternativos,0.00228530,334588.71,BRL,786.64,2026-02-06,"Custo inclui R$ 22 de taxas; break-even R$ 351.749,09",confirmado
+BTC,App Cripto Beta,Alternativos,0.00002867,71262.30,USD,,2026-11-02,"Recebido, não é aporte; referência ~US$ 2,21; base fiscal indefinida",confirmado
+Previdência PrevPlano,PrevPlano,Fora da ARCA,,,BRL,,2026-11-01,"Saldo oficial R$ 85.554,92 (ref. 10/2026); base provisória R$ 85.759,88 com aporte de 01/11",confirmado
+Reserva de emergência,Tesouro Selic,Fora da ARCA,,,BRL,0.00,2026-11-10,Saldo zero confirmado pelo usuário em 10/11 (nenhum aporte no Tesouro Selic ainda); R$ 250/mês planejados,confirmado

@@ -1,0 +1,154 @@
+<script>
+/* Tela do módulo Investimentos (v3). Lê Posicoes.csv, Precos.csv, Metas_ARCA.csv, Recomendacoes.csv, Aportes.csv,
+   Previdencia.csv, Reserva.csv e Alerts.csv do Analista de Investimentos. Só leitura no Drive; não acessa corretora. */
+(function () {
+  'use strict';
+  var MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  var SINAL = { COMPRAR: ['aprovado', 'Comprar'], VENDER: ['refazer', 'Vender'], MANTER: ['novo', 'Manter'] };
+
+  function num(n, casas) {
+    if (n === null || n === undefined || isNaN(n)) return '-';
+    var neg = n < 0, p = Math.abs(n).toFixed(casas === undefined ? 2 : casas).split('.');
+    return (neg ? '-' : '') + p[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.') + (p[1] ? ',' + p[1] : '');
+  }
+  function brl(n) { return n === null || n === undefined || isNaN(n) ? '-' : (n < 0 ? '-' : '') + 'R$\u00a0' + num(Math.abs(n)); }
+  function usd(n) { return n === null || n === undefined || isNaN(n) ? '-' : 'US$\u00a0' + num(n); }
+  function moeda(n, m) { return m === 'USD' ? usd(n) : brl(n); }
+  function pct(n) { return n === null || n === undefined || isNaN(n) ? '-' : (n > 0 ? '+' : '') + num(n) + '%'; }
+  function cls(n) { return n > 0 ? 'inv-sobe' : n < 0 ? 'inv-desce' : ''; }
+  function nomeMes(m) { var p = String(m || '').split('-'); return p.length >= 2 ? MESES[+p[1] - 1] + '/' + p[0] : m; }
+  function quando(q, U) { var p = String(q || '').split(' '); return U.dataBr(p[0]) + (p[1] ? ' ' + p[1] : ''); }
+
+  /** Gráfico de linha simples (SVG), sem biblioteca. */
+  function grafico(pontos, rotulo, U) {
+    if (!pontos || pontos.length < 2) return '<p class="mudo ajuda">Ainda sem pontos suficientes para o gráfico.</p>';
+    var vs = pontos.map(function (p) { return p.valor; }), min = Math.min.apply(null, vs), max = Math.max.apply(null, vs), amp = max - min || 1;
+    var W = 300, H = 80, n = pontos.length;
+    var xy = pontos.map(function (p, i) { return [Math.round(i / (n - 1) * W * 10) / 10, Math.round((H - 6 - (p.valor - min) / amp * (H - 12)) * 10) / 10]; });
+    var linha = xy.map(function (c) { return c[0] + ',' + c[1]; }).join(' ');
+    var area = '0,' + H + ' ' + linha + ' ' + W + ',' + H;
+    return '<figure class="inv-grafico"><svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img" aria-label="' + U.esc(rotulo) + '">' +
+      '<polygon class="inv-area" points="' + area + '"></polygon><polyline class="inv-linha" points="' + linha + '" vector-effect="non-scaling-stroke"></polyline></svg>' +
+      '<figcaption class="inv-eixo"><span>' + quando(pontos[0].quando, U) + '</span><span>mín ' + num(min) + ' · máx ' + num(max) + '</span><span>' + quando(pontos[n - 1].quando, U) + '</span></figcaption></figure>';
+  }
+
+  function cartaoPreco(r, titulo, extra, U) {
+    var e = U.esc;
+    if (!r) return '<article class="cartao-v3"><div class="cartao-titulo">' + e(titulo) + '</div><div class="vazio">Sem cotação no Precos.csv.</div></article>';
+    return '<article class="cartao-v3 inv-preco"><div class="v3-topo"><span class="cartao-empresa">' + e(titulo) + '</span><span class="mudo inv-quando">' + quando(r.quando, U) + '</span></div>' +
+      '<div class="inv-valor">' + e(moeda(r.ultimo, r.moeda)) + '</div>' +
+      '<div class="v3-meta"><span class="' + cls(r.var_pct) + '"><b>' + pct(r.var_pct) + '</b> desde ' + quando(r.anterior_quando, U) + '</span>' +
+      (r.var_periodo_pct !== null ? '<span class="' + cls(r.var_periodo_pct) + '">' + pct(r.var_periodo_pct) + ' desde ' + U.dataBr(String(r.inicio_quando).slice(0, 10)) + '</span>' : '') + '</div>' +
+      (extra ? '<p class="mudo ajuda">' + extra + '</p>' : '') +
+      grafico(r.pontos, 'Preço de ' + titulo, U) +
+      (r.intradiarios_fora ? '<p class="mudo ajuda">' + r.intradiarios_fora + (r.intradiarios_fora === 1 ? ' cotação intradiária ficou' : ' cotações intradiárias ficaram') + ' fora (não são fechamento).</p>' : '') +
+      '</article>';
+  }
+
+  function cartaoAporte(x, U, V3) {
+    var e = U.esc;
+    x.titulo_curto = x.destino + ' · ' + U.dataBr(x.data) + (x.valor !== null ? ' · ' + brl(x.valor) : '');
+    return '<article class="cartao-v3"><div class="v3-topo"><span class="cartao-empresa">' + e(x.categoria_arca || 'sem categoria') + ' · ' + e(x.ativo) + '</span>' + U.selo('entregue', 'Esperando confirmação') + '</div>' +
+      '<div class="fin-linha-titulo"><span class="cartao-titulo">' + e(x.destino) + '</span><span class="fin-valor">' + e(x.valor !== null ? brl(x.valor) : (x.valor_brl || 'sem valor')) + '</span></div>' +
+      '<div class="v3-meta"><span>Data ' + U.dataBr(x.data) + '</span><span>Origem: ' + e(x.origem || '-') + '</span></div>' +
+      '<p class="v3-resumo"><b>Estado:</b> ' + e(x.estado_texto || '(vazio)') + '</p>' +
+      V3.botoes('investimentos', x, { fiz_aporte: 'Fiz o aporte', nao_fiz: 'Não fiz' }) + '</article>';
+  }
+
+  function blocoCarteira(c, U) {
+    var e = U.esc;
+    if (!c.data) return '<div class="vazio">Ainda sem Metas_ARCA.</div>';
+    var h = '<p class="mudo ajuda">Metas_ARCA de ' + U.dataBr(c.data) + ' · total na ARCA ' + brl(c.total_arca) + (c.soma_meta !== 100 ? ' · as metas somam ' + num(c.soma_meta, 0) + '%' : '') + '</p><div class="inv-arca">';
+    h += c.arca.map(function (x) {
+      var w = Math.max(0, Math.min(100, x.peso_pct || 0)), mt = Math.max(0, Math.min(100, x.meta_pct));
+      var dif = x.dif_pp > 0 ? num(x.dif_pp, 1) + ' pp acima da meta' : x.dif_pp < 0 ? num(-x.dif_pp, 1) + ' pp abaixo da meta' : 'na meta';
+      return '<div class="inv-cat"><div class="fin-cat-cab"><span class="contagem-nome"><b>' + e(x.categoria) + '</b></span><span class="fin-cat-valor">' + brl(x.valor) + '</span></div>' +
+        '<div class="inv-barra" role="img" aria-label="' + e(x.categoria + ': ' + num(x.peso_pct, 1) + '% da carteira, meta ' + num(x.meta_pct, 0) + '%') + '"><i style="width:' + w + '%"></i><b class="inv-meta" style="left:' + mt + '%"></b></div>' +
+        '<div class="inv-cat-rodape mudo"><span>' + num(x.peso_pct, 1) + '% · meta ' + num(x.meta_pct, 0) + '%</span><span class="' + (x.dif_pp > 0 ? 'inv-acima' : x.dif_pp < 0 ? 'inv-abaixo' : '') + '">' + dif +
+        (x.falta_brl > 0 ? ' · faltam ' + brl(x.falta_brl) : '') + '</span></div></div>';
+    }).join('') + '</div><p class="mudo ajuda">Barra: peso atual na carteira ARCA. Traço: meta.</p>';
+    var hoje = c.hoje_por_categoria || {};
+    Object.keys(hoje).forEach(function (k) {
+      var x = null; c.arca.forEach(function (a) { if (a.categoria === k) x = a; });
+      if (x) h += '<p class="mudo ajuda">' + e(k) + ' ao último preço: ' + brl(hoje[k]) + ' (no Metas_ARCA: ' + brl(x.valor) + ').</p>';
+    });
+    if (c.fora.length) {
+      h += '<h3>Fora da ARCA</h3><div class="fontes">' + c.fora.map(function (x) {
+        return '<div class="fonte"><span><b>' + e(x.categoria) + '</b>' + (x.meta_texto ? '<br><span class="mudo">' + e(x.meta_texto) + '</span>' : '') + '</span><span class="quando">' + e(x.valor !== null ? brl(x.valor) : (x.valor_texto || 'não informado')) + '</span></div>';
+      }).join('') + '</div>';
+    }
+    return h;
+  }
+
+  function cartaoRec(r, U, destaque) {
+    var e = U.esc, s = SINAL[r.sinal] || ['cancelado', r.sinal || 'sem sinal'];
+    var res = r.resultado_30d ? '<b>Resultado em 30 dias:</b> ' + e(r.resultado_30d) : 'Resultado em 30 dias: em aberto até ' + U.dataBr(r.vence_30d);
+    return '<article class="cartao-v3' + (destaque ? ' inv-rec' : '') + '"><div class="v3-topo"><span class="cartao-empresa">' + e(r.ativo) + ' · ' + U.dataBr(r.data) + '</span>' + U.selo(s[0], s[1]) + '</div>' +
+      '<div class="fin-linha-titulo"><span class="cartao-titulo">Score ' + e(r.score || '-') + '</span><span class="fin-valor">' + e(r.preco !== null ? (r.ativo === 'AAPL' || r.ativo === 'BTC' ? usd(r.preco) : num(r.preco)) : '-') + '</span></div>' +
+      '<p class="v3-resumo">' + e(r.motivo || '(sem motivo)') + '</p>' +
+      '<div class="v3-meta"><span>' + res + '</span>' + (r.desde_pct !== null ? '<span class="' + cls(r.desde_pct) + '">' + pct(r.desde_pct) + ' desde então</span>' : '') + '</div></article>';
+  }
+
+  PainelV3.registrar('investimentos', {
+    desenhar: function (m, U, V3) {
+      var e = U.esc, it = function (id) { return V3.item('investimentos', id); };
+      var pend = m.aportes.pendentes.map(it).filter(Boolean), p = m.precos;
+      var h = '<h1>Investimentos</h1><p class="intro">Carteira, preços, recomendações, previdência, reserva e aportes do Analista de Investimentos. O painel só lê os arquivos do agente no Drive; não acessa corretora nem banco.</p>' + V3.avisoChave(m);
+      h += '<div class="contadores fin-num">' +
+        '<div class="contador-card' + (pend.length ? ' destaque' : ' zero') + '"><div class="num">' + pend.length + '</div><div class="rot">Aportes esperando confirmação</div></div>' +
+        '<div class="contador-card"><div class="num">' + (p.btc ? brl(p.btc.ultimo) : '-') + '</div><div class="rot">BTC <span class="fin-soma ' + cls(p.btc && p.btc.var_pct) + '">' + (p.btc ? pct(p.btc.var_pct) : '') + '</span></div></div>' +
+        '<div class="contador-card"><div class="num">' + (p.aapl ? usd(p.aapl.ultimo) : '-') + '</div><div class="rot">AAPL <span class="fin-soma ' + cls(p.aapl && p.aapl.var_pct) + '">' + (p.aapl ? pct(p.aapl.var_pct) : '') + '</span></div></div>' +
+        '<div class="contador-card"><div class="num">' + brl(m.carteira.total_arca) + '</div><div class="rot">Carteira ARCA' + (m.carteira.data ? ' em ' + U.dataBr(m.carteira.data) : '') + '</div></div></div>';
+
+      h += '<h2 id="inv-aportes-pend">Aportes para confirmar <span class="qtd">' + pend.length + '</span></h2>' +
+        (pend.length ? '<div class="lista-v3">' + pend.map(function (x) { return cartaoAporte(x, U, V3); }).join('') + '</div>' : '<div class="vazio">Nenhum aporte esperando confirmação.</div>');
+
+      h += '<h2 id="inv-precos">Preços</h2><div class="lista-v3 inv-precos">' +
+        cartaoPreco(p.btc, 'Bitcoin (BTC) em reais', p.btc_usd ? 'Em dólar: ' + e(usd(p.btc_usd.ultimo)) + ' (' + pct(p.btc_usd.var_pct) + ')' : '', U) +
+        cartaoPreco(p.aapl, 'Apple (AAPL)', p.aapl_brl !== null ? 'Em reais: ' + e(brl(p.aapl_brl)) + ' com o dólar a ' + e(num(p.usdbrl, 2)) : '', U) + '</div>';
+
+      h += '<h2 id="inv-carteira">Carteira ARCA</h2>' + blocoCarteira(m.carteira, U);
+
+      var pos = m.posicoes.filter(function (x) { return x.quantidade !== null; });
+      if (pos.length) {
+        h += '<h3>Posições</h3><div class="fontes">' + pos.map(function (x) {
+          return '<div class="fonte"><span><b>' + e(x.ativo) + '</b> · ' + e(x.plataforma || 'plataforma não informada') + '<br><span class="mudo">' + e(num(x.quantidade, x.quantidade < 1 ? 8 : 2).replace(/0+$/, '').replace(/,$/, '')) + ' · preço médio ' + e(moeda(x.preco_medio, x.moeda)) + ' · agora ' + e(moeda(x.preco_atual, x.moeda)) + '</span>' +
+            (x.notas ? '<br><span class="mudo">' + e(x.notas) + '</span>' : '') + '</span><span class="quando">' + e(brl(x.valor_brl)) + '<br><span class="' + cls(x.ganho_pct) + '">' + pct(x.ganho_pct) + '</span></span></div>';
+        }).join('') + '</div>';
+      }
+
+      h += '<h2 id="inv-recs">Recomendações</h2>';
+      h += m.ultima_por_ativo.length ? '<div class="lista-v3">' + m.ultima_por_ativo.map(function (r) { return cartaoRec(r, U, true); }).join('') + '</div>' : '<div class="vazio">Nenhuma recomendação.</div>';
+      if (m.recomendacoes.length > m.ultima_por_ativo.length) {
+        h += '<details class="mais-motivos"><summary>Histórico (' + m.recomendacoes_total + ')</summary><div class="fontes">' + m.recomendacoes.map(function (r) {
+          var s = SINAL[r.sinal] || ['cancelado', r.sinal];
+          return '<div class="fonte"><span>' + U.selo(s[0], s[1]) + ' <b>' + e(r.ativo) + '</b> score ' + e(r.score) + '<br><span class="mudo">' + e(r.motivo) + '</span><br><span class="mudo">' + (r.resultado_30d ? 'Resultado: ' + e(r.resultado_30d) : 'Em aberto até ' + U.dataBr(r.vence_30d)) + '</span></span><span class="quando">' + U.dataBr(r.data) + '</span></div>';
+        }).join('') + '</div></details>';
+      }
+
+      var pv = m.previdencia, rs = m.reserva;
+      h += '<div class="duas-colunas"><div><h2>Previdência</h2>' + (pv ? '<article class="cartao-v3"><div class="v3-topo"><span class="cartao-empresa">Referência ' + e(pv.ref.length === 7 ? nomeMes(pv.ref) : U.dataBr(pv.ref)) + '</span>' + (pv.obs ? U.selo('entregue', 'Provisório') : '') + '</div>' +
+        '<div class="inv-valor">' + brl(pv.saldo) + '</div>' +
+        '<div class="v3-meta">' + (pv.aporte_pessoal !== null ? '<span>Aporte pessoal ' + brl(pv.aporte_pessoal) + '</span>' : '') + (pv.aporte_empresa !== null ? '<span>Empresa ' + brl(pv.aporte_empresa) + '</span>' : '') +
+        (pv.rendimento !== null ? '<span>Rendimento ' + brl(pv.rendimento) + '</span>' : '') + (pv.rentabilidade_pct ? '<span>Rentabilidade ' + e(pv.rentabilidade_pct) + '</span>' : '') + '</div>' +
+        (pv.anterior && pv.anterior.saldo !== null && pv.saldo !== null ? '<p class="mudo ajuda">Antes (' + e(pv.anterior.ref.length === 7 ? nomeMes(pv.anterior.ref) : U.dataBr(pv.anterior.ref)) + '): ' + brl(pv.anterior.saldo) + ' · diferença ' + brl(pv.saldo - pv.anterior.saldo) + '</p>' : '') +
+        (pv.obs ? '<p class="mudo ajuda">' + e(pv.obs) + '</p>' : '') + '</article>' : '<div class="vazio">Sem Previdencia.csv.</div>') + '</div>';
+      h += '<div><h2>Reserva de emergência</h2>' + (rs ? '<article class="cartao-v3"><div class="v3-topo"><span class="cartao-empresa">Em ' + U.dataBr(rs.data) + '</span>' + (rs.saldo ? '' : U.selo('cancelado', 'Saldo zero')) + '</div>' +
+        '<div class="inv-valor">' + brl(rs.saldo) + '</div><p class="v3-resumo"><b>Produto:</b> ' + e(rs.produto || '-') + '</p>' +
+        (rs.aporte ? '<p class="mudo ajuda">Último aporte ' + brl(rs.aporte) + '</p>' : '') + (rs.nota ? '<p class="mudo ajuda">' + e(rs.nota) + '</p>' : '') + '</article>' : '<div class="vazio">Sem Reserva.csv.</div>') + '</div></div>';
+
+      var am = m.aportes.do_mes;
+      h += '<h2 id="inv-aportes">Aportes de ' + e(nomeMes(m.aportes.mes)) + ' <span class="qtd">' + am.length + '</span></h2>' + (am.length ? '<div class="fontes">' + am.map(function (a) {
+        var sel = a.estado === 'confirmado' ? U.selo('aprovado', 'Confirmado') : a.estado === 'nao_feito' ? U.selo('cancelado', 'Não feito') : U.selo('entregue', 'Esperando');
+        return '<div class="fonte"><span>' + sel + ' <b>' + e(a.destino) + '</b><br><span class="mudo">' + e([a.categoria_arca, a.origem].filter(Boolean).join(' · ')) + '</span></span><span class="quando">' + e(a.valor !== null ? brl(a.valor) : 'sem valor em reais') + '<br>' + U.dataBr(a.data) + '</span></div>';
+      }).join('') + '</div><p class="mudo ajuda">Confirmados em reais: ' + brl(m.aportes.soma_mes) + '. Aporte sem valor em reais (ex. em dólar) mostra a origem.</p>' : '<div class="vazio">Nenhum aporte neste mês.</div>');
+
+      h += '<h2>Alertas recentes <span class="qtd">' + m.alertas.length + '</span></h2>' + (m.alertas.length ? '<div class="fontes">' + m.alertas.map(function (a) {
+        var c = /now/i.test(a.tier) ? 'refazer' : /today/i.test(a.tier) ? 'aguardando_aprovo' : 'entregue';
+        return '<div class="fonte"><span>' + U.selo(c, a.tier || 'sem tier') + ' <b>' + e(a.assunto) + '</b><br><span class="mudo">' + e(a.sinais) + '</span></span><span class="quando">' + U.dataBr(a.quando) + '</span></div>';
+      }).join('') + '</div>' : '<div class="vazio">Nenhum alerta.</div>');
+      return h;
+    }
+  });
+})();
+</script>
