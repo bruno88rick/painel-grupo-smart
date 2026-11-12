@@ -2,7 +2,7 @@
 
 Fonte da verdade para o painel (JS) e para o consumidor (Python, `consumidor/consumidor_anuncios.py`). As escolhas de implementação estão em "Decisões de implementação" no fim.
 
-Fluxo: o Gestor de Tráfego escreve `Propostas.csv` → o painel mostra e grava uma linha em `decisoes.csv` → o consumidor aplica em `Propostas.csv` e grava `recibos/<decision_id>.json` → o painel mostra processado ou recusado.
+Fluxo: o Gestor de Tráfego escreve `Propostas.csv` → o painel mostra e grava uma linha em `decisoes.csv` → o consumidor (`--plano`) confere a decisão e entrega a ação ao agente → o agente executa na Meta → o consumidor (`--confirmar <decision_id>`) aplica em `Propostas.csv` e grava `recibos/<decision_id>.json` → o painel mostra processado ou recusado. Decisões inválidas ou de versão velha recebem o recibo `rejeitado` já no `--plano`.
 
 ## Propostas.csv
 
@@ -167,7 +167,7 @@ Motivos de rejeição usados pelo consumidor: `versão desatualizada`, `decisão
 
 ## Aplicar (consumidor)
 
-Só aplica se o hash recalculado da linha atual for igual ao `snapshot_hash` da decisão. Sempre grava `atualizado_em` = `processado_em` do recibo.
+O `--plano` lista a ação; a mudança abaixo só é gravada no `--confirmar`, depois que o agente agiu. Nas duas fases o consumidor só segue se o hash recalculado da linha atual for igual ao `snapshot_hash` da decisão. Sempre grava `atualizado_em` = `processado_em` do recibo.
 
 | Decisão | Mudança em Propostas.csv | Ação para o agente |
 | --- | --- | --- |
@@ -179,7 +179,7 @@ Só aplica se o hash recalculado da linha atual for igual ao `snapshot_hash` da 
 | campanha recusar | `estado=encerrado`, motivo "recusada pelo Bruno" | `registrar_recusa_campanha` |
 | campanha pausar | `estado=pausado` | `pausar_campanha_meta` (feito pelo agente) |
 
-O consumidor nunca publica, nunca chama a API da Meta e nunca aumenta verba. As ações vão para um JSON local que o Gestor de Tráfego executa com as próprias regras.
+O consumidor nunca publica, nunca chama a API da Meta e nunca aumenta verba. As ações saem no JSON do `--plano` (stdout), que o Gestor de Tráfego executa com as próprias regras antes de rodar `--confirmar`.
 
 ## Decisões de implementação
 
@@ -188,9 +188,10 @@ O consumidor nunca publica, nunca chama a API da Meta e nunca aumenta verba. As 
 3. Além do hash, o consumidor confere `versao` da decisão contra a linha (redundante, mesma mensagem "versão desatualizada").
 4. `id` repetido em `decisoes.csv`: só a primeira linha vale, as outras são ignoradas sem recibo (o nome do recibo já pertence à primeira). Mesma versão (item + hash) já aplicada por outra decisão: recibo rejeitado "decisão duplicada". Uma decisão rejeitada antes não bloqueia uma nova sobre a mesma versão.
 5. Verba é normalizada ao gravar (`8.50` → `8.5`). Verba igual à proposta aprova sem mudar a linha.
-6. Ledger de fases: `recebida` já guarda o `hash_depois` previsto. Se a execução cair entre o upload e o registro de `propostas_atualizada`, a próxima reconhece a linha pelo `hash_depois` e só cria o recibo. Rejeições vão de `recebida` direto para `recibo_criado`.
-7. Create ambíguo do recibo: uma listagem por nome. Existe → feito. Não existe → pendente para a próxima execução (não recria na mesma execução, para não duplicar se a listagem do Drive estiver atrasada). Dois ou mais com o mesmo nome → não cria outro e avisa.
+6. Ledger de fases: `planejada` (no `--plano`) → `confirmando` (no `--confirmar`, já com o `hash_depois` previsto, antes do upload) → `propostas_atualizada` → `recibo_criado`. Se a execução cair entre o upload e o registro de `propostas_atualizada`, o próximo `--confirmar` reconhece a linha pelo `hash_depois` e só cria o recibo. Rejeições vão de `rejeitada` para `recibo_criado`. Entradas antigas com a fase `recebida` são convertidas (ver README do consumidor).
+7. Create ambíguo do recibo: uma listagem por nome. Existe → feito. Não existe → pendente para o próximo `--confirmar` (não recria na mesma execução, para não duplicar se a listagem do Drive estiver atrasada). Dois ou mais com o mesmo nome → não cria outro e avisa.
 8. Ledger em `recibo_criado` mas o recibo sumiu de `recibos/`: não recria, só avisa.
 9. Antes de cada upload o consumidor confere o md5 de `Propostas.csv` no Drive; se mudou desde o download, para sem gravar.
-10. `Propostas.csv` não configurado (`propostas_fileId` = `PREENCHER`): sai com mensagem e código 0, sem rejeitar as decisões (elas esperam).
+10. `Propostas.csv` não configurado (`propostas_fileId` = `PREENCHER`): o `--plano` sai com mensagem e código 0, sem rejeitar as decisões (elas esperam); o `--confirmar` sai com 3.
 11. Qualquer 401/403/invalid_grant/unauthenticated (ou exit 2 do gws) para tudo com código 2, inclusive 403 de cota.
+12. Se a linha mudou entre o `--plano` e o `--confirmar`, o `--confirmar` não grava nada e sai com 3 ("versão desatualizada"); se o agente já agiu na Meta, a correção de `Propostas.csv` é manual.
