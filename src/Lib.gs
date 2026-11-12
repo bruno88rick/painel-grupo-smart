@@ -239,7 +239,7 @@ var PainelLib = (function () {
     });
     var pendentes = todas.filter(function (d) { return !d.recibo; });
     var pendPorItem = {};
-    pendentes.forEach(function (d) { pendPorItem[d.item_id] = d; });
+    pendentes.forEach(function (d) { if (d.modulo !== 'anuncios') pendPorItem[d.item_id] = d; });
 
     // Designs: agrupa as versões por pedido (ou pela própria arte quando não há pedido)
     var grupos = {};
@@ -379,7 +379,10 @@ var PainelLib = (function () {
       return { id: p.id, empresa: p.empresa, produto: p.produto, colecao: p.colecao, descricao: p.descricao, venda: p.venda || p.kit || '', preco: p.preco, pasta_midia: p.pasta_midia, midia_obs: p.midia_obs, status: p.status, atualizado_em: p.atualizado_em };
     });
 
+    var anuncios = opcoes.anuncios ? montarAnuncios(Object.assign({}, opcoes.anuncios, { designs: designs }), todas, agora) : null;
+
     return {
+      anuncios: anuncios,
       gerado_em: agora.toISOString(),
       inicio: {
         artes_entregues: artesEntregues.map(function (d) { return d.id; }),
@@ -403,13 +406,378 @@ var PainelLib = (function () {
     return lista.filter(function (x) { if (!x || vistos[x]) return false; vistos[x] = 1; return true; }).sort();
   }
 
+  /* ================= Módulo anuncios (Gestor de Tráfego) ================= */
+
+  /** Campo do texto canônico v2: CRLF/CR viram LF e as pontas são cortadas. */
+  function normCampo(x) { return String(x === null || x === undefined ? '' : x).replace(/\r\n?/g, '\n').trim(); }
+  /**
+   * Texto canônico das linhas de Propostas.csv (hash = SHA-256 hex do UTF-8):
+   * post:     post␟id␟versao␟midia_fileIds␟legenda_1␟legenda_2␟hashtags␟contas␟horario␟estado
+   * campanha: campanha␟id␟versao␟verba_diaria␟inicio␟fim␟publico_resumo␟plano_fileId␟estado
+   */
+  function canonicoPostV2(r) {
+    return ['post', r.id, r.versao, r.midia_fileIds, r.legenda_1, r.legenda_2, r.hashtags, r.contas, r.horario, r.estado].map(normCampo).join(SEP);
+  }
+  function canonicoCampanha(r) {
+    return ['campanha', r.id, r.versao, r.verba_diaria, r.inicio, r.fim, r.publico_resumo, r.plano_fileId, r.estado].map(normCampo).join(SEP);
+  }
+
+  var CABECALHO_PROPOSTAS = ['id', 'tipo', 'empresa', 'pedido_id', 'versao', 'formato', 'contas', 'horario', 'midia_fileIds', 'legenda_1', 'legenda_2', 'legenda_escolhida', 'hashtags', 'campanha_id', 'verba_diaria', 'inicio', 'fim', 'publico_resumo', 'plano_fileId', 'estado', 'atualizado_em', 'plataforma_link'];
+  /**
+   * Chave da integração com o Gestor de Tráfego. Enquanto false, os botões de decisão de
+   * Posts e anúncios ficam desabilitados e o servidor não grava nada. Só o Builder liga.
+   */
+  var CHAVES = { ANUNCIOS_INTEGRADOS: false };
+  var DECISOES_ANUNCIOS = {
+    post: { aprovar: ['rascunho', 'aguardando_aprovo'], refazer: ['rascunho', 'aguardando_aprovo'], recusar: ['rascunho', 'aguardando_aprovo'] },
+    campanha: { aprovar: ['plano', 'ajuste'], refazer: ['plano', 'ajuste'], recusar: ['plano', 'ajuste'], pausar: ['ativo'] }
+  };
+
+  /** Ids de mídia separados por ";" (ordem do carrossel). */
+  function midias(txt) { return String(txt || '').split(';').map(function (s) { return s.trim(); }).filter(Boolean); }
+  function ehLink(s) { return /^https?:\/\/\S+$/i.test(String(s || '').trim()); }
+  function numero(s) {
+    var t = String(s === null || s === undefined ? '' : s).trim().replace(/^R\$\s*/, '');
+    if (!t) return null;
+    if (/^\d{1,3}(\.\d{3})*,\d+$/.test(t)) t = t.replace(/\./g, '').replace(',', '.');
+    else t = t.replace(',', '.');
+    var n = Number(t);
+    return isFinite(n) ? n : null;
+  }
+  function soDia(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+  function diaIso(d) { function p(n) { return (n < 10 ? '0' : '') + n; } return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); }
+  function arred(n) { return Math.round(n * 100) / 100; }
+
+  /**
+   * Comentário de decisão do módulo anuncios, formato fixo:
+   * pares chave=valor separados por ";" na ordem legenda, horario, verba, texto.
+   * "texto" é sempre o último e pode conter ";" e "=". Quebras de linha viram espaço.
+   * Ex.: legenda=1;horario=2026-11-13 18:30;texto=usar a foto 2
+   */
+  function parseComentarioAnuncio(txt) {
+    var s = String(txt || '').replace(/[\r\n]+/g, ' ').trim();
+    var r = {};
+    var ordem = ['legenda', 'horario', 'verba'];
+    var pos = 0;
+    while (s) {
+      if (/^texto=/.test(s)) { r.texto = s.slice(6).trim(); break; }
+      var i = s.indexOf(';');
+      var par = i < 0 ? s : s.slice(0, i);
+      s = i < 0 ? '' : s.slice(i + 1).replace(/^\s+/, '');
+      var m = par.match(/^(\w+)=(.*)$/);
+      if (!m) throw new Error('comentário fora do formato (esperado chave=valor): "' + par + '"');
+      var k = m[1], v = m[2].trim();
+      var idx = ordem.indexOf(k);
+      if (idx < 0) throw new Error('chave desconhecida no comentário: ' + k);
+      if (idx < pos) throw new Error('chaves fora de ordem no comentário (legenda, horario, verba, texto)');
+      pos = idx + 1;
+      if (k === 'legenda' && !/^[12]$/.test(v)) throw new Error('legenda deve ser 1 ou 2');
+      if (k === 'horario' && !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(v)) throw new Error('horario deve ser aaaa-mm-dd HH:mm');
+      if (k === 'verba' && !(/^\d+(\.\d{1,2})?$/.test(v) && +v > 0)) throw new Error('verba deve ser um número maior que zero (ponto decimal)');
+      r[k] = v;
+    }
+    return r;
+  }
+  /** Monta o comentário no formato fixo (usado pela tela e pelos testes). */
+  function montarComentarioAnuncio(o) {
+    var p = [];
+    if (o.legenda) p.push('legenda=' + o.legenda);
+    if (o.horario) p.push('horario=' + o.horario);
+    if (o.verba) p.push('verba=' + o.verba);
+    var t = String(o.texto || '').replace(/[\r\n]+/g, ' ').trim();
+    if (t) p.push('texto=' + t);
+    return p.join(';');
+  }
+  /** Regras de comentário por tipo e decisão. Lança com mensagem clara. */
+  function validarComentarioAnuncio(tipo, decisao, comentario, item) {
+    var c = parseComentarioAnuncio(comentario);
+    var permitidas = tipo === 'post' ? (decisao === 'aprovar' ? ['legenda', 'horario', 'texto'] : ['texto']) : (decisao === 'aprovar' ? ['verba', 'texto'] : ['texto']);
+    Object.keys(c).forEach(function (k) { if (permitidas.indexOf(k) < 0) throw new Error('"' + k + '" não vale para ' + decisao + ' de ' + tipo); });
+    if (tipo === 'post' && decisao === 'aprovar' && !c.legenda) throw new Error('escolha a legenda 1 ou 2');
+    if (decisao === 'refazer' && !c.texto) throw new Error('o pedido de ajuste precisa de um comentário');
+    if (c.verba) {
+      var prop = numero(item && item.verba_diaria);
+      if (prop === null) throw new Error('a proposta não tem verba diária; não dá para aprovar com outra verba');
+      if (+c.verba > prop) throw new Error('verba ' + c.verba + ' maior que a proposta (' + prop + '); o painel só aceita igual ou menor');
+    }
+    return c;
+  }
+
+  function formatoDe(txt) {
+    var m = String(txt || '').toLowerCase().match(/carrossel|reels|story|stories|feed|v[ií]deo/);
+    if (!m) return '';
+    return m[0] === 'stories' ? 'story' : /v[ií]deo/.test(m[0]) ? 'reels' : m[0];
+  }
+  /** Contas de destino a partir de texto livre: @perfil vira ig:@perfil, "Página X" vira fb:X. */
+  function contasDoTexto(txt) {
+    var s = String(txt || '');
+    var r = [];
+    (s.match(/@[\w.]+/g) || []).forEach(function (h) { var c = 'ig:' + h.replace(/\.$/, ''); if (r.indexOf(c) < 0) r.push(c); });
+    var fb = s.match(/P[áa]gina(?: do Facebook)? ([A-Z][\w ]*?\w)(?=\s*(?:\(|$|[,;.+]))/);
+    if (fb) r.push('fb:' + fb[1].trim());
+    return r;
+  }
+  function rotuloConta(c) {
+    var m = String(c).match(/^(ig|fb|tt|yt|li):(.+)$/);
+    if (!m) return c;
+    return ({ ig: 'Instagram ', fb: 'Facebook ', tt: 'TikTok ', yt: 'YouTube ', li: 'LinkedIn ' })[m[1]] + m[2];
+  }
+
+  /** Estado exibido de uma publicação: publicado só com link; horário passado sem link vira aguardando_confirmacao. */
+  function estadoPublicacao(estado, link, quando, agora) {
+    var e = String(estado || '').toLowerCase().trim();
+    var dt = parseData(quando, agora.getFullYear());
+    var temHora = /\d{1,2}:\d{2}/.test(String(quando || ''));
+    var passou = dt ? (temHora ? dt <= agora : soDia(dt) < soDia(agora)) : false;
+    if (e === 'publicado') return ehLink(link) ? 'publicado' : 'aguardando_confirmacao';
+    if (e === 'programado') return ehLink(link) ? 'publicado' : (passou ? 'aguardando_confirmacao' : 'programado');
+    if (['rascunho', 'aguardando_aprovo', 'aprovado', 'recusado', 'ajuste'].indexOf(e) >= 0) return e;
+    return 'rascunho';
+  }
+
+  /** Lê o plano-<empresa>-<aaaa-mm>.md: título, campanha citada e texto. */
+  function parsePlanoMd(texto, nome) {
+    var s = String(texto || '').replace(/\r/g, '');
+    var t = s.match(/^#\s*(.+)$/m);
+    var c = s.match(/\bCampanha\s+([A-Z]-?\d[\w-]*|C\d+)\b/);
+    var e = s.match(/^Estado:\s*(.+)$/mi);
+    return { nome: nome || '', titulo: t ? t[1].trim() : (nome || ''), campanha_id: c ? c[1] : '', estado_texto: e ? e[1].trim() : '', texto: s };
+  }
+
+  /**
+   * Monta o módulo Posts e anúncios.
+   * fontes: { anuncios, campanhas, resultados, empresas, checkpoints, rules, propostas (null = ausente),
+   *           rascunhos:[{nome,texto,fileId}], planos:[{nome,texto,fileId}], designs:[...] (para achar arte por pedido) }
+   * todas: decisões já com recibo (montarModelo). agora: data local de São Paulo.
+   */
+  function montarAnuncios(fontes, todas, agora, opcoes) {
+    opcoes = opcoes || {};
+    var hoje = soDia(agora);
+    var linhas = function (f) { return (fontes[f] && fontes[f].linhas) || []; };
+    var propostasAtivas = !!(fontes.propostas && fontes.propostas.linhas);
+    var props = propostasAtivas ? linhas('propostas') : [];
+
+    // decisões do módulo: pendente (sem recibo) e último recibo por item
+    var pend = {}, ultimoRecibo = {};
+    (todas || []).forEach(function (d) {
+      if (d.modulo !== 'anuncios') return;
+      if (!d.recibo) pend[d.item_id] = d;
+      else ultimoRecibo[d.item_id] = { decision_id: d.id, decisao: d.decisao, resultado: d.recibo.resultado, motivo: d.recibo.motivo, link: d.recibo.link || '', processado_em: d.recibo.processado_em };
+    });
+
+    // rascunhos post-*.md por pedido
+    var mdPorPedido = {};
+    (fontes.rascunhos || []).forEach(function (r) {
+      var info = parsePostMd(r.texto, r.nome);
+      var s = String(r.texto || '').replace(/\r/g, '');
+      var secoes = s.split(/^##\s+/m).slice(1);
+      var legs = secoes.filter(function (x) { return /^legenda/i.test(x); }).map(function (x) { var i = x.indexOf('\n'); return { titulo: x.slice(0, i).trim(), texto: x.slice(i + 1).trim() }; });
+      info.legendas = legs;
+      var arte = s.match(/drive\.google\.com\/file\/d\/([\w-]{10,})/);
+      info.arte_fileId = arte ? arte[1] : '';
+      info.fileId = r.fileId;
+      if (info.pedido_id) mdPorPedido[info.pedido_id] = info;
+    });
+    var designPorId = {};
+    (fontes.designs || []).forEach(function (d) { designPorId[d.id] = d; });
+    var empresasCsv = linhas('empresas');
+
+    var posts = [];
+    var pedidosCobertos = {};
+    // 1) Propostas estruturadas (decidíveis)
+    props.filter(function (r) { return r.tipo === 'post'; }).forEach(function (r) {
+      var exib = estadoPublicacao(r.estado, r.plataforma_link, r.horario, agora);
+      if (['publicado', 'programado'].indexOf(String(r.estado).trim()) < 0) exib = String(r.estado || 'rascunho').trim();
+      var item = {
+        id: r.id, item_id: 'post:' + r.id, origem: 'propostas', empresa: r.empresa, pedido_id: r.pedido_id || '',
+        titulo: (r.legenda_1 || '').split(/[.:\n]/)[0].slice(0, 90) || r.id,
+        formato: r.formato || '', versao: r.versao || '', estado: exib, estado_bruto: r.estado,
+        contas: midias(r.contas), horario: r.horario || '', midias: midias(r.midia_fileIds), midia_fileIds: r.midia_fileIds || '',
+        legenda_1: r.legenda_1 || '', legenda_2: r.legenda_2 || '', legenda_escolhida: r.legenda_escolhida || '',
+        hashtags: r.hashtags || '', link: ehLink(r.plataforma_link) ? r.plataforma_link : '', campanha_id: r.campanha_id || '',
+        atualizado_em: r.atualizado_em || '', snapshot_hash: sha256(canonicoPostV2(r))
+      };
+      item.decisoes_possiveis = Object.keys(DECISOES_ANUNCIOS.post).filter(function (k) { return DECISOES_ANUNCIOS.post[k].indexOf(String(r.estado).trim()) >= 0; });
+      posts.push(item);
+      if (r.pedido_id) pedidosCobertos[r.pedido_id] = true;
+    });
+    // 2) Publicações do ledger do Tráfego (Anuncios.csv)
+    linhas('anuncios').forEach(function (a) {
+      if (!a.id) return;
+      var ped = (String(a.texto_resumo || '').match(/\(?(P-\d{8}-\d+)/) || [])[1] || '';
+      var md = ped ? mdPorPedido[ped] : null;
+      var link = ehLink(a.plataforma_id) ? a.plataforma_id : '';
+      var legV = (String(a.texto_resumo || '').match(/legenda v(\d)/i) || [])[1] || '';
+      var contas = contasDoTexto(a.texto_resumo);
+      posts.push({
+        id: a.id, item_id: 'post:' + a.id, origem: 'publicacao', empresa: a.empresa, pedido_id: ped,
+        titulo: String(a.texto_resumo || '').split(/\s*\(/)[0].trim() || a.id,
+        resumo: a.texto_resumo || '', formato: formatoDe(a.versao) || formatoDe(a.texto_resumo), versao: (String(a.versao || '').match(/v(\d+)/) || [])[1] || '',
+        estado: estadoPublicacao(a.estado, link, a.ativo_em, agora), estado_bruto: a.estado,
+        contas: contas, horario: a.ativo_em || '', midias: midias(a.arte_fileId), midia_fileIds: a.arte_fileId || '',
+        legenda_1: md && md.legendas[0] ? md.legendas[0].texto : '', legenda_2: md && md.legendas[1] ? md.legendas[1].texto : '',
+        legenda_escolhida: legV, hashtags: md ? md.hashtags : '', link: link, onde: link ? '' : (a.plataforma_id || ''),
+        canal: a.canal || '', edicao_do_bruno: a.edicao_do_bruno || '', campanha_id: a.campanha_id || '',
+        rascunho_fileId: md ? md.fileId : '', decisoes_possiveis: []
+      });
+      if (ped) pedidosCobertos[ped] = true;
+    });
+    // 3) Rascunhos .md sem proposta nem publicação
+    Object.keys(mdPorPedido).forEach(function (ped) {
+      if (pedidosCobertos[ped]) return;
+      var md = mdPorPedido[ped];
+      var d = designPorId[ped] || {};
+      var est = md.aprovado ? 'aprovado' : (md.legendas.length ? 'aguardando_aprovo' : 'rascunho');
+      posts.push({
+        id: ped, item_id: 'post:' + ped, origem: 'rascunho', empresa: md.empresa || d.empresa || '', pedido_id: ped,
+        titulo: md.titulo || ped, formato: formatoDe(md.formato) || formatoDe(d.formato), versao: '', estado: est, estado_bruto: md.estado_texto,
+        contas: contasDoTexto(md.contas), horario: md.horario || '', midias: midias(d.arte_fileId || md.arte_fileId), midia_fileIds: d.arte_fileId || md.arte_fileId || '',
+        legenda_1: md.legendas[0] ? md.legendas[0].texto : '', legenda_2: md.legendas[1] ? md.legendas[1].texto : '',
+        legenda_escolhida: (md.legendas[1] && /aprovad/i.test(md.legendas[1].titulo)) ? '2' : (md.aprovado ? '1' : ''),
+        hashtags: md.hashtags || '', link: '', rascunho_fileId: md.fileId, decisoes_possiveis: []
+      });
+    });
+    posts.forEach(function (p) {
+      p.decisao_pendente = pend[p.item_id] || null;
+      if (p.decisao_pendente) p.decisao_pendente.obsoleta = !!p.snapshot_hash && p.decisao_pendente.snapshot_hash !== p.snapshot_hash;
+      p.ultimo_recibo = ultimoRecibo[p.item_id] || null;
+      p.contas_rotulo = p.contas.map(rotuloConta);
+    });
+    posts.sort(function (a, b) { return String(b.horario).localeCompare(String(a.horario)) || String(b.id).localeCompare(String(a.id)); });
+
+    // Planos .md
+    var planos = (fontes.planos || []).map(function (p) { var x = parsePlanoMd(p.texto, p.nome); x.fileId = p.fileId; return x; });
+    function planoDe(c) {
+      for (var i = 0; i < planos.length; i++) if ((c.plano_fileId && planos[i].fileId === c.plano_fileId) || (planos[i].campanha_id && planos[i].campanha_id === c.id)) return planos[i];
+      return null;
+    }
+
+    // Resultados: diários e intervalos
+    var resultados = linhas('resultados').map(function (r) {
+      var diario = /^\d{4}-\d{2}-\d{2}$/.test(String(r.data).trim());
+      return { data: String(r.data).trim(), diario: diario, canal: r.canal, empresa: r.empresa, campanha_id: String(r.campanha_id || '').trim(), gasto: numero(r.gasto) || 0, impressoes: numero(r.impressoes) || 0, cliques: numero(r.cliques) || 0, contatos: numero(r.contatos) || 0, conversoes: numero(r.conversoes) || 0, valor: numero(r.valor) || 0 };
+    });
+    var checkpoints = linhas('checkpoints');
+    function leituraDe(canal) {
+      var k = 'leitura_' + String(canal || '').toLowerCase();
+      var c = checkpoints.filter(function (x) { return x.source === k; })[0];
+      return c ? c.last_checked_at : '';
+    }
+
+    // Campanhas: Campanhas.csv + Propostas (proposta manda nos campos decididos)
+    var porId = {}, ordem = [];
+    linhas('campanhas').forEach(function (c) { if (!c.id) return; porId[c.id] = { base: c, prop: null }; ordem.push(c.id); });
+    props.filter(function (r) { return r.tipo === 'campanha'; }).forEach(function (r) {
+      var id = r.campanha_id || r.id;
+      if (!porId[id]) { porId[id] = { base: null, prop: null }; ordem.push(id); }
+      porId[id].prop = r;
+    });
+    var seteAtras = new Date(hoje.getTime() - 6 * DIA_MS);
+    var campanhas = ordem.map(function (id) {
+      var b = porId[id].base || {}, r = porId[id].prop;
+      var c = {
+        id: id, item_id: 'campanha:' + (r ? r.id : id), origem: r ? 'propostas' : 'ledger',
+        empresa: (r && r.empresa) || b.empresa || '', canal: b.canal || '', objetivo: b.objetivo || '',
+        plataforma_id: b.plataforma_id || '', estado: String((r ? r.estado : b.estado) || '').trim(),
+        verba_diaria: (r ? r.verba_diaria : b.verba_diaria) || '', inicio: (r ? r.inicio : b.inicio) || '', fim: (r ? r.fim : b.fim) || '',
+        publico_resumo: r ? r.publico_resumo || '' : '', plano_fileId: r ? r.plano_fileId || '' : '', versao: r ? r.versao || '' : '',
+        aprovado_em: b.aprovado_em || '', link: r && ehLink(r.plataforma_link) ? r.plataforma_link : ''
+      };
+      if (r) c.snapshot_hash = sha256(canonicoCampanha(r));
+      c.decisoes_possiveis = r ? Object.keys(DECISOES_ANUNCIOS.campanha).filter(function (k) { return DECISOES_ANUNCIOS.campanha[k].indexOf(c.estado) >= 0; }) : [];
+      var plano = planoDe(c);
+      c.plano = plano ? { fileId: plano.fileId, nome: plano.nome, titulo: plano.titulo, estado_texto: plano.estado_texto, texto: plano.texto } : null;
+      var chaves = [id, c.plataforma_id, String(id).replace(/^[MG]-/, '')].filter(Boolean);
+      var meus = resultados.filter(function (x) { return chaves.indexOf(x.campanha_id) >= 0; });
+      var diarios = meus.filter(function (x) { return x.diario; }).sort(function (a, z) { return a.data.localeCompare(z.data); });
+      var soma = function (l, k) { return arred(l.reduce(function (s, x) { return s + x[k]; }, 0)); };
+      var ult7 = diarios.filter(function (x) { var d = parseData(x.data); return d >= seteAtras && d <= hoje; });
+      c.diario = diarios.map(function (x) { return { data: x.data, gasto: x.gasto, impressoes: x.impressoes, cliques: x.cliques, contatos: x.contatos }; });
+      c.periodos = meus.filter(function (x) { return !x.diario; }).map(function (x) { return { data: x.data, gasto: x.gasto, impressoes: x.impressoes, cliques: x.cliques, contatos: x.contatos }; });
+      c.gasto_total = soma(diarios, 'gasto'); c.gasto_7d = soma(ult7, 'gasto');
+      c.impressoes = soma(diarios, 'impressoes'); c.cliques = soma(diarios, 'cliques'); c.contatos = soma(diarios, 'contatos');
+      c.custo_contato = c.contatos > 0 ? arred(c.gasto_total / c.contatos) : null;
+      c.alertas = [];
+      if (c.estado === 'ativo') {
+        var fim = /^\d{4}-\d{2}-\d{2}/.test(c.fim) ? parseData(c.fim) : null;
+        if (fim && soDia(fim) < hoje) c.alertas.push('o período acabou em ' + c.fim.slice(8, 10) + '/' + c.fim.slice(5, 7) + ' e a campanha segue ativa');
+        var leit = leituraDe(c.canal);
+        var leitDia = leit ? parseData(leit) : null;
+        var temHoje = diarios.some(function (x) { return x.data === diaIso(hoje); });
+        if (leitDia && soDia(leitDia).getTime() === hoje.getTime() && !temHoje) c.alertas.push('ativa e sem resultado de hoje na leitura ' + leit.slice(11, 16));
+      }
+      c.decisao_pendente = pend[c.item_id] || null;
+      if (c.decisao_pendente) c.decisao_pendente.obsoleta = !!c.snapshot_hash && c.decisao_pendente.snapshot_hash !== c.snapshot_hash;
+      c.ultimo_recibo = ultimoRecibo[c.item_id] || null;
+      return c;
+    });
+    var ordemEstado = { ativo: 0, plano: 1, ajuste: 2, aprovado: 3, pausado: 4, encerrado: 5 };
+    campanhas.sort(function (a, z) { return (ordemEstado[a.estado] === undefined ? 9 : ordemEstado[a.estado]) - (ordemEstado[z.estado] === undefined ? 9 : ordemEstado[z.estado]) || String(a.id).localeCompare(String(z.id)); });
+
+    // Início e resultados da semana
+    var postsAguardando = posts.filter(function (p) { return p.estado === 'aguardando_aprovo'; });
+    var planosAguardando = campanhas.filter(function (c) { return c.estado === 'plano'; });
+    var alertas = [];
+    campanhas.forEach(function (c) { c.alertas.forEach(function (t) { alertas.push({ campanha: c.id, empresa: c.empresa, texto: t }); }); });
+    var empresas = unicos(posts.map(function (p) { return p.empresa; }).concat(campanhas.map(function (c) { return c.empresa; })).concat(empresasCsv.map(function (e) { return e.empresa; })));
+    var porEmpresa = empresas.map(function (e) {
+      return { empresa: e, posts: postsAguardando.filter(function (p) { return p.empresa === e; }).length, planos: planosAguardando.filter(function (c) { return c.empresa === e; }).length, alertas: alertas.filter(function (a) { return a.empresa === e; }).length };
+    }).filter(function (x) { return x.posts || x.planos || x.alertas; });
+    var semana = empresas.map(function (e) {
+      var rs = resultados.filter(function (x) { if (!x.diario || x.empresa !== e) return false; var d = parseData(x.data); return d >= seteAtras && d <= hoje; });
+      var gasto = arred(rs.reduce(function (s, x) { return s + x.gasto; }, 0));
+      var contatos = rs.reduce(function (s, x) { return s + x.contatos; }, 0);
+      var publicados = posts.filter(function (p) { if (p.empresa !== e || p.estado !== 'publicado') return false; var d = parseData(p.horario, agora.getFullYear()); return d && soDia(d) >= seteAtras && soDia(d) <= hoje; }).length;
+      return { empresa: e, gasto: gasto, contatos: contatos, custo_contato: contatos > 0 ? arred(gasto / contatos) : null, posts_publicados: publicados };
+    }).filter(function (x) { return x.gasto || x.contatos || x.posts_publicados; });
+
+    return {
+      propostas_ativas: propostasAtivas,
+      integrados: CHAVES.ANUNCIOS_INTEGRADOS,
+      posts: posts,
+      campanhas: campanhas,
+      planos: planos.map(function (p) { return { fileId: p.fileId, nome: p.nome, titulo: p.titulo, campanha_id: p.campanha_id }; }),
+      inicio: { posts_aguardando: postsAguardando.map(function (p) { return p.id; }), planos_aguardando: planosAguardando.map(function (c) { return c.id; }), alertas: alertas, por_empresa: porEmpresa },
+      semana: { de: diaIso(seteAtras), ate: diaIso(hoje), empresas: semana },
+      leituras: checkpoints.map(function (c) { return { fonte: c.source, quando: c.last_checked_at, cursor: c.cursor }; }),
+      rules: linhas('rules').filter(function (r) { return !r.status || r.status === 'active'; }).map(function (r) { return { id: r.rule_id, efeito: r.effect, escopo: r.scope_value, evidencia: r.evidence }; }),
+      empresas: empresas,
+      contas: unicos([].concat.apply([], posts.map(function (p) { return p.contas; })))
+    };
+  }
+
+  /** Confere decisão do módulo anuncios contra o modelo recém-lido. */
+  function conferirDecisaoAnuncio(modelo, d) {
+    var an = modelo.anuncios;
+    if (!an) throw new Error('o módulo Posts e anúncios não está ativo no painel-fontes.json');
+    if (!CHAVES.ANUNCIOS_INTEGRADOS) throw new Error('o Gestor de Tráfego ainda não lê estas decisões; nada foi gravado');
+    var m = String(d.item_id).match(/^(post|campanha):(.+)$/);
+    if (!m) throw new Error('item inválido para Posts e anúncios');
+    var tipo = m[1];
+    var lista = tipo === 'post' ? an.posts : an.campanhas;
+    var item = null;
+    for (var i = 0; i < lista.length; i++) if (lista[i].item_id === d.item_id) { item = lista[i]; break; }
+    if (!item) throw new Error('item ' + d.item_id + ' não existe mais nos arquivos do Gestor de Tráfego');
+    if (item.origem !== 'propostas' || !item.snapshot_hash) throw new Error('item ' + d.item_id + ' não está em Propostas.csv; propostas estruturadas ainda não ativadas para ele');
+    var estados = DECISOES_ANUNCIOS[tipo][d.decisao];
+    if (!estados) throw new Error('decisão "' + d.decisao + '" não vale para ' + tipo);
+    var bruto = tipo === 'post' ? item.estado_bruto : item.estado;
+    if (estados.indexOf(String(bruto).trim()) < 0) throw new Error('item ' + d.item_id + ' está "' + bruto + '" e não aceita ' + d.decisao + ' agora; atualize o painel');
+    if (item.snapshot_hash !== d.snapshot_hash) throw new Error('o item ' + d.item_id + ' mudou desde que a tela foi carregada; atualize o painel e confira de novo');
+    var pend = item.decisao_pendente;
+    if (pend && pend.snapshot_hash === d.snapshot_hash) throw new Error('já existe uma decisão enviada para esta versão (' + pend.id + ')');
+    validarComentarioAnuncio(tipo, d.decisao, d.comentario, item);
+    return { tipo_item: tipo, versao: item.versao || '', arte_fileId: tipo === 'post' ? (item.midia_fileIds || '') : '', snapshot_hash: item.snapshot_hash };
+  }
+
   /** Valida uma decisão vinda da tela. */
   function validarDecisao(d) {
     if (!d || typeof d !== 'object') throw new Error('decisão vazia');
-    if (['aprovar', 'refazer'].indexOf(d.decisao) < 0) throw new Error('decisão inválida');
+    if (['aprovar', 'refazer', 'recusar', 'pausar'].indexOf(d.decisao) < 0) throw new Error('decisão inválida');
     if (!d.item_id || !/^[\w:.\-]{1,80}$/.test(d.item_id)) throw new Error('item inválido');
     if (!d.modulo || !/^[a-z_]{1,30}$/.test(d.modulo)) throw new Error('módulo inválido');
     var c = String(d.comentario || '').trim();
+    if (d.modulo === 'anuncios') c = c.replace(/[\r\n]+/g, ' ');
     if (d.decisao === 'refazer' && !c) throw new Error('o pedido de ajuste precisa de um comentário');
     if (c.length > 2000) throw new Error('comentário muito longo');
     if (!/^[0-9a-f]{64}$/.test(String(d.snapshot_hash || ''))) throw new Error('decisão sem a versão exibida; atualize o painel');
@@ -417,7 +785,7 @@ var PainelLib = (function () {
   }
 
   /** Versão exibida no topo do painel. Atualize a cada implantação. */
-  var VERSAO_PAINEL = '1.2.0';
+  var VERSAO_PAINEL = '2.0.0';
   var POSTS_INTEGRADOS = false;
   var ESTADOS_DECIDIVEIS = { design: ['entregue'], post: ['rascunho', 'aguardando_aprovo'] };
 
@@ -427,6 +795,8 @@ var PainelLib = (function () {
    * e decisão repetida ainda sem recibo. Devolve o vínculo de versão para gravar.
    */
   function conferirDecisao(modelo, d) {
+    if (d.modulo === 'anuncios') return conferirDecisaoAnuncio(modelo, d);
+    if (d.decisao && ['aprovar', 'refazer'].indexOf(d.decisao) < 0) throw new Error('decisão "' + d.decisao + '" não vale para designs');
     var ehPost = d.item_id.indexOf('post:') === 0;
     // Posts ainda sem consumidor (fluxo do Tráfego pendente): o painel não grava decisão de post.
     if (ehPost && !POSTS_INTEGRADOS) throw new Error('decisão de post pelo painel ainda não está integrada (fluxo do Tráfego pendente); nada foi gravado');
@@ -450,7 +820,7 @@ var PainelLib = (function () {
     if (!r || r.decision_id !== id) throw new Error('decision_id diferente do nome do arquivo');
     if (['aplicado', 'rejeitado'].indexOf(r.resultado) < 0) throw new Error('resultado inválido');
     if (!r.processado_em) throw new Error('sem processado_em');
-    return { decision_id: r.decision_id, resultado: r.resultado, motivo: String(r.motivo || ''), processado_em: r.processado_em, agente: String(r.agente || ''), snapshot_hash: String(r.snapshot_hash || '') };
+    return { decision_id: r.decision_id, resultado: r.resultado, motivo: String(r.motivo || ''), processado_em: r.processado_em, agente: String(r.agente || ''), snapshot_hash: String(r.snapshot_hash || ''), link: ehLink(r.link) ? String(r.link).trim() : '' };
   }
 
   var CABECALHO_DECISOES = ['id', 'quando', 'modulo', 'item_id', 'tipo_item', 'versao', 'arte_fileId', 'snapshot_hash', 'decisao', 'comentario', 'origem'];
@@ -472,7 +842,20 @@ var PainelLib = (function () {
     canonicoDesign: canonicoDesign,
     canonicoPost: canonicoPost,
     CABECALHO_DECISOES: CABECALHO_DECISOES,
-    diasDesde: diasDesde
+    diasDesde: diasDesde,
+    montarAnuncios: montarAnuncios,
+    canonicoPostV2: canonicoPostV2,
+    canonicoCampanha: canonicoCampanha,
+    parseComentarioAnuncio: parseComentarioAnuncio,
+    montarComentarioAnuncio: montarComentarioAnuncio,
+    validarComentarioAnuncio: validarComentarioAnuncio,
+    contasDoTexto: contasDoTexto,
+    estadoPublicacao: estadoPublicacao,
+    parsePlanoMd: parsePlanoMd,
+    midias: midias,
+    CABECALHO_PROPOSTAS: CABECALHO_PROPOSTAS,
+    CHAVES: CHAVES,
+    DECISOES_ANUNCIOS: DECISOES_ANUNCIOS
   };
 })();
 

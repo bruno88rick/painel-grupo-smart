@@ -2,7 +2,7 @@
 
 Painel visual, privado e mobile-first, para o Bruno ver e aprovar as artes e os posts criados pelos agentes do Grupo Smart (RN Sports, BD 3D, Smart Produtora, Include Systems). É a fonte única da verdade em cima dos arquivos que os agentes já mantêm no Google Drive: o painel lê esses arquivos e não copia nada para outro banco.
 
-**Status:** v1 publicada em 11/11/2026 como Web App do Google Apps Script, acesso só do dono. Módulo ativo: **Design** (Agente de Design). Próximos módulos já têm lugar reservado.
+**Status:** v1 publicada em 11/11/2026 como Web App do Google Apps Script, acesso só do dono. v2.0.0 acrescenta o módulo **Posts e anúncios** (Gestor de Tráfego). Módulos ativos: **Design** (Agente de Design) e **Posts e anúncios**. Os outros já têm lugar reservado.
 
 ![Início no celular](docs/screenshots/390-claro-inicio.jpg)
 
@@ -12,6 +12,7 @@ Painel visual, privado e mobile-first, para o Bruno ver e aprovar as artes e os 
 - [Capturas](#capturas)
 - [Arquitetura](#arquitetura)
 - [Decisões e agentes](#decisões-e-agentes)
+- [Módulo Posts e anúncios](#módulo-posts-e-anúncios)
 - [Testes](#testes)
 - [Como publicar](#como-publicar-primeira-vez)
 - [Como reimplantar](#como-reimplantar-depois-de-uma-mudança)
@@ -47,7 +48,8 @@ docs/screenshots/   capturas a 390 px e no desktop
 
 - **Início (Precisa de você):** artes `entregue`, posts com rascunho e sem `post:`, `refazer` parado há mais de 2 dias, decisões enviadas e a última atualização de cada fonte.
 - **Designs:** grade com miniaturas, filtros por empresa, estado e tipo, e busca. O detalhe mostra todas as versões, o histórico de refação e os links do Canva e do Drive.
-- **Posts:** linha do tempo por estado, com arte, legenda do `post-*.md`, contas e link publicado.
+- **Posts:** linha do tempo por estado, com arte, legenda do `post-*.md`, contas e link publicado. Com o módulo Posts e anúncios ativo, a tela passa a ler o ledger do Tráfego (veja abaixo).
+- **Campanhas:** só com o módulo Posts e anúncios ativo.
 - **Biblioteca e produtos:** mídia por empresa (`Midia.csv`) e o catálogo (`produtos.csv`).
 
 ### Estados dos posts
@@ -78,6 +80,14 @@ O estado **aprovado** é um acréscimo à lista original: separa o que você já
 | ![Início com decisão obsoleta e recusada](docs/screenshots/v2-390-inicio.jpg) | ![Início com decisão obsoleta e recusada](docs/screenshots/v2-desktop-inicio.jpg) |
 | ![Posts aguardando confirmação](docs/screenshots/v2-390-posts.jpg) | ![Posts aguardando confirmação](docs/screenshots/v2-desktop-posts.jpg) |
 | ![Versão velha recusada](docs/screenshots/v2-390-recusa-obsoleta.jpg) | ![Versão velha recusada](docs/screenshots/v2-desktop-recusa-obsoleta.jpg) |
+
+### v2.0.0: Posts e anúncios
+
+| Celular | Desktop |
+|---|---|
+| ![Início](docs/screenshots/v2/inicio-390-claro.jpg) | ![Início](docs/screenshots/v2/inicio-desktop-claro.jpg) |
+| ![Carrossel 10/10](docs/screenshots/v2/carrossel-390-10.jpg) | ![Carrossel em grade](docs/screenshots/v2/carrossel-desktop.jpg) |
+| ![Campanha ativa](docs/screenshots/v2/campanha-ativa-390.jpg) | ![Campanhas](docs/screenshots/v2/campanhas-desktop-escuro.jpg) |
 
 ## Decisões e agentes
 
@@ -148,11 +158,36 @@ Decisões de post (`post:<id>`) ainda não têm consumidor. A tela não oferece 
 
 O painel nunca deduz "publicado" pelo relógio. Programado com horário vencido e sem `post:<link>` aparece como **Aguardando confirmação** em Início e em Posts, até o agente registrar o link.
 
+## Módulo Posts e anúncios
+
+Lê o ledger do Gestor de Tráfego (`Anuncios.csv`, `Campanhas.csv`, `Resultados.csv`, `Empresas.csv`, `Checkpoints.csv`, `Rules.csv` só leitura e `Propostas.csv`) e a pasta de criativos (`post-*.md` e `plano-<empresa>-<aaaa-mm>.md`). Os ids ficam no `painel-fontes.json` (`modulos.anuncios.ledger.abas` e `modulos.anuncios.criativos`).
+
+- **Início:** posts aguardando seu aprovo, planos aguardando seu sim, alertas de gasto e um contador por empresa.
+- **Posts:** linha do tempo `rascunho` > `aguardando_aprovo` > `aprovado` > `programado` > `aguardando_confirmacao` > `publicado` (só com link), mais `recusado`. Filtro por empresa e conta. O cartão mostra a mídia, as duas legendas lado a lado, hashtags, contas, horário e link.
+- **Carrossel:** `midia_fileIds` (e `arte_fileId` nos designs) aceita vários ids separados por `;`. No celular arrasta com contador (1/10); no desktop vira grade.
+- **Campanhas:** cartões com estado, objetivo, verba, período, gasto acumulado e dos últimos 7 dias, impressões, cliques, contatos e custo por contato (só com contatos > 0), gráfico de gasto diário e o plano `.md` no detalhe. Leituras de período (30d) aparecem separadas do diário. Resultados da semana por empresa e a última leitura de cada canal.
+- **Sem `Propostas.csv`:** nada quebra. Aparece o aviso "Propostas estruturadas ainda não ativadas" e os itens ficam só para consulta.
+
+### Decisões de anúncios
+
+Mesmo `decisoes.csv`, com `modulo=anuncios`, `item_id` `post:<id>` ou `campanha:<id>` e `tipo_item` `post` ou `campanha`. Só itens que vêm do `Propostas.csv` têm botões.
+
+- Post: **Aprovar com legenda 1**, **Aprovar com legenda 2** (horário opcional), **Pedir ajuste**, **Recusar**.
+- Campanha: **Aprovar plano** (verba opcional, nunca acima da proposta), **Pedir ajuste**, **Recusar**; **Pausar** quando ativa.
+- `comentario` estruturado: `legenda=1;horario=aaaa-mm-dd HH:mm;verba=N;texto=...`.
+- Chave `ANUNCIOS_INTEGRADOS` em `Lib.gs` (hoje `false`): os botões ficam desligados com o aviso "o Gestor de Tráfego ainda não lê estas decisões" e o servidor não grava nada. `POSTS_INTEGRADOS` (posts do Design) continua `false`.
+- Recibos em `recibos/` com `agente: "Gestor de Tráfego"`; o painel mostra processado, recusado ou aplicado com link.
+
+Contrato completo, exemplos reais e o script de hash: [docs/contrato-propostas.md](docs/contrato-propostas.md). O consumidor do Tráfego (ainda não ligado) fica em [consumidor/](consumidor/README.md).
+
 ## Testes
 
 ```
 npm test
+python3 -m unittest discover consumidor
 ```
+
+v2.0.0: 35 testes no Node e 29 no consumidor Python. Os vetores de hash do `Propostas.csv` são conferidos nos dois lados.
 
 22 testes: CSV com BOM, CRLF, aspas e quebra de linha; CSV quebrado; colunas ausentes; leitura dos CSVs reais; marcas `post:`; rascunho `post-*.md`; o modelo das telas; decisões, hash, versão velha, decisão repetida, estado inválido, recibos, cabeçalho antigo e a regra do relógio; a versão do painel; e o `Code.gs` com os serviços do Google simulados (cache, fonte quebrada, gravação em `decisoes.csv`).
 
@@ -160,7 +195,10 @@ Para ver a página localmente com os dados das fixtures:
 
 ```
 ./dev/baixar-imagens.sh     # uma vez (precisa do gws)
-npm run build:dev           # gera dev/out/index.html
+npm run build:dev           # gera dev/out/index.html (v2, 12/11 19:00, com Propostas)
+node dev/build.js --sem-propostas   # sem Propostas.csv
+node dev/build.js --integrado       # chave ANUNCIOS_INTEGRADOS ligada (só no harness)
+node dev/build.js --v1              # fixtures da v1
 python3 -m http.server 8765 -d dev/out
 ```
 
@@ -191,7 +229,7 @@ Antes, suba `VERSAO_PAINEL` em `src/Lib.gs` e `version` no `package.json` (o tes
 4. Em `Index.html`, acrescente o botão da aba e a `<section id="aba-<id>">`. Em `App.html`, a função `desenhar<Nome>()`.
 5. Se o módulo tiver decisões, use `salvarDecisao({modulo:'<id>', ...})`: a linha vai para o mesmo `decisoes.csv`, e o agente do módulo filtra por `modulo`.
 
-Planejado: **Posts e anúncios** (ledger do Gestor de Tráfego), **Finanças** (ledger do Assistente Financeiro), **Investimentos**, **Suporte RN Sports** (ledger do Suporte), **Estudos** e **E-mails** (só contagens e resumo, nunca o conteúdo dos e-mails).
+Planejado: **Finanças** (ledger do Assistente Financeiro), **Investimentos**, **Suporte RN Sports** (ledger do Suporte), **Estudos** e **E-mails** (só contagens e resumo, nunca o conteúdo dos e-mails).
 
 ## Fuso horário
 
