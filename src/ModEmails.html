@@ -19,8 +19,11 @@
     return '<article class="cartao-v3">' +
       '<div class="v3-topo"><span class="cartao-empresa">' + e(x.conta) + '</span>' + U.selo('aguardando_aprovo', x.emails + (x.emails === 1 ? ' e-mail' : ' e-mails')) + '</div>' +
       '<div class="cartao-titulo">Mover para ' + e(x.pasta) + '</div>' +
-      '<p class="mudo legenda-rot">Motivo ' + (x.linhas.length === 1 ? '' : '(' + x.linhas.length + ' linhas)') + '</p>' + lista +
-      (x.lotes_antigos.length ? '<p class="mudo ajuda">' + x.lotes_antigos.length + (x.lotes_antigos.length === 1 ? ' lote mais antigo' : ' lotes mais antigos') + ' para esta pasta fora da conta (vale o mais recente): ' + x.lotes_antigos.map(function (l) { return e(l.motivo) + ' em ' + U.dataBr(l.proposto_em); }).join('; ') + '.</p>' : '') +
+      (x.linhas.length > 1 ? '<p class="mudo legenda-rot">' + x.linhas.length + ' propostas neste grupo</p>' : '') + lista +
+      x.lotes_antigos.map(function (l) {
+        var n = (String(l.motivo).match(/^\s*(\d+)\s+e-?mails?/i) || [])[1];
+        return '<p class="mudo ajuda">Lote anterior de ' + U.dataBr(String(l.proposto_em).slice(0, 10)) + (n ? ' (' + n + (n === '1' ? ' e-mail' : ' e-mails') + ')' : '') + ' foi substituído por este.</p>';
+      }).join('') +
       V3.botoes('emails', x, { aprovar: 'Aprovar o grupo', recusar: 'Recusar' }) +
       '</article>';
   }
