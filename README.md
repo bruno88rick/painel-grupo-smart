@@ -138,7 +138,7 @@ Chave `SUPORTE_INTEGRADO` desligada (botões desabilitados). As capturas de diá
 
 ### v3.0.0-investimentos: Investimentos
 
-O `Aportes.csv` real não tem aporte pendente hoje; as capturas e os testes do servidor usam uma linha fictícia (`2026-11-15, Reserva de emergência, 300.00, planejado`) só no ambiente de teste.
+O `Aportes.csv` real não tem aporte pendente hoje; as capturas e os testes do servidor usam uma linha fictícia (`2026-11-15, Reserva de emergência, 250.00, planejado`) só no ambiente de teste.
 
 | Celular (390 px) | Desktop |
 |---|---|
@@ -266,7 +266,7 @@ python3 dev/shots_v3.py suporte base        # capturas do módulo (servidor na 8
 python3 dev/shots_v3.py suporte integrado   # diálogo e depois de decidir (build com --integrado-v3)
 python3 dev/shots_v3.py emails integrado recusar "texto"   # decisão e texto do diálogo
 python3 dev/shots_v3.py financas integrado paguei "texto" 2026-11-12 210.54   # e data e valor
-python3 dev/shots_v3.py investimentos integrado fiz_aporte "texto" 2026-11-12 300.00
+python3 dev/shots_v3.py investimentos integrado fiz_aporte "texto" 2026-11-12 250.00
 python3 -m http.server 8765 -d dev/out
 ```
 

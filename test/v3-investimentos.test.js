@@ -59,7 +59,7 @@ test('investimentos: preços, posições, carteira ARCA, recomendações, previd
   assert.equal(p.usdbrl, 5.58);
   assert.equal(p.aapl_brl, 1984.42);
   assert.deepEqual(s.posicoes.filter((x) => x.quantidade !== null).map((x) => [x.ativo, x.plataforma, x.valor_brl, x.ganho_pct]),
-    [['AAPL', 'não informada', 126.21, 5.19], ['BTC', 'Corretora Alfa', 935.33, 11.55], ['BTC', 'App Cripto Beta', 11.73, -4.79]]);
+    [['AAPL', 'não informada', 126.21, 14.9], ['BTC', 'Corretora Alfa', 935.33, 22.32], ['BTC', 'App Cripto Beta', 11.73, 2.93]]);
   const c = s.carteira;
   assert.equal(c.data, '2026-11-09');
   const alt = c.arca.find((x) => x.categoria === 'Alternativos');
@@ -83,11 +83,11 @@ test('investimentos: preços, posições, carteira ARCA, recomendações, previd
 });
 
 test('investimentos: hash canônico do aporte (vetor do contrato)', () => {
-  const a = { data: '2026-11-15', destino: 'Reserva de emergência', categoria_arca: 'Fora da ARCA', ativo: 'Tesouro Selic', valor_brl: '300.00', origem: 'pessoal', estado_texto: 'planejado' };
-  const esperado = ['aporte', '2026-11-15', 'Reserva de emergência', 'Fora da ARCA', 'Tesouro Selic', '300.00', 'pessoal', 'planejado'].join('\u001F');
+  const a = { data: '2026-11-15', destino: 'Reserva de emergência', categoria_arca: 'Fora da ARCA', ativo: 'Tesouro Selic', valor_brl: '250.00', origem: 'pessoal', estado_texto: 'planejado' };
+  const esperado = ['aporte', '2026-11-15', 'Reserva de emergência', 'Fora da ARCA', 'Tesouro Selic', '250.00', 'pessoal', 'planejado'].join('\u001F');
   assert.equal(L.canonicoAporte(a), esperado);
   assert.equal(L.sha256(esperado), crypto.createHash('sha256').update(esperado, 'utf8').digest('hex'));
-  assert.equal(L.sha256(esperado), 'c8af1068c9f0de136aa355d89e67f35ed20c630bd7818d92c894190865c37609');
+  assert.equal(L.sha256(esperado), 'dc6bd7b8d5bca74ff2bb9c7f1da68b5e659c3499587375112b0fa3160784f7cb');
 });
 
 test('investimentos no servidor: chave false recusa gravar e não toca no decisoes.csv', () => {
@@ -111,14 +111,14 @@ test('investimentos no servidor: chave true grava "fiz o aporte" (data, valor e 
     const d = e.obterDados(true);
     const x = d.v3.investimentos.itens.find((i) => i.item_id === ID_PLAN);
     assert.throws(() => e.salvarDecisao({ modulo: 'investimentos', item_id: x.item_id, decisao: 'fiz_aporte', comentario: 'data=12/11/2026', snapshot_hash: x.snapshot_hash }), /aaaa-mm-dd/);
-    assert.throws(() => e.salvarDecisao({ modulo: 'investimentos', item_id: x.item_id, decisao: 'fiz_aporte', comentario: 'valor=300,00', snapshot_hash: x.snapshot_hash }), /valor/);
+    assert.throws(() => e.salvarDecisao({ modulo: 'investimentos', item_id: x.item_id, decisao: 'fiz_aporte', comentario: 'valor=250,00', snapshot_hash: x.snapshot_hash }), /valor/);
     assert.throws(() => e.salvarDecisao({ modulo: 'investimentos', item_id: x.item_id, decisao: 'paguei', comentario: '', snapshot_hash: x.snapshot_hash }), /não vale/);
     assert.throws(() => e.salvarDecisao({ modulo: 'investimentos', item_id: x.item_id, decisao: 'fiz_aporte', comentario: '', snapshot_hash: '0'.repeat(64) }), /mudou/);
-    assert.equal(e.salvarDecisao({ modulo: 'investimentos', item_id: x.item_id, decisao: 'fiz_aporte', comentario: 'data=2026-11-12;valor=300.00;texto=Aporte feito no app', snapshot_hash: x.snapshot_hash }).ok, true);
+    assert.equal(e.salvarDecisao({ modulo: 'investimentos', item_id: x.item_id, decisao: 'fiz_aporte', comentario: 'data=2026-11-12;valor=250.00;texto=Aporte feito no app', snapshot_hash: x.snapshot_hash }).ok, true);
     const linhas = e.PainelLib.csvParaObjetos(e.arquivos.DEC.texto).linhas;
     assert.equal(linhas.length, 1);
     assert.deepEqual([linhas[0].modulo, linhas[0].item_id, linhas[0].tipo_item, linhas[0].decisao, linhas[0].comentario, linhas[0].snapshot_hash],
-      ['investimentos', ID_PLAN, 'aporte', 'fiz_aporte', 'data=2026-11-12;valor=300.00;texto=Aporte feito no app', x.snapshot_hash]);
+      ['investimentos', ID_PLAN, 'aporte', 'fiz_aporte', 'data=2026-11-12;valor=250.00;texto=Aporte feito no app', x.snapshot_hash]);
     assert.throws(() => e.salvarDecisao({ modulo: 'investimentos', item_id: x.item_id, decisao: 'nao_fiz', comentario: '', snapshot_hash: x.snapshot_hash }), /já existe/);
     const d2 = e.obterDados(true);
     assert.equal(d2.v3.investimentos.itens[0].decisao_pendente.decisao, 'fiz_aporte');

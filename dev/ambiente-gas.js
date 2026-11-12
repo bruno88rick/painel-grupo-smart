@@ -1,7 +1,7 @@
 // Ambiente simulado do Apps Script (DriveApp, CacheService etc.) para os testes do servidor.
 const fs = require('fs'), path = require('path');
 const src = (n) => fs.readFileSync(path.join(__dirname, '..', 'src', n), 'utf8');
-const APORTE_PLANEJADO = '2026-11-15,Reserva de emergência,Fora da ARCA,Tesouro Selic,300.00,pessoal,planejado (primeiro aporte da reserva; aguardando o usuário)\r\n';
+const APORTE_PLANEJADO = '2026-11-15,Reserva de emergência,Fora da ARCA,Tesouro Selic,250.00,pessoal,planejado (primeiro aporte da reserva; aguardando o usuário)\r\n';
 const fx = (n) => fs.readFileSync(path.join(__dirname, '..', 'test', 'fixtures', n), 'utf8');
 
 // Como no Drive: conteúdo mudou, data de alteração muda.

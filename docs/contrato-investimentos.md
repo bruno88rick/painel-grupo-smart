@@ -12,7 +12,7 @@ Enquanto `INVESTIMENTOS_INTEGRADO` estiver `false` em `src/Lib.gs` (`CHAVES`), o
 | `Posicoes.csv` | `ativo,plataforma,categoria_arca,quantidade,preco_medio,moeda,custo_total,data,notas,estado`. Linhas com `quantidade` viram posições: valor em reais ao último preço (BTC em USD usa `BTCUSD` e o dólar do `USDBRL`; AAPL usa o dólar) e ganho % contra o `preco_medio` na moeda da própria posição. Linhas sem quantidade (previdência, reserva) dão a nota do cartão da reserva |
 | `Metas_ARCA.csv` | `data,categoria,valor_brl,peso_pct,meta_pct`. Vale a `data` mais recente. Meta numérica = categoria da ARCA (barra de peso com traço da meta, diferença em pontos e quanto falta em reais para a meta). Meta em texto (ex. `provisório 01/11`) = "Fora da ARCA", mostrada como texto. A tela também mostra o valor de cada categoria ao último preço das posições |
 | `Recomendacoes.csv` | `data,ativo,preco,sinal,score,motivo,resultado_30d`. A última por ativo em cartão; histórico recolhido (12 mais recentes). `resultado_30d` vazio mostra "em aberto até `data + 30 dias`". "desde então" = último preço contra o `preco` da recomendação (BTC em USD) |
-| `Aportes.csv` | `data,destino,categoria_arca,ativo,valor_brl,origem,estado`. `estado` é texto livre, classificado pelo começo: `confirmad...` = confirmado; `nao fiz`/`não fiz`/`nao feito`/`cancelad...`/`desistiu` = não feito; o resto (ex. `planejado`, vazio) = pendente, que pede decisão. Lista do mês corrente e soma dos confirmados em reais. Aporte sem `valor_brl` (ex. `pessoal (US$ 21,50)`) mostra a origem |
+| `Aportes.csv` | `data,destino,categoria_arca,ativo,valor_brl,origem,estado`. `estado` é texto livre, classificado pelo começo: `confirmad...` = confirmado; `nao fiz`/`não fiz`/`nao feito`/`cancelad...`/`desistiu` = não feito; o resto (ex. `planejado`, vazio) = pendente, que pede decisão. Lista do mês corrente e soma dos confirmados em reais. Aporte sem `valor_brl` (ex. `pessoal (US$ 19,69)`) mostra a origem |
 | `Previdencia.csv` | `data_ref,saldo_oficial,aporte_pessoal,aporte_empresa,rendimento,rentabilidade_pct`. Última linha e a anterior (diferença). `data_ref` como `2026-11-01 (provisório; ...)` vira referência `2026-11-01` + observação e selo **Provisório** |
 | `Reserva.csv` | `data,saldo,aporte,produto`. Última linha pela maior `data` (empate: a de baixo) |
 | `Alerts.csv` | os 10 mais recentes, todos os tiers. Vazio: "Nenhum alerta." |
@@ -31,7 +31,7 @@ Texto canônico igual ao dos outros módulos: cada campo (vazio se ausente) com 
 aporte␟data␟destino␟categoria_arca␟ativo␟valor_brl␟origem␟estado
 ```
 
-Vetor: `2026-11-15`, `Reserva de emergência`, `Fora da ARCA`, `Tesouro Selic`, `300.00`, `pessoal`, `planejado` → `c8af1068c9f0de136aa355d89e67f35ed20c630bd7818d92c894190865c37609`.
+Vetor: `2026-11-15`, `Reserva de emergência`, `Fora da ARCA`, `Tesouro Selic`, `250.00`, `pessoal`, `planejado` → `dc6bd7b8d5bca74ff2bb9c7f1da68b5e659c3499587375112b0fa3160784f7cb`.
 
 ## Decisão (linha em decisoes.csv)
 
